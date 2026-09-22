@@ -1245,7 +1245,6 @@ async function loadCloudData() {
 
 async function sendVerificationCodeEmail(email, code) {
   try {
-    // Ako si na samom Vercelu koristi relativnu putanju, u protivnom (localhost, InfinityFree itd.) koristi puni Vercel URL
     const isVercelDomain = window.location.hostname.includes('vercel.app');
     
     const apiUrl = isVercelDomain 
@@ -1264,11 +1263,18 @@ async function sendVerificationCodeEmail(email, code) {
       })
     });
 
-    // Provjera da li odgovor nije OK (404, 500 itd.) prije nego što pokušamo parsirati JSON
+    // Provjera da li je odgovor uopšte JSON
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Server Vratio Grešku (${response.status}):`, errorText);
-      throw new Error(`Server greška (${response.status})`);
+      const errorMsg = isJson ? (await response.json()).error : await response.text();
+      console.error(`Server Vratio Grešku (${response.status}):`, errorMsg);
+      throw new Error(`Server greška (${response.status}): Proverite Vercel/Brevo konfiguraciju.`);
+    }
+
+    if (!isJson) {
+      throw new Error("Server nije vratio JSON odgovor, već HTML stranicu.");
     }
 
     const result = await response.json();
