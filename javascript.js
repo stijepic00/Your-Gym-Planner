@@ -1245,11 +1245,12 @@ async function loadCloudData() {
 
 async function sendVerificationCodeEmail(email, code) {
   try {
-    // Automatski detektuje da li radiš lokalno na Live Serveru (port 5500) ili na Vercel-u
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const apiUrl = isLocalhost 
-      ? 'https://api-snowy-chi-95.vercel.app/api/send-email' 
-      : '/api/send-email';
+    // Ako si na samom Vercelu koristi relativnu putanju, u protivnom (localhost, InfinityFree itd.) koristi puni Vercel URL
+    const isVercelDomain = window.location.hostname.includes('vercel.app');
+    
+    const apiUrl = isVercelDomain 
+      ? '/api/send-email' 
+      : 'https://your-gym-planner.vercel.app/api/send-email';
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -1263,11 +1264,11 @@ async function sendVerificationCodeEmail(email, code) {
       })
     });
 
-    // Ako server vrati bilo koji status osim 200-299 (npr. 404, 405 ili 500)
+    // Provjera da li odgovor nije OK (404, 500 itd.) prije nego što pokušamo parsirati JSON
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Server Vratio Grešku (${response.status}):`, errorText);
-      throw new Error(`Server greška (${response.status}): ${errorText || 'Prazan odgovor od servera'}`);
+      throw new Error(`Server greška (${response.status})`);
     }
 
     const result = await response.json();
@@ -1284,7 +1285,6 @@ async function sendVerificationCodeEmail(email, code) {
     throw error;
   }
 }
-
 // Otvaranje modala za unos koda
 window.openVerificationModal = function() {
   let modal = document.getElementById('verificationModal');
