@@ -78,8 +78,16 @@ export default async function handler(req, res) {
 
     if (!brevoResponse.ok) {
       await verificationRef.delete();
-      console.error('Brevo odbio slanje:', brevoResponse.status, await brevoResponse.text());
-      return res.status(502).json({ error: 'Slanje verifikacionog e-maila nije uspjelo.' });
+      const rawBrevoError = await brevoResponse.text();
+      let brevoMessage = 'Brevo nije naveo razlog.';
+      try {
+        const brevoError = JSON.parse(rawBrevoError);
+        brevoMessage = String(brevoError.message || brevoError.code || brevoMessage);
+      } catch {
+        if (rawBrevoError) brevoMessage = rawBrevoError.slice(0, 300);
+      }
+      console.error('Brevo odbio slanje:', brevoResponse.status, brevoMessage);
+      return res.status(502).json({ error: `Brevo je odbio slanje (${brevoResponse.status}): ${brevoMessage}` });
     }
 
     return res.status(200).json({ success: true });
