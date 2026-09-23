@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verifiedUser() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function ownsUserId(data) {
+      return verifiedUser() && data.userId == request.auth.uid;
+    }
+
+    function validUserProfile(data) {
+      return data.keys().hasOnly(['fullName', 'email', 'createdAt'])
+        && data.keys().hasAll(['fullName', 'email', 'createdAt'])
+        && data.fullName is string
+        && data.fullName.size() > 0
+        && data.fullName.size() <= 100
+        && data.email is string
+        && data.email.size() <= 254
+        && data.createdAt is string
+        && data.createdAt.size() <= 40;
+    }
+
+    function validRoutine(data) {
+      return data.keys().hasOnly(['userId', 'emoji', 'name', 'exercises', 'createdAt'])
+        && data.keys().hasAll(['userId', 'name', 'exercises', 'createdAt'])
+        && data.userId is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.exercises is list
+        && data.exercises.size() <= 100
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && (!('emoji' in data) || (data.emoji is string && data.emoji.size() <= 16));
+    }
+
+    function validWorkout(data) {
+      return data.keys().hasOnly(['userId', 'userEmail', 'name', 'date', 'exercises'])
+        && data.keys().hasAll(['userId', 'name', 'date', 'exercises'])
+        && data.userId is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.date is string
+        && data.date.size() <= 40
+        && data.exercises is list
+        && data.exercises.size() > 0
+        && data.exercises.size() <= 50
+        && (!('userEmail' in data)
+          || data.userEmail == null
+          || (data.userEmail is string && data.userEmail.size() <= 254));
+    }
+
+    match /users/{userId} {
+      allow read: if verifiedUser() && request.auth.uid == userId;
+      allow create: if verifiedUser()
+        && request.auth.uid == userId
+        && validUserProfile(request.resource.data);
+      allow update: if verifiedUser()
+        && request.auth.uid == userId
+        && validUserProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if verifiedUser() && request.auth.uid == userId;
+    }
+
+    match /routines/{routineId} {
+      allow read, delete: if ownsUserId(resource.data);
+      allow create: if ownsUserId(request.resource.data)
+        && validRoutine(request.resource.data);
+      allow update: if ownsUserId(resource.data)
+        && ownsUserId(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && validRoutine(request.resource.data);
+    }
+
+    match /workouts/{workoutId} {
+      allow read, delete: if ownsUserId(resource.data);
+      allow create: if ownsUserId(request.resource.data)
+        && validWorkout(request.resource.data);
+      allow update: if ownsUserId(resource.data)
+        && ownsUserId(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && validWorkout(request.resource.data);
+    }
+
+    // Sve kolekcije koje nisu eksplicitno dozvoljene ostaju zatvorene.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

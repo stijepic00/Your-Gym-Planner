@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Gym Tracker Pro</title>
+  <meta name="firebase-app-check-site-key" content="">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://www.gstatic.com data:; connect-src 'self' https://your-gym-planner.vercel.app https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com https://accounts.google.com; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'">
   <meta name="theme-color" content="#050811">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,8 +23,8 @@
     <h1>GYM TRACKER</h1>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
       <span id="user-email-display" class="user-pill" style="display:none;"></span>
-      <button id="login-modal-btn" style="background: var(--primary); border: none; color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 800; cursor: pointer;" onclick="switchTab('login')">Prijava / Registracija 🔑</button>
-      <button id="logout-btn" style="display:none; background:rgba(239, 68, 68, 0.15); border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:5px 8px; font-size:0.75rem; font-weight:800; cursor:pointer;" onclick="handleLogout()">Odjava 🔒</button>
+      <button id="login-modal-btn" style="background: var(--primary); border: none; color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 800; cursor: pointer;" data-action="switch-tab" data-tab="login">Prijava / Registracija 🔑</button>
+      <button id="logout-btn" style="display:none; background:rgba(239, 68, 68, 0.15); border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:5px 8px; font-size:0.75rem; font-weight:800; cursor:pointer;" data-action="logout">Odjava 🔒</button>
     </div>
 </header>
 
@@ -31,15 +33,15 @@
     <section id="view-login" class="view active" style="align-items: center; justify-content: center; min-height: 80vh;">
       <div class="card" style="width: 100%; max-width: 400px; padding: 24px;">
         <div style="display: flex; justify-content: space-between; border-bottom: 2px solid var(--bg-card-border); margin-bottom: 20px; padding-bottom: 8px;">
-          <button id="tab-btn-login" onclick="toggleAuthMode('login')" style="background: none; border: none; font-weight: 800; font-size: 1.1rem; color: var(--primary); cursor: pointer; padding: 4px 8px;">
+          <button id="tab-btn-login" data-action="auth-mode" data-mode="login" style="background: none; border: none; font-weight: 800; font-size: 1.1rem; color: var(--primary); cursor: pointer; padding: 4px 8px;">
             Prijava 🔑
           </button>
-          <button id="tab-btn-register" onclick="toggleAuthMode('register')" style="background: none; border: none; font-weight: 800; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; padding: 4px 8px;">
+          <button id="tab-btn-register" data-action="auth-mode" data-mode="register" style="background: none; border: none; font-weight: 800; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; padding: 4px 8px;">
             Registracija 📝
           </button>
         </div>
 
-        <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+        <form id="auth-form">
           <div id="group-name" style="display: none; margin-bottom: 16px;">
             <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.9rem;">Ime i Prezime / Nadimak:</label>
             <input type="text" id="auth-name" class="input" placeholder="npr. Marko Marković">
@@ -52,7 +54,7 @@
 
           <div style="margin-bottom: 20px;">
             <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.9rem;">Lozinka:</label>
-            <input type="password" id="auth-password" class="input" placeholder="Minimalno 6 karaktera" required minlength="6">
+            <input type="password" id="auth-password" class="input" placeholder="Minimalno 8 karaktera" required minlength="8">
           </div>
 
           <div id="auth-error" style="color: #ff4d4d; font-size: 0.85rem; margin-bottom: 12px; display: none;"></div>
@@ -64,7 +66,7 @@
 
         <div style="margin-top: 20px; text-align: center;">
           <p id="social-auth-text" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px;">ili se prijavi jednim klikom:</p>
-          <button onclick="handleGoogleLogin()" class="btn" style="width: 100%; background: #ffffff; color: #000; border: 1px solid #ccc; font-weight: 700;">
+          <button type="button" data-action="google-login" class="btn" style="width: 100%; background: #ffffff; color: #000; border: 1px solid #ccc; font-weight: 700;">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width: 18px; vertical-align: middle; margin-right: 8px;">
             Nastavi sa Google-om
           </button>
@@ -78,14 +80,14 @@
         <span class="badge" style="color: var(--neon-gold);">⚠️ ZAPOČET TRENING PRONAĐEN</span>
         <h3 style="margin: 8px 0; font-size: 1.1rem; color: #fff;">Imate nesačuvan trening u toku!</h3>
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 14px;">Podaci su bezbjedno sačuvani u memoriji telefona.</p>
-        <button class="btn" style="background: linear-gradient(135deg, var(--neon-gold), #d97706); box-shadow: none;" onclick="vibrate(); resumeDraftWorkout()">Nastavi Trening →</button>
+        <button class="btn" style="background: linear-gradient(135deg, var(--neon-gold), #d97706); box-shadow: none;" data-action="resume-draft">Nastavi Trening →</button>
       </div>
 
       <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.05)); border-color: rgba(16, 185, 129, 0.25);">
         <span class="badge" style="color: var(--primary);">SYSTEM ONLINE ⚡</span>
         <h2 style="margin: 10px 0 6px 0; font-size: 1.5rem; font-weight: 900;">Spreman za trening?</h2>
         <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 18px;">Ostvari novu ličnu pobjedu i obori PR danas!</p>
-        <button class="btn" onclick="vibrate(); switchTab('workouts')">Započni Trening →</button>
+        <button class="btn" data-action="switch-tab" data-tab="workouts">Započni Trening →</button>
       </div>
 
       <h3 style="margin: 24px 0 12px 0; font-size: 1.1rem; font-weight: 800;">Posljednji Sačuvani Trening</h3>
@@ -97,7 +99,7 @@
     <!-- WORKOUT ROUTINES -->
     <section id="view-workouts" class="view">
       <h2 style="margin-bottom: 16px; font-size: 1.3rem; font-weight: 800;">Izaberi Rutinu</h2>
-      <button class="btn btn-secondary" style="margin-bottom: 12px; border-color: var(--accent-purple);" onclick="document.getElementById('importNotesModal').style.display='flex'">
+      <button class="btn btn-secondary" style="margin-bottom: 12px; border-color: var(--accent-purple);" data-action="open-import-modal">
         📋 Uvezi Trening iz Notes-a / AI
       </button>
       <div id="workout-list"></div>
@@ -107,7 +109,7 @@
     <section id="view-active-workout" class="view">
       <div class="flex-between" style="margin-bottom: 10px;">
         <h2 id="active-workout-title" style="font-size: 1.4rem; font-weight: 900;">Trening</h2>
-        <button class="btn btn-danger" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" onclick="vibrate(); cancelWorkout()">Prekini</button>
+        <button class="btn btn-danger" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" data-action="cancel-workout">Prekini</button>
       </div>
 
       <div class="progress-bar-bg">
@@ -116,15 +118,15 @@
 
       <div id="active-exercises-container"></div>
 
-      <button class="btn btn-purple mt-12" onclick="vibrate(); toggleAddCustomModal()">+ DODAJ DODATNU VJEŽBU / KARDIO</button>
+      <button class="btn btn-purple mt-12" data-action="toggle-custom-modal">+ DODAJ DODATNU VJEŽBU / KARDIO</button>
 
       <div id="custom-ex-modal" class="card mt-12" style="display: none; border-color: var(--accent-purple);">
         <h3 style="font-size: 1.1rem; margin-bottom: 12px; color: var(--accent-purple);">Dodaj Vježbu u Trening</h3>
         
         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <button type="button" class="btn btn-secondary" id="btn-type-existing" style="font-size: 0.8rem; padding: 8px;" onclick="vibrate(); setCustomType('existing')">📚 Iz Baze</button>
-          <button type="button" class="btn btn-secondary" id="btn-type-cardio" style="font-size: 0.8rem; padding: 8px;" onclick="vibrate(); setCustomType('cardio')">🏃‍♂️ Kardio</button>
-          <button type="button" class="btn btn-secondary" id="btn-type-strength" style="font-size: 0.8rem; padding: 8px;" onclick="vibrate(); setCustomType('strength')">🏋️ Proizvoljno</button>
+          <button type="button" class="btn btn-secondary" id="btn-type-existing" style="font-size: 0.8rem; padding: 8px;" data-action="custom-type" data-type="existing">📚 Iz Baze</button>
+          <button type="button" class="btn btn-secondary" id="btn-type-cardio" style="font-size: 0.8rem; padding: 8px;" data-action="custom-type" data-type="cardio">🏃‍♂️ Kardio</button>
+          <button type="button" class="btn btn-secondary" id="btn-type-strength" style="font-size: 0.8rem; padding: 8px;" data-action="custom-type" data-type="strength">🏋️ Proizvoljno</button>
         </div>
 
         <div id="custom-existing-fields">
@@ -145,10 +147,10 @@
 
         <input type="text" id="custom-notes" class="custom-input" placeholder="Napomena (npr. Nagib 7, Otpor 5...)">
 
-        <button class="btn" style="background: var(--accent-purple); box-shadow: none;" onclick="vibrate(); appendCustomExercise()">Ubaci u Trening</button>
+        <button class="btn" style="background: var(--accent-purple); box-shadow: none;" data-action="append-custom-exercise">Ubaci u Trening</button>
       </div>
 
-      <button class="btn mt-12" style="padding: 16px; font-size: 1.05rem;" onclick="vibrate(); finishWorkout()">✓ Sačuvaj na Cloud</button>
+      <button class="btn mt-12" style="padding: 16px; font-size: 1.05rem;" data-action="finish-workout">✓ Sačuvaj na Cloud</button>
     </section>
 
     <!-- HISTORY -->
@@ -162,7 +164,7 @@
       <h2 style="margin-bottom: 16px; font-size: 1.3rem; font-weight: 800;">Grafik Napretka</h2>
       <div class="card">
         <label style="font-size: 0.85rem; color: var(--text-muted); font-weight: 700; margin-bottom: 8px; display: block;">Izaberi Vježbu:</label>
-        <select id="analytics-ex-select" class="custom-input" onchange="renderAnalyticsChart()"></select>
+        <select id="analytics-ex-select" class="custom-input"></select>
         <div style="position: relative; height: 220px; width: 100%; margin-top: 10px;">
           <canvas id="progressChart"></canvas>
         </div>
@@ -171,16 +173,16 @@
 </main>
 
 <nav id="bottom-nav" style="display: none;">
-    <button class="nav-item active" onclick="vibrate(); switchTab('dashboard')">
+    <button class="nav-item active" data-action="switch-tab" data-tab="dashboard">
       <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Početna
     </button>
-    <button class="nav-item" onclick="vibrate(); switchTab('workouts')">
+    <button class="nav-item" data-action="switch-tab" data-tab="workouts">
       <svg viewBox="0 0 24 24"><path d="M20.57 14.86L22 13.43 20.57 12l-1.43 1.43 1.43 1.43M3.43 9.14L2 10.57 3.43 12l1.43-1.43L3.43 9.14M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg> Planovi
     </button>
-    <button class="nav-item" onclick="vibrate(); switchTab('analytics')">
+    <button class="nav-item" data-action="switch-tab" data-tab="analytics">
       <svg viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg> Grafici
     </button>
-    <button class="nav-item" onclick="vibrate(); switchTab('history')">
+    <button class="nav-item" data-action="switch-tab" data-tab="history">
       <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg> Istorija
     </button>
 </nav>
@@ -196,14 +198,14 @@
       1. Naziv dana mora početi sa npr. <code>Gornji A</code>, <code>Donji B</code>, <code>Dan 1: Grudi</code> ili <code>Ponedjeljak</code>.<br>
       2. Ispod naziva dana pišu se vježbe, jedna po jedna u redu.<br>
       3. Format za vježbu mora sadržavati serije i ponavljanja (npr. <code>Potisak sa klupe 4x10</code> ili <code>Čučanj 3x12</code>).
-      <button class="btn btn-secondary" style="margin-top: 8px; padding: 6px 10px; font-size: 0.75rem;" onclick="copyAIRules()">📋 Kopiraj Uputstvo za AI</button>
+      <button class="btn btn-secondary" style="margin-top: 8px; padding: 6px 10px; font-size: 0.75rem;" data-action="copy-ai-rules">📋 Kopiraj Uputstvo za AI</button>
     </div>
     
     <textarea id="importNotesArea" class="custom-input" rows="8" placeholder="Gornji A&#10;Potisak sa klupe 4x10&#10;Veslanje u pretklonu 3x12&#10;&#10;Donji A&#10;Čučanj 4x8&#10;Mrtvo dizanje 3x10"></textarea>
     
     <div style="display: flex; gap: 10px; margin-top: 10px;">
-      <button id="btnConfirmImport" class="btn" onclick="handleImportFromNotes()">Sačuvaj Treninge</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('importNotesModal').style.display='none'">Otkaži</button>
+      <button id="btnConfirmImport" class="btn" data-action="import-notes">Sačuvaj Treninge</button>
+      <button class="btn btn-secondary" data-action="close-modal" data-modal-id="importNotesModal">Otkaži</button>
     </div>
   </div>
 </div>
@@ -217,17 +219,17 @@
     <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Emoji kartice:</label>
     <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
       <input type="text" id="newRoutineEmojiInput" class="custom-input" style="margin-bottom: 0; width: 80px; text-align: center; font-size: 1.3rem;" placeholder="🏋️">
-      <button type="button" class="btn btn-danger" style="width: 44px; height: 44px; padding: 0; font-weight: bold; font-size: 1.1rem; box-shadow: none;" onclick="clearRoutineEmoji()" title="Obriši emoji">✕</button>
+      <button type="button" class="btn btn-danger" style="width: 44px; height: 44px; padding: 0; font-weight: bold; font-size: 1.1rem; box-shadow: none;" data-action="clear-routine-emoji" title="Obriši emoji">✕</button>
     </div>
 
     <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;">
-      <button type="button" class="emoji-btn-quick" onclick="setRoutineEmoji('🏋️')">🏋️</button>
-      <button type="button" class="emoji-btn-quick" onclick="setRoutineEmoji('💪')">💪</button>
-      <button type="button" class="emoji-btn-quick" onclick="setRoutineEmoji('🔥')">🔥</button>
-      <button type="button" class="emoji-btn-quick" onclick="setRoutineEmoji('🏃')">🏃</button>
-      <button type="button" class="emoji-btn-quick" onclick="setRoutineEmoji('🦵')">🦵</button>
-      <button type="button" class="emoji-btn-quick" onclick="setRoutineEmoji('🥊')">🥊</button>
-      <button type="button" class="emoji-btn-quick" onclick="setRoutineEmoji('🦾')">🦾</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🏋️">🏋️</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="💪">💪</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🔥">🔥</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🏃">🏃</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🦵">🦵</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🥊">🥊</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🦾">🦾</button>
     </div>
 
     <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Naziv kartice:</label>
@@ -237,12 +239,12 @@
     <textarea id="newRoutineExercisesInput" class="custom-input" rows="5" placeholder="Bench Press 4x10&#10;Kosi Potisak 3x12&#10;Propadanja 3x10"></textarea>
 
     <div style="display: flex; gap: 10px; margin-top: 12px;">
-      <button class="btn" onclick="submitNewRoutine()">Kreiraj Karticu</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('createRoutineModal').style.display='none'">Otkaži</button>
+      <button class="btn" data-action="submit-new-routine">Kreiraj Karticu</button>
+      <button class="btn btn-secondary" data-action="close-modal" data-modal-id="createRoutineModal">Otkaži</button>
     </div>
   </div>
 </div>
 
-<script type="module" src="javascript.js"></script>
+<script type="module" src="javascript.js?v=20260923-4"></script>
 </body>
 </html>

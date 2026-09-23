@@ -2,11 +2,10 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
-    createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
+    signInWithCustomToken,
     signInWithPopup, 
     GoogleAuthProvider,
-    updateProfile,
     onAuthStateChanged,
     signOut 
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -25,6 +24,7 @@
     limit,
     onSnapshot 
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCPZxiv-5ob5aYhcVvyuQ_uFu8Q2i6rcSk",
@@ -37,13 +37,31 @@
   };
 
   const app = initializeApp(firebaseConfig);
+  const appCheckSiteKey = document.querySelector('meta[name="firebase-app-check-site-key"]')?.content.trim();
+  let appCheck = null;
+  if (appCheckSiteKey) {
+    appCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(appCheckSiteKey),
+      isTokenAutoRefreshEnabled: true
+    });
+  }
   const auth = getAuth(app);
   const db = getFirestore(app);
+
+  // Render user supplied text as text rather than executable HTML.
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[character]);
+  }
 
 
   let pendingVerification = {
   email: '',
-  code: '',
   name: '',
   password: ''
 };
@@ -122,19 +140,18 @@ window.handleAuthSubmit = async function(e) {
   try {
     if (currentAuthMode === 'register') {
       // 1. Generiši nasumični 6-cifreni kod
-      const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+      if (password.length < 8) throw new Error('Lozinka mora imati najmanje 8 karaktera.');
       
       // 2. Sačuvaj podatke u privremeni objekat
       pendingVerification = {
         email,
         password,
         name,
-        code: generatedCode,
         createdAt: Date.now()
       };
 
       // 3. Pošalji kod preko Brevo API-ja
-      await sendVerificationCodeEmail(email, generatedCode);
+      await sendVerificationCodeEmail(email);
 
       // 4. Prikaži modal / polje za unos verifikacionog koda
       openVerificationModal();
@@ -154,7 +171,7 @@ window.handleAuthSubmit = async function(e) {
           errorDiv.innerText = 'Ovaj e-mail je već registrovan. Prijavite se.';
           break;
         case 'auth/weak-password':
-          errorDiv.innerText = 'Lozinka mora imati najmanje 6 karaktera.';
+          errorDiv.innerText = 'Lozinka mora imati najmanje 8 karaktera.';
           break;
         default:
           errorDiv.innerText = 'Greška pri registraciji: ' + error.message;
@@ -260,7 +277,7 @@ window.handleAuthSubmit = async function(e) {
     if (!container) return;
 
     let html = `
-      <button class="btn btn-purple" style="margin-bottom: 16px;" onclick="openCreateRoutineModal()">
+      <button class="btn btn-purple" style="margin-bottom: 16px;" data-action="open-create-routine">
         ➕ Napravi Novi Dan / Karticu
       </button>
     `;
@@ -280,14 +297,14 @@ window.handleAuthSubmit = async function(e) {
         return `
           <div class="card flex-between">
             <div>
-              <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px;">${emoji} ${w.name}</h3>
+              <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px;">${escapeHtml(emoji)} ${escapeHtml(w.name)}</h3>
               <p style="color: var(--text-muted); font-size: 0.85rem;">
                 ${exCount > 0 ? exCount + ' vježbi' : 'Prazan trening - sam dodaj vježbe'}
               </p>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <button class="btn btn-start-card" onclick="vibrate(); startWorkout('${w.id}')">Započni →</button>
-              <button class="btn-remove-ex" style="padding: 10px 12px; font-size: 0.9rem;" onclick="vibrate(); deleteRoutine('${w.id}')">🗑️</button>
+              <button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(w.id)}">Započni →</button>
+              <button class="btn-remove-ex" style="padding: 10px 12px; font-size: 0.9rem;" data-action="delete-routine" data-routine-id="${escapeHtml(w.id)}">🗑️</button>
             </div>
           </div>
         `;
@@ -482,14 +499,14 @@ window.handleAuthSubmit = async function(e) {
 
         card.innerHTML = `
           <div class="flex-between">
-            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${ex.name} 🏃‍♂️</h3>
-            <button class="btn-remove-ex" onclick="vibrate(); removeExerciseBlock(this)">Ukloni 🗑️</button>
+            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(ex.name)} 🏃‍♂️</h3>
+            <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
           </div>
           <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
-            ${ex.minutes ? `⏱️ <strong>${ex.minutes} min</strong>` : ''} ${ex.calories ? ` · 🔥 <strong>${ex.calories} kcal</strong>` : ''}
+            ${ex.minutes ? `⏱️ <strong>${escapeHtml(ex.minutes)} min</strong>` : ''} ${ex.calories ? ` · 🔥 <strong>${escapeHtml(ex.calories)} kcal</strong>` : ''}
           </div>
-          ${ex.notes ? `<div style="font-size:0.8rem; color:var(--text-muted);">📝 ${ex.notes}</div>` : ''}
-          <input type="hidden" class="ex-note" value="${ex.notes || ''}">
+          ${ex.notes ? `<div style="font-size:0.8rem; color:var(--text-muted);">📝 ${escapeHtml(ex.notes)}</div>` : ''}
+          <input type="hidden" class="ex-note" value="${escapeHtml(ex.notes || '')}">
         `;
         container.appendChild(card);
       } else {
@@ -500,10 +517,10 @@ window.handleAuthSubmit = async function(e) {
 
         card.innerHTML = `
           <div class="flex-between">
-            <h3 style="font-size: 1.15rem; font-weight: 800;">${ex.name}</h3>
+            <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(ex.name)}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="pr-badge-slot"></span>
-              <button class="btn-remove-ex" onclick="vibrate(); removeExerciseBlock(this)">Ukloni 🗑️</button>
+              <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
             </div>
           </div>
           <div class="sets-container">
@@ -514,8 +531,8 @@ window.handleAuthSubmit = async function(e) {
               <span></span>
             </div>
           </div>
-          <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" onclick="vibrate(); addSetRowToBlock(this)">+ Dodaj Set</button>
-          <input type="text" class="note-input ex-note" value="${ex.notes || ''}" oninput="saveWorkoutDraft()" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
+          <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+          <input type="text" class="note-input ex-note" value="${escapeHtml(ex.notes || '')}" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
         `;
         container.appendChild(card);
 
@@ -525,9 +542,9 @@ window.handleAuthSubmit = async function(e) {
           row.className = 'set-row';
           row.innerHTML = `
             <span style="font-weight: 900; color: var(--primary);">${sIdx + 1}</span>
-            <input type="number" class="set-kg" placeholder="0" step="0.5" value="${s.weight}" oninput="handleKgInput(this);">
-            <input type="number" class="set-reps" placeholder="0" value="${s.reps}" oninput="updateProgress(); saveWorkoutDraft();">
-            <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" onclick="vibrate(); removeSetRow(this);">×</button>
+            <input type="number" class="set-kg" placeholder="0" step="0.5" value="${escapeHtml(s.weight)}">
+            <input type="number" class="set-reps" placeholder="0" value="${escapeHtml(s.reps)}">
+            <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" data-action="remove-set-row">×</button>
           `;
           setsContainer.appendChild(row);
         });
@@ -620,18 +637,18 @@ window.handleAuthSubmit = async function(e) {
       }
 
       return `
-        <div class="card exercise-block" data-name="${exName}" data-maxw="${maxW}">
+        <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-maxw="${escapeHtml(maxW)}">
           <div class="flex-between">
-            <h3 style="font-size: 1.15rem; font-weight: 800;">${exName}</h3>
+            <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(exName)}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="pr-badge-slot"></span>
-              <button class="btn-remove-ex" onclick="vibrate(); removeExerciseBlock(this)">Ukloni 🗑️</button>
+              <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
             </div>
           </div>
-          ${targetGoal ? `<span class="target-badge">${targetGoal}</span>` : ''}
+          ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
           <div class="prev-perf">
-            Prošli put: <strong>${prevLogStr}</strong>
-            ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${prevNote}</small>` : ''}
+            Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
+            ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
           </div>
           <div class="sets-container">
             <div class="set-row">
@@ -641,8 +658,8 @@ window.handleAuthSubmit = async function(e) {
               <span></span>
             </div>
           </div>
-          <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" onclick="vibrate(); addSetRowToBlock(this)">+ Dodaj Set</button>
-          <input type="text" class="note-input ex-note" oninput="saveWorkoutDraft()" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
+          <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+          <input type="text" class="note-input ex-note" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
         </div>
       `;
     }).join('');
@@ -666,9 +683,9 @@ window.handleAuthSubmit = async function(e) {
     row.className = 'set-row';
     row.innerHTML = `
       <span style="font-weight: 900; color: var(--primary);">${setNum}</span>
-      <input type="number" class="set-kg" placeholder="0" step="0.5" oninput="handleKgInput(this);">
-      <input type="number" class="set-reps" placeholder="0" oninput="updateProgress(); saveWorkoutDraft();">
-      <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" onclick="vibrate(); removeSetRow(this);">×</button>
+      <input type="number" class="set-kg" placeholder="0" step="0.5">
+      <input type="number" class="set-reps" placeholder="0">
+      <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" data-action="remove-set-row">×</button>
     `;
     container.appendChild(row);
     updateProgress();
@@ -699,7 +716,7 @@ window.handleAuthSubmit = async function(e) {
     cachedHistory.forEach(h => h.exercises?.forEach(e => { if (e.name) allExercisesSet.add(e.name); }));
 
     const select = document.getElementById('custom-existing-select');
-    select.innerHTML = Array.from(allExercisesSet).map(e => `<option value="${e}">${e}</option>`).join('');
+    select.innerHTML = Array.from(allExercisesSet).map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
 
     setCustomType('existing');
   };
@@ -766,14 +783,14 @@ window.handleAuthSubmit = async function(e) {
 
       card.innerHTML = `
         <div class="flex-between">
-          <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${name} 🏃‍♂️</h3>
-          <button class="btn-remove-ex" onclick="vibrate(); removeExerciseBlock(this)">Ukloni 🗑️</button>
+          <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(name)} 🏃‍♂️</h3>
+          <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
         </div>
         <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
-          ${min ? `⏱️ <strong>${min} min</strong>` : ''} ${cal ? ` · 🔥 <strong>${cal} kcal</strong>` : ''}
+          ${min ? `⏱️ <strong>${escapeHtml(min)} min</strong>` : ''} ${cal ? ` · 🔥 <strong>${escapeHtml(cal)} kcal</strong>` : ''}
         </div>
-        ${notes ? `<div style="font-size:0.8rem; color:var(--text-muted);">📝 ${notes}</div>` : ''}
-        <input type="hidden" class="ex-note" value="${notes}">
+        ${notes ? `<div style="font-size:0.8rem; color:var(--text-muted);">📝 ${escapeHtml(notes)}</div>` : ''}
+        <input type="hidden" class="ex-note" value="${escapeHtml(notes)}">
       `;
       container.appendChild(card);
     } else {
@@ -798,16 +815,16 @@ window.handleAuthSubmit = async function(e) {
 
       card.innerHTML = `
         <div class="flex-between">
-          <h3 style="font-size: 1.15rem; font-weight: 800;">${name}</h3>
+          <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(name)}</h3>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="pr-badge-slot"></span>
-            <button class="btn-remove-ex" onclick="vibrate(); removeExerciseBlock(this)">Ukloni 🗑️</button>
+            <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
           </div>
         </div>
-        ${targetGoal ? `<span class="target-badge">${targetGoal}</span>` : ''}
+        ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
         <div class="prev-perf">
-          Prošli put: <strong>${prevLogStr}</strong>
-          ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${prevNote}</small>` : ''}
+          Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
+          ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
         </div>
         <div class="sets-container">
           <div class="set-row">
@@ -817,8 +834,8 @@ window.handleAuthSubmit = async function(e) {
             <span></span>
           </div>
         </div>
-        <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" onclick="vibrate(); addSetRowToBlock(this)">+ Dodaj Set</button>
-        <input type="text" class="note-input ex-note" value="${notes}" oninput="saveWorkoutDraft()" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
+        <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+        <input type="text" class="note-input ex-note" value="${escapeHtml(notes)}" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
       `;
       container.appendChild(card);
       const btn = card.querySelector('.btn-secondary');
@@ -981,23 +998,23 @@ async function loadCloudData() {
     const exercisesHtml = last.exercises.map(ex => {
       let contentHtml = '';
       if (ex.sets && ex.sets.length > 0) {
-        contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${s.weight}kg × ${s.reps}</span>`).join(' ');
+        contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(s.weight)}kg × ${escapeHtml(s.reps)}</span>`).join(' ');
       } else if (ex.minutes || ex.calories) {
-        contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? ex.minutes + ' min' : ''} ${ex.calories ? '· ' + ex.calories + ' kcal' : ''}</span>`;
+        contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? escapeHtml(ex.minutes) + ' min' : ''} ${ex.calories ? '· ' + escapeHtml(ex.calories) + ' kcal' : ''}</span>`;
       }
 
       return `
         <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--bg-card-border);">
-          <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main); margin-bottom: 6px;">${ex.name}</div>
+          <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main); margin-bottom: 6px;">${escapeHtml(ex.name)}</div>
           <div style="display: flex; flex-wrap: wrap; gap: 6px;">${contentHtml}</div>
-          ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">📝 ${ex.notes}</div>` : ''}
+          ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">📝 ${escapeHtml(ex.notes)}</div>` : ''}
         </div>
       `;
     }).join('');
 
     container.innerHTML = `
       <div class="flex-between" style="margin-bottom: 6px;">
-        <strong style="font-size: 1.25rem; font-weight: 900; color: #fff;">${last.name || 'Trening'}</strong>
+        <strong style="font-size: 1.25rem; font-weight: 900; color: #fff;">${escapeHtml(last.name || 'Trening')}</strong>
         <span class="badge" style="color: var(--primary); font-size: 0.8rem;">${dateStr}</span>
       </div>
       ${exercisesHtml}
@@ -1119,16 +1136,16 @@ async function loadCloudData() {
       const exercisesHtml = h.exercises.map(ex => {
         let contentHtml = '';
         if (ex.sets && ex.sets.length > 0) {
-          contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${s.weight}kg × ${s.reps}</span>`).join(' ');
+          contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(s.weight)}kg × ${escapeHtml(s.reps)}</span>`).join(' ');
         } else if (ex.minutes || ex.calories) {
-          contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? ex.minutes + ' min' : ''} ${ex.calories ? '· ' + ex.calories + ' kcal' : ''}</span>`;
+          contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? escapeHtml(ex.minutes) + ' min' : ''} ${ex.calories ? '· ' + escapeHtml(ex.calories) + ' kcal' : ''}</span>`;
         }
 
         return `
           <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--bg-card-border);">
-            <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-main); margin-bottom: 4px;">${ex.name}</div>
+            <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-main); margin-bottom: 4px;">${escapeHtml(ex.name)}</div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">${contentHtml}</div>
-            ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">📝 ${ex.notes}</div>` : ''}
+            ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">📝 ${escapeHtml(ex.notes)}</div>` : ''}
           </div>
         `;
       }).join('');
@@ -1136,7 +1153,7 @@ async function loadCloudData() {
       return `
         <div class="card" style="border-left: 4px solid var(--primary);">
           <div class="flex-between" style="margin-bottom: 6px;">
-            <strong style="font-size: 1.15rem; font-weight: 800;">${h.name || 'Trening'}</strong>
+            <strong style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(h.name || 'Trening')}</strong>
             <span class="badge">${dateStr}</span>
           </div>
           ${exercisesHtml}
@@ -1161,7 +1178,7 @@ async function loadCloudData() {
       return;
     }
 
-    select.innerHTML = list.map(ex => `<option value="${ex}">${ex}</option>`).join('');
+    select.innerHTML = list.map(ex => `<option value="${escapeHtml(ex)}">${escapeHtml(ex)}</option>`).join('');
     renderAnalyticsChart();
   }
 
@@ -1248,21 +1265,144 @@ async function loadCloudData() {
     });
   }
 
+  function setupEventHandlers() {
+    const authForm = document.getElementById('auth-form');
+    if (authForm) authForm.addEventListener('submit', window.handleAuthSubmit);
 
-async function sendVerificationCodeEmail(email, code) {
+    const analyticsSelect = document.getElementById('analytics-ex-select');
+    if (analyticsSelect) analyticsSelect.addEventListener('change', window.renderAnalyticsChart);
+
+    document.addEventListener('click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest('[data-action]') : null;
+      if (!button) return;
+
+      const action = button.dataset.action;
+      const modalId = button.dataset.modalId;
+
+      if (action !== 'auth-mode' && action !== 'logout' && action !== 'google-login' && action !== 'copy-ai-rules') {
+        window.vibrate();
+      }
+
+      switch (action) {
+        case 'switch-tab':
+          window.switchTab(button.dataset.tab);
+          break;
+        case 'auth-mode':
+          window.toggleAuthMode(button.dataset.mode);
+          break;
+        case 'logout':
+          window.handleLogout();
+          break;
+        case 'google-login':
+          window.handleGoogleLogin();
+          break;
+        case 'resume-draft':
+          window.resumeDraftWorkout();
+          break;
+        case 'open-import-modal':
+          document.getElementById('importNotesModal').style.display = 'flex';
+          break;
+        case 'cancel-workout':
+          window.cancelWorkout();
+          break;
+        case 'toggle-custom-modal':
+          window.toggleAddCustomModal();
+          break;
+        case 'custom-type':
+          window.setCustomType(button.dataset.type);
+          break;
+        case 'append-custom-exercise':
+          window.appendCustomExercise();
+          break;
+        case 'finish-workout':
+          window.finishWorkout();
+          break;
+        case 'copy-ai-rules':
+          window.copyAIRules();
+          break;
+        case 'import-notes':
+          window.handleImportFromNotes();
+          break;
+        case 'close-modal':
+          if (modalId) document.getElementById(modalId).style.display = 'none';
+          break;
+        case 'clear-routine-emoji':
+          window.clearRoutineEmoji();
+          break;
+        case 'set-routine-emoji':
+          window.setRoutineEmoji(button.dataset.emoji || '');
+          break;
+        case 'submit-new-routine':
+          window.submitNewRoutine();
+          break;
+        case 'open-create-routine':
+          window.openCreateRoutineModal();
+          break;
+        case 'start-routine':
+          if (button.dataset.routineId) window.startWorkout(button.dataset.routineId);
+          break;
+        case 'delete-routine':
+          if (button.dataset.routineId) window.deleteRoutine(button.dataset.routineId);
+          break;
+        case 'remove-exercise':
+          window.removeExerciseBlock(button);
+          break;
+        case 'add-set-row':
+          window.addSetRowToBlock(button);
+          break;
+        case 'remove-set-row':
+          window.removeSetRow(button);
+          break;
+        case 'confirm-verification':
+          window.confirmVerificationCode();
+          break;
+      }
+    });
+
+    document.addEventListener('input', (event) => {
+      const input = event.target instanceof Element ? event.target : null;
+      if (!input) return;
+
+      if (input.classList.contains('set-kg')) {
+        window.handleKgInput(input);
+        return;
+      }
+
+      if (input.classList.contains('set-reps')) {
+        updateProgress();
+        saveWorkoutDraft();
+        return;
+      }
+
+      if (input.classList.contains('ex-note')) {
+        saveWorkoutDraft();
+      }
+    });
+  }
+
+  setupEventHandlers();
+
+
+async function getProtectedApiHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (appCheck) {
+    const token = await getToken(appCheck);
+    headers['X-Firebase-AppCheck'] = token.token;
+  }
+  return headers;
+}
+
+async function sendVerificationCodeEmail(email) {
   try {
     // Frontend je hostovan na InfinityFree, a API funkcija na Vercelu.
     // Koristi se stabilni Production domen, ne deployment URL koji se mijenja.
-    const apiUrl = 'https://your-gym-planner.vercel.app/api/send-email';
+    const apiUrl = 'https://your-gym-planner.vercel.app/api/request-verification';
 
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: await getProtectedApiHeaders(),
       body: JSON.stringify({
-        emailTo: email,
-        code
+        email
       })
     });
 
@@ -1312,13 +1452,13 @@ window.openVerificationModal = function() {
       <div class="modal-content text-center">
         <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">🔑 Unesite Verifikacioni Kod</h3>
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 14px;">
-          Poslali smo 6-cifreni kod na <strong>${pendingVerification.email}</strong>
+          Poslali smo 6-cifreni kod na <strong>${escapeHtml(pendingVerification.email)}</strong>
         </p>
         <input type="text" id="verify-code-input" class="custom-input" style="text-align: center; font-size: 1.5rem; letter-spacing: 6px;" maxlength="6" placeholder="000000">
         <div id="verify-error" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 10px; display: none;"></div>
         <div style="display: flex; gap: 10px; margin-top: 12px;">
-          <button class="btn" onclick="confirmVerificationCode()">Potvrdi i Registruj Se</button>
-          <button class="btn btn-secondary" onclick="document.getElementById('verificationModal').style.display='none'">Otkaži</button>
+          <button class="btn" data-action="confirm-verification">Potvrdi i Registruj Se</button>
+          <button class="btn btn-secondary" data-action="close-modal" data-modal-id="verificationModal">Otkaži</button>
         </div>
       </div>
     `;
@@ -1331,6 +1471,39 @@ window.openVerificationModal = function() {
 window.confirmVerificationCode = async function() {
   const inputCode = document.getElementById('verify-code-input').value.trim();
   const verifyError = document.getElementById('verify-error');
+
+  try {
+    const response = await fetch('https://your-gym-planner.vercel.app/api/confirm-verification', {
+      method: 'POST',
+      headers: await getProtectedApiHeaders(),
+      body: JSON.stringify({
+        email: pendingVerification.email,
+        password: pendingVerification.password,
+        name: pendingVerification.name,
+        code: inputCode
+      })
+    });
+    const result = await response.json().catch(() => null);
+
+    if (!response.ok || !result?.customToken) {
+      throw new Error(result?.error || 'Potvrda koda nije uspjela.');
+    }
+
+    await signInWithCustomToken(auth, result.customToken);
+    await auth.currentUser?.getIdToken(true);
+    pendingVerification = { email: '', name: '', password: '' };
+    document.getElementById('verificationModal').style.display = 'none';
+    ShowToast('Registracija uspješna! Dobrodošli 🔥');
+
+    const form = document.getElementById('auth-form');
+    if (form) form.reset();
+  } catch (error) {
+    if (verifyError) {
+      verifyError.innerText = error.message;
+      verifyError.style.display = 'block';
+    }
+  }
+  return;
 
   const verificationExpiresAfterMs = 10 * 60 * 1000;
   if (pendingVerification.createdAt && Date.now() - pendingVerification.createdAt > verificationExpiresAfterMs) {
