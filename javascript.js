@@ -1245,11 +1245,9 @@ async function loadCloudData() {
 
 async function sendVerificationCodeEmail(email, code) {
   try {
-    const isVercelDomain = window.location.hostname.includes('vercel.app');
-    
-    const apiUrl = isVercelDomain 
-      ? '/api/send-email' 
-      : 'https://your-gym-planner.vercel.app/api/send-email';
+    // Frontend je hostovan na InfinityFree, a API funkcija na Vercelu.
+    // Koristi se stabilni Production domen, ne deployment URL koji se mijenja.
+    const apiUrl = 'https://your-gym-planner.vercel.app/api/send-email';
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -1258,8 +1256,7 @@ async function sendVerificationCodeEmail(email, code) {
       },
       body: JSON.stringify({
         emailTo: email,
-        subject: 'Verifikacioni Kod - Gym Tracker Pro',
-        textContent: `Tvoj verifikacioni kod je: <strong>${code}</strong>`
+        code
       })
     });
 
