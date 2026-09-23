@@ -1,8 +1,7 @@
 export default async function handler(req, res) {
   // Postavljanje CORS zaglavlja kako bi pozivi sa Live Servera i drugih domena radili
-  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
@@ -53,11 +52,19 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await response.json().catch(() => ({}));
+    const rawResponse = await response.text();
+    let data = {};
+
+    try {
+      data = rawResponse ? JSON.parse(rawResponse) : {};
+    } catch {
+      data = { message: rawResponse || 'Brevo nije vratio JSON odgovor.' };
+    }
 
     if (response.ok) {
       return res.status(200).json({ success: true, data });
     } else {
+      console.error('Brevo je odbio zahtjev:', response.status, data);
       return res.status(response.status).json({ success: false, error: data });
     }
   } catch (error) {
