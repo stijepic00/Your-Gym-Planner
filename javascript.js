@@ -125,7 +125,13 @@ window.handleAuthSubmit = async function(e) {
       const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
       
       // 2. Sačuvaj podatke u privremeni objekat
-      pendingVerification = { email, password, name, code: generatedCode };
+      pendingVerification = {
+        email,
+        password,
+        name,
+        code: generatedCode,
+        createdAt: Date.now()
+      };
 
       // 3. Pošalji kod preko Brevo API-ja
       await sendVerificationCodeEmail(email, generatedCode);
@@ -1325,6 +1331,15 @@ window.openVerificationModal = function() {
 window.confirmVerificationCode = async function() {
   const inputCode = document.getElementById('verify-code-input').value.trim();
   const verifyError = document.getElementById('verify-error');
+
+  const verificationExpiresAfterMs = 10 * 60 * 1000;
+  if (pendingVerification.createdAt && Date.now() - pendingVerification.createdAt > verificationExpiresAfterMs) {
+    if (verifyError) {
+      verifyError.innerText = 'Verifikacioni kod je istekao. Započnite registraciju ponovo da dobijete novi kod.';
+      verifyError.style.display = 'block';
+    }
+    return;
+  }
 
   if (inputCode === pendingVerification.code) {
     try {
