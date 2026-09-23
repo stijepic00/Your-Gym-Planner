@@ -47,7 +47,8 @@ export default async function handler(req, res) {
         to: [{ email: emailTo }],
         templateId: 1,
         params: {
-          code: String(code)
+          code: String(code),
+          expirationMinutes: '10'
         }
       })
     });
