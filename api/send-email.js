@@ -18,11 +18,15 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { emailTo, subject, textContent } = req.body || {};
+  const { emailTo, code } = req.body || {};
 
-  // Provjera da li su poslani svi potrebni podaci sa frontenda
-  if (!emailTo || !subject || !textContent) {
-    return res.status(400).json({ error: 'Nedostaju obavezni parametri (emailTo, subject, textContent).' });
+  // Provjera podataka koje endpoint prihvata za verifikacioni e-mail.
+  if (!emailTo || !code) {
+    return res.status(400).json({ error: 'Nedostaju obavezni parametri (emailTo, code).' });
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(emailTo) || !/^\d{6}$/.test(String(code))) {
+    return res.status(400).json({ error: 'E-mail ili verifikacioni kod nisu ispravni.' });
   }
 
   // Uzimamo tajni ključ iz Vercel environment varijabli
@@ -41,19 +45,20 @@ export default async function handler(req, res) {
         'api-key': BREVO_API_KEY
       },
       body: JSON.stringify({
-        sender: { name: "Gym Tracker Pro", email: "yourgymplanner@gmail.com" },
         to: [{ email: emailTo }],
-        subject: subject,
-        htmlContent: textContent
+        templateId: 1,
+        params: {
+          code: String(code)
+        }
       })
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (response.ok) {
       return res.status(200).json({ success: true, data });
     } else {
-      return res.status(400).json({ success: false, error: data });
+      return res.status(response.status).json({ success: false, error: data });
     }
   } catch (error) {
     console.error("Greška na serveru:", error);
