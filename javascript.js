@@ -1260,21 +1260,28 @@ async function sendVerificationCodeEmail(email, code) {
       })
     });
 
-    // Provjera da li je odgovor uopšte JSON
-    const contentType = response.headers.get('content-type') || '';
-    const isJson = contentType.includes('application/json');
+    // Odgovor se prvo čita kao tekst, jer proxy ili hosting ponekad vrati HTML
+    // stranicu greške umjesto JSON-a.
+    const rawResponse = await response.text();
+    let result = null;
+
+    if (rawResponse) {
+      try {
+        result = JSON.parse(rawResponse);
+      } catch {
+        // Ispod se prikazuje jasna poruka za odgovor koji nije JSON.
+      }
+    }
 
     if (!response.ok) {
-      const errorMsg = isJson ? (await response.json()).error : await response.text();
+      const errorMsg = result?.error?.message || result?.error || result?.message || rawResponse;
       console.error(`Server Vratio Grešku (${response.status}):`, errorMsg);
-      throw new Error(`Server greška (${response.status}): Proverite Vercel/Brevo konfiguraciju.`);
+      throw new Error(`Slanje koda nije uspjelo (${response.status}): ${typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)}`);
     }
 
-    if (!isJson) {
-      throw new Error("Server nije vratio JSON odgovor, već HTML stranicu.");
+    if (!result) {
+      throw new Error('Vercel API nije vratio JSON odgovor. Provjerite Vercel Function Logs.');
     }
-
-    const result = await response.json();
 
     if (result.success) {
       console.log('Verifikacioni e-mail je uspješno poslan!');
