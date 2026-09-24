@@ -78,6 +78,7 @@
   let currentWorkout = null;
   let chartInstance = null;
   let routinesUnsubscribe = null;
+  let navigationGuardReady = false;
 
   const defaultWorkouts = [
     { id: 'custom-extra', name: 'Poseban / Kardio Dan', emoji: '⚡', exercises: [] }
@@ -220,12 +221,14 @@ window.handleAuthSubmit = async function(e) {
       await loadCloudData();
       listenToUserRoutines(user.uid);
       switchTab('dashboard');
+      ensureInAppHistory();
     } else {
       if (routinesUnsubscribe) {
         routinesUnsubscribe();
         routinesUnsubscribe = null;
       }
       currentUser = null;
+      navigationGuardReady = false;
       userRoutines = [];
       if (bottomNav) bottomNav.style.display = 'none';
       if (logoutBtn) logoutBtn.style.display = 'none';
@@ -276,6 +279,31 @@ window.handleAuthSubmit = async function(e) {
     if (tabId === 'workouts') renderWorkouts();
     if (tabId === 'analytics') setupAnalyticsUI();
   };
+
+  window.goHome = function() {
+    window.switchTab(currentUser ? 'dashboard' : 'login');
+
+    if (currentUser) {
+      requestAnimationFrame(() => {
+        document.getElementById('dashboard-ready')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  };
+
+  function ensureInAppHistory() {
+    if (navigationGuardReady) return;
+
+    const appState = { gymTracker: true };
+    history.replaceState(appState, '', location.href);
+    history.pushState(appState, '', location.href);
+    navigationGuardReady = true;
+  }
+
+  window.addEventListener('popstate', () => {
+    if (!currentUser) return;
+    window.goHome();
+    history.pushState({ gymTracker: true }, '', location.href);
+  });
 
   window.renderWorkouts = function() {
     const container = document.getElementById('workout-list');
@@ -1289,6 +1317,9 @@ async function loadCloudData() {
       }
 
       switch (action) {
+        case 'go-home':
+          window.goHome();
+          break;
         case 'switch-tab':
           window.switchTab(button.dataset.tab);
           break;
