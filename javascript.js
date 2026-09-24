@@ -318,6 +318,7 @@ window.handleAuthSubmit = async function(e) {
   window.renderWorkouts = function() {
     const container = document.getElementById('workout-list');
     if (!container) return;
+    if (currentUser && userRoutines.length > 0) writeRoutineCache(currentUser.uid, userRoutines);
 
     let html = `
       <div style="display:flex; gap:8px; margin-bottom:16px;">
@@ -1872,6 +1873,7 @@ function renderPendingSyncStatus() {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then((registration) => registration.update())
       .catch((error) => console.warn('Offline worker nije registrovan:', error));
+    if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }
 
   setupEventHandlers();
