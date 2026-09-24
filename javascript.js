@@ -598,19 +598,35 @@ window.handleAuthSubmit = async function(e) {
     container.innerHTML = '';
 
     draft.exercises.forEach((ex) => {
-      const maxW = getMaxWeightFromHistory(ex.name);
+      const exName = typeof ex === 'string' ? ex : (ex.name || 'Vježba');
+      const maxW = getMaxWeightFromHistory(exName);
+      const targetGoal = calculateTargetGoal(exName);
+      let prevLogStr = 'Nema prošlog zapisa';
+      let prevNote = '';
+      for (let i = 0; i < cachedHistory.length; i++) {
+        const pastEx = cachedHistory[i].exercises?.find((item) => item.name === exName);
+        if (pastEx) {
+          if (pastEx.sets && pastEx.sets.length > 0) {
+            prevLogStr = pastEx.sets.map((set) => `${set.weight}kg × ${set.reps}`).join(' | ');
+          } else if (pastEx.minutes) {
+            prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
+          }
+          if (pastEx.notes) prevNote = pastEx.notes;
+          break;
+        }
+      }
       
       if (ex.isCardio) {
         const card = document.createElement('div');
         card.className = 'card exercise-block custom-cardio-block';
-        card.setAttribute('data-name', ex.name);
+        card.setAttribute('data-name', exName);
         card.setAttribute('data-is-cardio', 'true');
         card.setAttribute('data-minutes', ex.minutes || '0');
         card.setAttribute('data-calories', ex.calories || '0');
 
         card.innerHTML = `
           <div class="flex-between">
-            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(ex.name)} 🏃‍♂️</h3>
+            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(exName)} 🏃‍♂️</h3>
             <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
           </div>
           <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
@@ -623,7 +639,7 @@ window.handleAuthSubmit = async function(e) {
       } else {
         const card = document.createElement('div');
         card.className = 'card exercise-block';
-        card.setAttribute('data-name', ex.name);
+        card.setAttribute('data-name', exName);
         card.setAttribute('data-maxw', maxW);
 
         card.innerHTML = `
@@ -633,6 +649,11 @@ window.handleAuthSubmit = async function(e) {
               <span class="pr-badge-slot"></span>
               <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
             </div>
+          </div>
+          ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
+          <div class="prev-perf">
+            Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
+            ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
           </div>
           <div class="sets-container">
             <div class="set-row">
@@ -648,7 +669,7 @@ window.handleAuthSubmit = async function(e) {
         container.appendChild(card);
 
         const setsContainer = card.querySelector(`.sets-container`);
-        ex.sets.forEach((s, sIdx) => {
+        (ex.sets || []).forEach((s, sIdx) => {
           const row = document.createElement('div');
           row.className = 'set-row';
           row.innerHTML = `
@@ -659,6 +680,7 @@ window.handleAuthSubmit = async function(e) {
           `;
           setsContainer.appendChild(row);
         });
+        card.querySelectorAll('.set-kg').forEach((input) => window.checkPR(input));
       }
     });
 
