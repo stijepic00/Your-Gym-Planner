@@ -761,6 +761,37 @@ window.handleAuthSubmit = async function(e) {
     saveWorkoutDraft();
   };
 
+  function setupTouchReorder() {
+    const container = document.getElementById('active-exercises-container');
+    if (!container || container.dataset.touchReorderReady === 'true') return;
+    container.dataset.touchReorderReady = 'true';
+    let touchStart = null;
+
+    container.addEventListener('touchstart', (event) => {
+      if (!activeWorkoutEditMode || event.touches.length !== 1) return;
+      if (event.target.closest('button, input, textarea, select')) return;
+      const block = event.target.closest('.exercise-block');
+      if (!block) return;
+      touchStart = { block, y: event.touches[0].clientY };
+      block.classList.add('touch-reorder-active');
+    }, { passive: true });
+
+    container.addEventListener('touchend', (event) => {
+      if (!touchStart) return;
+      const { block, y } = touchStart;
+      touchStart = null;
+      block.classList.remove('touch-reorder-active');
+      const delta = event.changedTouches[0].clientY - y;
+      if (Math.abs(delta) < 40) return;
+      window.moveExerciseBlock(block, delta < 0 ? 'up' : 'down');
+    }, { passive: true });
+
+    container.addEventListener('touchcancel', () => {
+      if (touchStart?.block) touchStart.block.classList.remove('touch-reorder-active');
+      touchStart = null;
+    }, { passive: true });
+  }
+
   function getMaxWeightFromHistory(exName) {
     let maxW = 0;
     cachedHistory.forEach(h => {
@@ -1456,6 +1487,8 @@ async function loadCloudData() {
   function setupEventHandlers() {
     const authForm = document.getElementById('auth-form');
     if (authForm) authForm.addEventListener('submit', window.handleAuthSubmit);
+
+    setupTouchReorder();
 
     const analyticsSelect = document.getElementById('analytics-ex-select');
     if (analyticsSelect) analyticsSelect.addEventListener('change', window.renderAnalyticsChart);

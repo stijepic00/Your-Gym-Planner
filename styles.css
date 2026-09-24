@@ -520,7 +520,9 @@ nav {
     .btn-danger { background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); box-shadow: none; }
     .btn-remove-ex { display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: var(--danger); font-size: 0.75rem; padding: 4px 10px; border-radius: 8px; font-weight: 700; cursor: pointer; }
     .set-row [data-action="remove-set-row"] { display: none; }
-    .exercise-move-control { background: var(--bg-input); border: 1px solid var(--bg-card-border); color: var(--text-main); border-radius: 6px; min-width: 28px; height: 28px; cursor: pointer; font-weight: 800; }
+    .exercise-move-control { display: inline-flex; align-items: center; justify-content: center; background: var(--bg-input); border: 1px solid var(--bg-card-border); color: var(--text-main); border-radius: 8px; width: 44px; height: 44px; padding: 0; cursor: pointer; font-size: 1.35rem; line-height: 1; font-weight: 900; touch-action: manipulation; }
+    .exercise-move-control:active { transform: scale(0.94); background: var(--accent-purple); color: #fff; }
+    .touch-reorder-active { outline: 2px solid var(--accent-purple); transform: scale(1.01); opacity: 0.82; }
 
     .btn-start-card {
       padding: 12px 24px !important;
