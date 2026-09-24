@@ -77,6 +77,7 @@
   let cachedHistory = [];
   let customExType = 'existing';
   let currentWorkout = null;
+  let activeWorkoutEditMode = false;
   let chartInstance = null;
   let routinesUnsubscribe = null;
   let navigationGuardReady = false;
@@ -670,6 +671,7 @@ window.handleAuthSubmit = async function(e) {
     if (!workout) workout = { id: 'new', name: 'Trening', exercises: [] };
     
     currentWorkout = { id: workout.id, name: workout.name, date: new Date().toISOString(), exercises: [] };
+    activeWorkoutEditMode = false;
 
     renderActiveWorkoutUI(workout);
     switchTab('active-workout');
@@ -686,6 +688,15 @@ window.handleAuthSubmit = async function(e) {
         saveWorkoutDraft();
       }
     }
+  };
+
+  window.toggleActiveWorkoutEditMode = function() {
+    activeWorkoutEditMode = !activeWorkoutEditMode;
+    document.querySelectorAll('.btn-remove-ex').forEach((button) => {
+      button.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
+    });
+    const button = document.querySelector('[data-action="toggle-active-workout-edit-mode"]');
+    if (button) button.textContent = activeWorkoutEditMode ? '✓ Gotovo' : '✎ Uredi vježbe';
   };
 
   function getMaxWeightFromHistory(exName) {
@@ -1003,6 +1014,7 @@ window.handleAuthSubmit = async function(e) {
   window.cancelWorkout = async function() {
     if (await showConfirm('Odustati od treninga?')) {
       currentWorkout = null;
+      activeWorkoutEditMode = false;
       clearWorkoutDraft();
       switchTab('dashboard');
     }
@@ -1417,6 +1429,9 @@ async function loadCloudData() {
           break;
         case 'cancel-workout':
           window.cancelWorkout();
+          break;
+        case 'toggle-active-workout-edit-mode':
+          window.toggleActiveWorkoutEditMode();
           break;
         case 'toggle-custom-modal':
           window.toggleAddCustomModal();

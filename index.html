@@ -112,7 +112,10 @@
     <section id="view-active-workout" class="view">
       <div class="flex-between" style="margin-bottom: 10px;">
         <h2 id="active-workout-title" style="font-size: 1.4rem; font-weight: 900;">Trening</h2>
-        <button class="btn btn-danger" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" data-action="cancel-workout">Prekini</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-secondary" style="width: auto; padding: 8px 12px; font-size: 0.8rem;" data-action="toggle-active-workout-edit-mode">✎ Uredi vježbe</button>
+          <button class="btn btn-danger" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" data-action="cancel-workout">Prekini</button>
+        </div>
       </div>
 
       <div class="progress-bar-bg">
@@ -276,6 +279,6 @@
   </div>
 </div>
 
-<script type="module" src="javascript.js?v=20260924-routine-edit-1"></script>
+<script type="module" src="javascript.js?v=20260924-workout-edit-1"></script>
 </body>
 </html>
