@@ -20,6 +20,12 @@
 </head>
 <body>
 
+<div id="app-loader" class="app-loader" role="status" aria-live="polite" aria-label="Učitavanje aplikacije">
+  <div class="loader-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="loader-label">Učitavanje</div>
+  <div class="loader-progress" aria-hidden="true"><span></span></div>
+</div>
+
 <header>
     <button type="button" aria-label="Početna strana" data-action="go-home" style="background:none; border:0; color:inherit; padding:0; font:inherit; cursor:pointer;">
       <h1 style="margin:0;">GYM TRACKER</h1>
@@ -280,6 +286,6 @@
   </div>
 </div>
 
-<script type="module" src="javascript.js?v=20260924-indexeddb-status-1"></script>
+<script type="module" src="javascript.js?v=20260924-loader-fluid-1"></script>
 </body>
 </html>
