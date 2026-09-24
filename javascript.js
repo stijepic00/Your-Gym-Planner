@@ -563,12 +563,17 @@ window.handleAuthSubmit = async function(e) {
         });
       } else {
         const sets = [];
+        const isDuration = isDurationExercise(name);
         b.querySelectorAll('.set-row').forEach((row, idx) => {
           if (idx === 0) return;
-          sets.push({
-            weight: row.querySelector('.set-kg')?.value || '',
-            reps: row.querySelector('.set-reps')?.value || ''
-          });
+          if (isDuration) {
+            sets.push({ seconds: row.querySelector('.set-seconds')?.value || '' });
+          } else {
+            sets.push({
+              weight: row.querySelector('.set-kg')?.value || '',
+              reps: row.querySelector('.set-reps')?.value || ''
+            });
+          }
         });
         draft.exercises.push({ name, sets, notes });
       }
@@ -613,7 +618,7 @@ window.handleAuthSubmit = async function(e) {
         const pastEx = cachedHistory[i].exercises?.find((item) => item.name === exName);
         if (pastEx) {
           if (pastEx.sets && pastEx.sets.length > 0) {
-            prevLogStr = pastEx.sets.map((set) => `${set.weight}kg × ${set.reps}`).join(' | ');
+            prevLogStr = pastEx.sets.map((set) => formatSetPerformance(set, exName)).join(' | ');
           } else if (pastEx.minutes) {
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
@@ -647,6 +652,7 @@ window.handleAuthSubmit = async function(e) {
         card.className = 'card exercise-block';
         card.setAttribute('data-name', exName);
         card.setAttribute('data-maxw', maxW);
+        const isDuration = isDurationExercise(exName);
 
         card.innerHTML = `
           <div class="flex-between">
@@ -664,8 +670,8 @@ window.handleAuthSubmit = async function(e) {
           <div class="sets-container">
             <div class="set-row">
               <span style="font-size: 0.7rem; color: var(--text-muted); font-weight:800;">SET</span>
-              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">KG</span>
-              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">REPS</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? 'SEC' : 'KG'}</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? '' : 'REPS'}</span>
               <span></span>
             </div>
           </div>
@@ -680,8 +686,10 @@ window.handleAuthSubmit = async function(e) {
           row.className = 'set-row';
           row.innerHTML = `
             <span style="font-weight: 900; color: var(--primary);">${sIdx + 1}</span>
-            <input type="number" class="set-kg" placeholder="0" step="0.5" value="${escapeHtml(s.weight)}">
-            <input type="number" class="set-reps" placeholder="0" value="${escapeHtml(s.reps)}">
+            ${isDuration
+              ? `<input type="number" class="set-seconds" placeholder="sek" min="1" step="1" value="${escapeHtml(s.seconds ?? '')}"><span></span>`
+              : `<input type="number" class="set-kg" placeholder="0" step="0.5" value="${escapeHtml(s.weight ?? '')}">
+                 <input type="number" class="set-reps" placeholder="0" value="${escapeHtml(s.reps ?? '')}">`}
             <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" data-action="remove-set-row">×</button>
           `;
           setsContainer.appendChild(row);
@@ -809,6 +817,23 @@ window.handleAuthSubmit = async function(e) {
     return maxW;
   }
 
+  function isDurationExercise(exName) {
+    const name = String(exName || '').toLowerCase();
+    return name.includes('plank')
+      || name.includes('izdr')
+      || name.includes('wall sit')
+      || name.includes('hollow hold')
+      || name.includes('dead hang')
+      || name.includes('držanje');
+  }
+
+  function formatSetPerformance(set, exName) {
+    if (isDurationExercise(exName)) {
+      return `${set.seconds ?? set.weight ?? 0} sek`;
+    }
+    return `${set.weight ?? 0}kg × ${set.reps ?? 0}`;
+  }
+
   function calculateTargetGoal(exName) {
     for (let i = 0; i < cachedHistory.length; i++) {
       const pastEx = cachedHistory[i].exercises?.find(e => e.name === exName);
@@ -816,6 +841,12 @@ window.handleAuthSubmit = async function(e) {
         const s1 = pastEx.sets[0];
         const s2 = pastEx.sets[1];
         const s3 = pastEx.sets[2];
+
+        if (isDurationExercise(exName)) {
+          const previousSeconds = [s1, s2, s3].map((set) => parseInt(set.seconds ?? set.weight, 10) || 0);
+          const nextSeconds = previousSeconds[0] + 5;
+          return `🎯 Cilj danas: Pokušaj ${nextSeconds} sekundi (Prošli put: ${previousSeconds.join('/') } sek)`;
+        }
         
         if (s1.reps >= 12 && s2.reps >= 12 && s3.reps >= 12) {
           return `🎯 Cilj danas: POVEĆAJ KILAŽU na ${s1.weight + 2.5}kg! (Ispunjeno ${s1.weight}kg × 12/12/12)`;
@@ -838,6 +869,7 @@ window.handleAuthSubmit = async function(e) {
 
     container.innerHTML = workout.exercises.map((ex) => {
       const exName = typeof ex === 'string' ? ex : (ex.name || 'Vježba');
+      const isDuration = isDurationExercise(exName);
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
       const maxW = getMaxWeightFromHistory(exName);
@@ -847,7 +879,7 @@ window.handleAuthSubmit = async function(e) {
         const pastEx = cachedHistory[i].exercises?.find(e => e.name === exName);
         if (pastEx) {
           if (pastEx.sets && pastEx.sets.length > 0) {
-            prevLogStr = pastEx.sets.map(s => `${s.weight}kg × ${s.reps}`).join(' | ');
+            prevLogStr = pastEx.sets.map(s => formatSetPerformance(s, exName)).join(' | ');
           } else if (pastEx.minutes) {
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
@@ -873,8 +905,8 @@ window.handleAuthSubmit = async function(e) {
           <div class="sets-container">
             <div class="set-row">
               <span style="font-size: 0.7rem; color: var(--text-muted); font-weight:800;">SET</span>
-              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">KG</span>
-              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">REPS</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? 'SEC' : 'KG'}</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? '' : 'REPS'}</span>
               <span></span>
             </div>
           </div>
@@ -898,13 +930,15 @@ window.handleAuthSubmit = async function(e) {
     if (!container) return;
 
     const setNum = container.querySelectorAll('.set-row').length;
+    const isDuration = isDurationExercise(block.getAttribute('data-name'));
     
     const row = document.createElement('div');
     row.className = 'set-row';
     row.innerHTML = `
       <span style="font-weight: 900; color: var(--primary);">${setNum}</span>
-      <input type="number" class="set-kg" placeholder="0" step="0.5">
-      <input type="number" class="set-reps" placeholder="0">
+      ${isDuration
+        ? '<input type="number" class="set-seconds" placeholder="sek" min="1" step="1"><span></span>'
+        : '<input type="number" class="set-kg" placeholder="0" step="0.5"><input type="number" class="set-reps" placeholder="0">'}
       <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" data-action="remove-set-row">×</button>
     `;
     container.appendChild(row);
@@ -1019,13 +1053,14 @@ window.handleAuthSubmit = async function(e) {
     } else {
       const maxW = getMaxWeightFromHistory(name);
       const targetGoal = calculateTargetGoal(name);
+      const isDuration = isDurationExercise(name);
 
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
       for (let i = 0; i < cachedHistory.length; i++) {
         const pastEx = cachedHistory[i].exercises?.find(e => e.name === name);
         if (pastEx && pastEx.sets && pastEx.sets.length > 0) {
-          prevLogStr = pastEx.sets.map(s => `${s.weight}kg × ${s.reps}`).join(' | ');
+          prevLogStr = pastEx.sets.map(s => formatSetPerformance(s, name)).join(' | ');
           if (pastEx.notes) prevNote = pastEx.notes;
           break;
         }
@@ -1052,8 +1087,8 @@ window.handleAuthSubmit = async function(e) {
         <div class="sets-container">
           <div class="set-row">
             <span style="font-size: 0.7rem; color: var(--text-muted); font-weight:800;">SET</span>
-            <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">KG</span>
-            <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">REPS</span>
+            <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? 'SEC' : 'KG'}</span>
+            <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? '' : 'REPS'}</span>
             <span></span>
           </div>
         </div>
@@ -1102,9 +1137,10 @@ window.handleAuthSubmit = async function(e) {
         rows.forEach((row, idx) => {
           if (idx === 0) return;
           total++;
+          const seconds = row.querySelector('.set-seconds')?.value;
           const kg = row.querySelector('.set-kg')?.value;
           const reps = row.querySelector('.set-reps')?.value;
-          if (kg && reps) completed++;
+          if (seconds || (kg && reps)) completed++;
         });
       }
     });
@@ -1239,11 +1275,17 @@ window.handleAuthSubmit = async function(e) {
         workoutData.exercises.push(exObj);
       } else {
         const sets = [];
+        const isDuration = isDurationExercise(exName);
         b.querySelectorAll('.set-row').forEach((row, idx) => {
           if (idx === 0) return;
-          const kg = row.querySelector('.set-kg')?.value;
-          const reps = row.querySelector('.set-reps')?.value;
-          if (kg && reps) sets.push({ weight: parseFloat(kg), reps: parseInt(reps, 10) });
+          if (isDuration) {
+            const seconds = row.querySelector('.set-seconds')?.value;
+            if (seconds) sets.push({ seconds: parseInt(seconds, 10) });
+          } else {
+            const kg = row.querySelector('.set-kg')?.value;
+            const reps = row.querySelector('.set-reps')?.value;
+            if (kg && reps) sets.push({ weight: parseFloat(kg), reps: parseInt(reps, 10) });
+          }
         });
 
         if (sets.length > 0) {
@@ -1378,7 +1420,7 @@ function renderPendingSyncStatus() {
     const exercisesHtml = last.exercises.map(ex => {
       let contentHtml = '';
       if (ex.sets && ex.sets.length > 0) {
-        contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(s.weight)}kg × ${escapeHtml(s.reps)}</span>`).join(' ');
+        contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(formatSetPerformance(s, ex.name))}</span>`).join(' ');
       } else if (ex.minutes || ex.calories) {
         contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? escapeHtml(ex.minutes) + ' min' : ''} ${ex.calories ? '· ' + escapeHtml(ex.calories) + ' kcal' : ''}</span>`;
       }
@@ -1516,7 +1558,7 @@ function renderPendingSyncStatus() {
       const exercisesHtml = h.exercises.map(ex => {
         let contentHtml = '';
         if (ex.sets && ex.sets.length > 0) {
-          contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(s.weight)}kg × ${escapeHtml(s.reps)}</span>`).join(' ');
+          contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(formatSetPerformance(s, ex.name))}</span>`).join(' ');
         } else if (ex.minutes || ex.calories) {
           contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? escapeHtml(ex.minutes) + ' min' : ''} ${ex.calories ? '· ' + escapeHtml(ex.calories) + ' kcal' : ''}</span>`;
         }
@@ -1787,13 +1829,28 @@ function renderPendingSyncStatus() {
         return;
       }
 
+      if (input.classList.contains('set-seconds')) {
+        updateProgress();
+        saveWorkoutDraft();
+        return;
+      }
+
       if (input.classList.contains('ex-note')) {
         saveWorkoutDraft();
       }
     });
   }
 
+  function registerOfflineWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    if (!['http:', 'https:'].includes(location.protocol)) return;
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then((registration) => registration.update())
+      .catch((error) => console.warn('Offline worker nije registrovan:', error));
+  }
+
   setupEventHandlers();
+  registerOfflineWorker();
 
 
 async function getProtectedApiHeaders() {
