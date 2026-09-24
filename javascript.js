@@ -1152,7 +1152,25 @@ window.handleAuthSubmit = async function(e) {
       || ['unavailable', 'deadline-exceeded', 'internal'].includes(error?.code)
       || message.includes('network')
       || message.includes('failed to fetch')
-      || message.includes('offline');
+      || message.includes('offline')
+      || message.includes('timeout');
+  }
+
+  function setDocWithNetworkTimeout(reference, data, timeoutMs = 6000) {
+    if (!navigator.onLine) {
+      const offlineError = new Error('offline');
+      offlineError.code = 'unavailable';
+      return Promise.reject(offlineError);
+    }
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        const timeoutError = new Error('network timeout');
+        timeoutError.code = 'unavailable';
+        reject(timeoutError);
+      }, timeoutMs);
+    });
+    return Promise.race([setDoc(reference, data), timeout]).finally(() => clearTimeout(timeoutId));
   }
 
   function queueWorkoutForSync(workoutId, workoutData) {
@@ -1176,7 +1194,7 @@ window.handleAuthSubmit = async function(e) {
     let syncedCount = 0;
     for (const item of queue) {
       try {
-        await setDoc(doc(db, 'workouts', item.id), item.data);
+        await setDocWithNetworkTimeout(doc(db, 'workouts', item.id), item.data);
         syncedCount += 1;
       } catch (error) {
         remaining.push(item);
@@ -1242,7 +1260,7 @@ window.handleAuthSubmit = async function(e) {
     }
 
     try {
-      await setDoc(doc(db, "workouts", workoutId), workoutData);
+      await setDocWithNetworkTimeout(doc(db, "workouts", workoutId), workoutData);
       
       vibrate([100, 50, 100]);
       ShowToast('Trening sačuvan u "workouts" kolekciju! ☁️💪');
