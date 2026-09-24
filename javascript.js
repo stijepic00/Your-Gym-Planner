@@ -88,6 +88,9 @@
   let pendingWorkoutsLoaded = false;
   let pendingDbPromise = null;
   let currentProfileData = null;
+  let pendingProfilePhotoImage = null;
+  let profilePhotoZoom = 1;
+  let profileEmailCodeTarget = '';
   const HISTORY_CACHE_VERSION = 1;
 
   const defaultWorkouts = [
@@ -1824,6 +1827,23 @@ function renderPendingSyncStatus() {
     reader.onload = () => {
       const image = new Image();
       image.onload = () => {
+        pendingProfilePhotoImage = image;
+        profilePhotoZoom = 1;
+        const preview = document.getElementById('profile-photo-preview');
+        const zoom = document.getElementById('profile-photo-zoom');
+        if (preview) { preview.src = reader.result; preview.style.transform = 'scale(1)'; }
+        if (zoom) zoom.value = '1';
+        const modal = document.getElementById('profile-photo-modal');
+        if (modal) modal.style.display = 'flex';
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+    return;
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
         const size = 320;
         const scale = Math.min(1, size / Math.max(image.width, image.height));
         const canvas = document.createElement('canvas');
@@ -1844,6 +1864,28 @@ function renderPendingSyncStatus() {
     reader.readAsDataURL(file);
   }
 
+  window.applyProfilePhoto = function() {
+    if (!currentUser || !pendingProfilePhotoImage) return;
+    const size = 512;
+    const image = pendingProfilePhotoImage;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const context = canvas.getContext('2d');
+    const scale = Math.max(size / image.width, size / image.height) * profilePhotoZoom;
+    const width = image.width * scale;
+    const height = image.height * scale;
+    context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+    try {
+      localStorage.setItem(getProfilePhotoKey(currentUser.uid), canvas.toDataURL('image/jpeg', 0.82));
+      pendingProfilePhotoImage = null;
+      document.getElementById('profile-photo-modal').style.display = 'none';
+      renderProfileSettings();
+      ShowToast('Profilna slika je saÄuvana na ovom ureÄ‘aju.');
+    } catch {
+      ShowToast('Slika je prevelika za lokalno Äuvanje.', 'error');
+    }
+  };
+
   window.requestProfileEmailCode = async function() {
     if (!currentUser) return;
     const emailInput = document.getElementById('profile-email-input');
@@ -1855,6 +1897,7 @@ function renderPendingSyncStatus() {
     }
     try {
       await sendVerificationCodeEmail(nextEmail);
+      profileEmailCodeTarget = nextEmail;
       codeInput.style.display = 'block';
       document.getElementById('profile-settings-status').textContent = 'Kod je poslat na novu email adresu.';
     } catch (error) {
@@ -1872,8 +1915,21 @@ function renderPendingSyncStatus() {
       return;
     }
     const emailChanged = email !== String(currentUser.email || '').toLowerCase();
-    if (emailChanged && !/^\d{6}$/.test(code)) {
+    if (emailChanged && (email !== profileEmailCodeTarget || !/^\d{6}$/.test(code))) {
       ShowToast('Za novu email adresu unesite tačan šestocifreni kod.', 'error');
+      return;
+    }
+    if (!emailChanged) {
+      try {
+        await updateDoc(doc(db, 'users', currentUser.uid), { fullName: name, email: currentUser.email });
+        await updateProfile(currentUser, { displayName: name });
+        currentProfileData = { ...(currentProfileData || {}), fullName: name, email: currentUser.email };
+        document.getElementById('user-email-display').innerText = name;
+        document.getElementById('profile-settings-status').textContent = 'Profil je uspješno sačuvan.';
+        ShowToast('Profil je ažuriran.');
+      } catch (error) {
+        ShowToast(error.message, 'error');
+      }
       return;
     }
     try {
@@ -1891,6 +1947,7 @@ function renderPendingSyncStatus() {
       currentProfileData = { ...(currentProfileData || {}), fullName: name, email: result.email || currentUser.email };
       document.getElementById('user-email-display').innerText = name;
       document.getElementById('profile-email-code-input').style.display = 'none';
+      profileEmailCodeTarget = '';
       document.getElementById('profile-settings-status').textContent = 'Profil je uspješno sačuvan.';
       ShowToast('Profil je ažuriran.');
     } catch (error) {
@@ -1972,8 +2029,11 @@ function renderPendingSyncStatus() {
         case 'finish-workout':
           window.finishWorkout();
           break;
-        case 'request-profile-email-code':
+        case 'start-profile-email-change':
           window.requestProfileEmailCode();
+          break;
+        case 'apply-profile-photo':
+          window.applyProfilePhoto();
           break;
         case 'save-profile-settings':
           window.saveProfileSettings();
@@ -1989,6 +2049,7 @@ function renderPendingSyncStatus() {
           break;
         case 'close-modal':
           if (modalId) document.getElementById(modalId).style.display = 'none';
+          else button.closest('.modal')?.style.setProperty('display', 'none');
           break;
         case 'clear-routine-emoji':
           window.clearRoutineEmoji();
@@ -2064,6 +2125,11 @@ function renderPendingSyncStatus() {
       }
     });
     document.getElementById('profile-photo-input')?.addEventListener('change', handleProfilePhotoChange);
+    document.getElementById('profile-photo-zoom')?.addEventListener('input', (event) => {
+      profilePhotoZoom = Number(event.target.value) || 1;
+      const preview = document.getElementById('profile-photo-preview');
+      if (preview) preview.style.transform = `scale(${profilePhotoZoom})`;
+    });
   }
 
   function registerOfflineWorker() {

@@ -176,6 +176,15 @@ main {
 .profile-avatar.has-photo { color: transparent; }
 .profile-avatar-button { width: auto; height: 40px; padding: 0 14px; font-size: 0.8rem; }
 .settings-label { color: var(--text-muted); font-size: 0.82rem; font-weight: 800; margin-top: 4px; }
+.settings-email-row { display: flex; align-items: center; gap: 8px; }
+.settings-email-row .custom-input { flex: 1; min-width: 0; margin-bottom: 0; }
+.settings-email-button { width: auto; flex: 0 0 auto; padding: 0 12px; min-height: 44px; font-size: 0.78rem; white-space: nowrap; }
+.profile-photo-modal-content { text-align: center; }
+.photo-editor-frame { width: min(78vw, 280px); aspect-ratio: 1; margin: 16px auto; border-radius: 50%; overflow: hidden; background: var(--bg-input); border: 2px solid var(--accent-primary); display: grid; place-items: center; }
+.photo-editor-frame img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; transition: transform 0.12s ease-out; }
+.photo-zoom { width: 100%; accent-color: var(--accent-primary); }
+.profile-photo-actions { display: flex; gap: 8px; margin-top: 16px; }
+.profile-photo-actions .btn { flex: 1; }
 .settings-status { min-height: 1.2em; color: var(--text-muted); font-size: 0.82rem; }
 
 .card-subtitle {

@@ -184,7 +184,7 @@
       <div class="card profile-settings-card">
         <div class="profile-avatar-wrap">
           <div id="profile-avatar" class="profile-avatar" aria-label="Profilna slika">K</div>
-          <label class="btn btn-secondary profile-avatar-button">
+          <label class="btn btn-secondary profile-avatar-button" for="profile-photo-input">
             Promijeni sliku
             <input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
           </label>
@@ -192,13 +192,28 @@
         <label class="settings-label" for="profile-name-input">Ime i prezime</label>
         <input id="profile-name-input" class="custom-input" type="text" maxlength="100" autocomplete="name">
         <label class="settings-label" for="profile-email-input">Email adresa</label>
-        <input id="profile-email-input" class="custom-input" type="email" maxlength="254" autocomplete="email">
-        <button class="btn btn-secondary mt-12" data-action="request-profile-email-code">Pošalji kod za promjenu emaila</button>
+        <div class="settings-email-row">
+          <input id="profile-email-input" class="custom-input" type="email" maxlength="254" autocomplete="email">
+          <button class="btn btn-secondary settings-email-button" data-action="start-profile-email-change" type="button">Promijeni email</button>
+        </div>
         <input id="profile-email-code-input" class="custom-input mt-12" type="text" inputmode="numeric" maxlength="6" placeholder="Kod za novu email adresu" style="display:none;">
         <button class="btn btn-purple mt-12" data-action="save-profile-settings">Sačuvaj profil</button>
         <p id="profile-settings-status" class="settings-status" role="status"></p>
       </div>
     </section>
+    <div id="profile-photo-modal" class="modal" style="display:none;">
+      <div class="modal-content profile-photo-modal-content">
+        <button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button>
+        <h3>Uredi profilnu sliku</h3>
+        <div class="photo-editor-frame"><img id="profile-photo-preview" alt="Pregled profilne slike"></div>
+        <label class="settings-label" for="profile-photo-zoom">Uvećanje</label>
+        <input id="profile-photo-zoom" class="photo-zoom" type="range" min="1" max="3" step="0.01" value="1">
+        <div class="profile-photo-actions">
+          <button class="btn btn-secondary" data-action="close-modal" type="button">Otkaži</button>
+          <button class="btn btn-purple" data-action="apply-profile-photo" type="button">Sačuvaj sliku</button>
+        </div>
+      </div>
+    </div>
 </main>
 
 <nav id="bottom-nav" style="display: none;">
@@ -305,6 +320,6 @@
   </div>
 </div>
 
-<script type="module" src="javascript.js?v=20260924-settings-1"></script>
+<script type="module" src="javascript.js?v=20260924-settings-2"></script>
 </body>
 </html>
