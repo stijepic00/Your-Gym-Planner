@@ -113,7 +113,7 @@
       <div class="flex-between" style="margin-bottom: 10px;">
         <h2 id="active-workout-title" style="font-size: 1.4rem; font-weight: 900;">Trening</h2>
         <div style="display:flex; gap:8px; align-items:center;">
-          <button class="btn btn-secondary" style="width: auto; padding: 8px 12px; font-size: 0.8rem;" data-action="toggle-active-workout-edit-mode">✎ Uredi vježbe</button>
+          <button class="btn btn-secondary" style="width: auto; padding: 8px 12px; font-size: 0.8rem;" data-action="toggle-active-workout-edit-mode">✎ Uredi trening</button>
           <button class="btn btn-danger" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" data-action="cancel-workout">Prekini</button>
         </div>
       </div>
@@ -124,7 +124,7 @@
 
       <div id="active-exercises-container"></div>
 
-      <button class="btn btn-purple mt-12" data-action="toggle-custom-modal">+ DODAJ DODATNU VJEŽBU / KARDIO</button>
+      <button class="btn btn-purple mt-12" style="display:none;" data-action="toggle-custom-modal">+ DODAJ DODATNU VJEŽBU / KARDIO</button>
 
       <div id="custom-ex-modal" class="card mt-12" style="display: none; border-color: var(--accent-purple);">
         <h3 style="font-size: 1.1rem; margin-bottom: 12px; color: var(--accent-purple);">Dodaj Vježbu u Trening</h3>
@@ -279,6 +279,6 @@
   </div>
 </div>
 
-<script type="module" src="javascript.js?v=20260924-draft-history-1"></script>
+<script type="module" src="javascript.js?v=20260924-edit-modes-1"></script>
 </body>
 </html>

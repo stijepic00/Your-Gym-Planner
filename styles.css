@@ -519,6 +519,8 @@ nav {
     .btn-purple { background: linear-gradient(135deg, var(--accent-purple), #6d28d9); color: #fff; box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3); }
     .btn-danger { background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); box-shadow: none; }
     .btn-remove-ex { display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: var(--danger); font-size: 0.75rem; padding: 4px 10px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    .set-row [data-action="remove-set-row"] { display: none; }
+    .exercise-move-control { background: var(--bg-input); border: 1px solid var(--bg-card-border); color: var(--text-main); border-radius: 6px; min-width: 28px; height: 28px; cursor: pointer; font-weight: 800; }
 
     .btn-start-card {
       padding: 12px 24px !important;

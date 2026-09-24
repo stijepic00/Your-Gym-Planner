@@ -663,7 +663,7 @@ window.handleAuthSubmit = async function(e) {
               <span></span>
             </div>
           </div>
-          <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+          <button class="btn btn-secondary mt-12 set-edit-add" style="display:none; padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
           <input type="text" class="note-input ex-note" value="${escapeHtml(ex.notes || '')}" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
         `;
         container.appendChild(card);
@@ -717,8 +717,48 @@ window.handleAuthSubmit = async function(e) {
     document.querySelectorAll('.btn-remove-ex').forEach((button) => {
       button.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
     });
+    document.querySelectorAll('.exercise-block').forEach((block) => ensureExerciseEditControls(block));
+    document.querySelectorAll('[data-action="remove-set-row"]').forEach((control) => {
+      control.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
+    });
+    document.querySelectorAll('.set-edit-add').forEach((control) => {
+      control.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
+    });
+    const addExerciseButton = document.querySelector('[data-action="toggle-custom-modal"]');
+    if (addExerciseButton) addExerciseButton.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
     const button = document.querySelector('[data-action="toggle-active-workout-edit-mode"]');
-    if (button) button.textContent = activeWorkoutEditMode ? '✓ Gotovo' : '✎ Uredi vježbe';
+    if (button) button.textContent = activeWorkoutEditMode ? '✓ Gotovo' : '✎ Uredi trening';
+  };
+
+  function ensureExerciseEditControls(block) {
+    const header = block.querySelector('.flex-between');
+    if (!header) return;
+    let controls = header.querySelector('.exercise-edit-controls');
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.className = 'exercise-edit-controls';
+      controls.style.cssText = 'display:flex; gap:4px; margin-left:8px;';
+      controls.innerHTML = `
+        <button type="button" class="exercise-move-control" style="display:inline-flex;" data-action="move-exercise-up" title="Pomjeri gore">↑</button>
+        <button type="button" class="exercise-move-control" style="display:inline-flex;" data-action="move-exercise-down" title="Pomjeri dole">↓</button>`;
+      header.appendChild(controls);
+    }
+    controls.style.display = activeWorkoutEditMode ? 'flex' : 'none';
+    const addSetButton = block.querySelector('.set-edit-add');
+    if (addSetButton) addSetButton.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
+  }
+
+  window.moveExerciseBlock = function(button, direction) {
+    if (!activeWorkoutEditMode) return;
+    const block = button.closest('.exercise-block');
+    const container = document.getElementById('active-exercises-container');
+    if (!block || !container) return;
+    if (direction === 'up' && block.previousElementSibling?.classList.contains('exercise-block')) {
+      container.insertBefore(block, block.previousElementSibling);
+    } else if (direction === 'down' && block.nextElementSibling?.classList.contains('exercise-block')) {
+      container.insertBefore(block.nextElementSibling, block);
+    }
+    saveWorkoutDraft();
   };
 
   function getMaxWeightFromHistory(exName) {
@@ -801,7 +841,7 @@ window.handleAuthSubmit = async function(e) {
               <span></span>
             </div>
           </div>
-          <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+          <button class="btn btn-secondary mt-12 set-edit-add" style="display:none; padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
           <input type="text" class="note-input ex-note" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
         </div>
       `;
@@ -831,6 +871,8 @@ window.handleAuthSubmit = async function(e) {
       <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" data-action="remove-set-row">×</button>
     `;
     container.appendChild(row);
+    const removeSetButton = row.querySelector('[data-action="remove-set-row"]');
+    if (removeSetButton) removeSetButton.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
     updateProgress();
     saveWorkoutDraft();
   };
@@ -936,6 +978,7 @@ window.handleAuthSubmit = async function(e) {
         <input type="hidden" class="ex-note" value="${escapeHtml(notes)}">
       `;
       container.appendChild(card);
+      ensureExerciseEditControls(card);
     } else {
       const maxW = getMaxWeightFromHistory(name);
       const targetGoal = calculateTargetGoal(name);
@@ -977,10 +1020,11 @@ window.handleAuthSubmit = async function(e) {
             <span></span>
           </div>
         </div>
-        <button class="btn btn-secondary mt-12" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+        <button class="btn btn-secondary mt-12 set-edit-add" style="display:none; padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
         <input type="text" class="note-input ex-note" value="${escapeHtml(notes)}" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
       `;
       container.appendChild(card);
+      ensureExerciseEditControls(card);
       const btn = card.querySelector('.btn-secondary');
       addSetRowToBlock(btn); addSetRowToBlock(btn); addSetRowToBlock(btn);
     }
@@ -1454,6 +1498,12 @@ async function loadCloudData() {
           break;
         case 'toggle-active-workout-edit-mode':
           window.toggleActiveWorkoutEditMode();
+          break;
+        case 'move-exercise-up':
+          window.moveExerciseBlock(button, 'up');
+          break;
+        case 'move-exercise-down':
+          window.moveExerciseBlock(button, 'down');
           break;
         case 'toggle-custom-modal':
           window.toggleAddCustomModal();
