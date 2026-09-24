@@ -83,6 +83,7 @@
   let navigationGuardReady = false;
   let routineEditMode = false;
   let editingRoutineId = null;
+  const HISTORY_CACHE_VERSION = 1;
 
   const defaultWorkouts = [
     { id: 'custom-extra', name: 'Poseban / Kardio Dan', emoji: '⚡', exercises: [] }
@@ -213,10 +214,14 @@ window.handleAuthSubmit = async function(e) {
       if (logoutBtn) logoutBtn.style.display = 'inline-block';
       
       if (mailDisplay) {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists() && userDoc.data().fullName) {
-          mailDisplay.innerText = userDoc.data().fullName;
-        } else {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists() && userDoc.data().fullName) {
+            mailDisplay.innerText = userDoc.data().fullName;
+          } else {
+            mailDisplay.innerText = user.email;
+          }
+        } catch {
           mailDisplay.innerText = user.email;
         }
         mailDisplay.style.display = 'inline-block';
@@ -1180,8 +1185,34 @@ window.handleAuthSubmit = async function(e) {
     }
   };
 
+function getHistoryCacheKey(userId) {
+  return `gym_history_cache_v${HISTORY_CACHE_VERSION}_${userId}`;
+}
+
+function readHistoryCache(userId) {
+  try {
+    const raw = localStorage.getItem(getHistoryCacheKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHistoryCache(userId, history) {
+  try {
+    localStorage.setItem(getHistoryCacheKey(userId), JSON.stringify(history.slice(0, 30)));
+  } catch (error) {
+    console.warn('Lokalni cache istorije nije mogao biti sačuvan:', error);
+  }
+}
+
 async function loadCloudData() {
   if (!currentUser) return;
+  cachedHistory = readHistoryCache(currentUser.uid);
+  checkDraftState();
+  renderDashboard();
   try {
     const q = query(
       collection(db, "workouts"), 
@@ -1197,6 +1228,7 @@ async function loadCloudData() {
         cachedHistory.push(data);
       }
     });
+    writeHistoryCache(currentUser.uid, cachedHistory);
     checkDraftState();
     renderDashboard();
   } catch (e) {
