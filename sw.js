@@ -1,9 +1,13 @@
-const CACHE_NAME = 'gym-tracker-app-v22';
+const CACHE_NAME = 'gym-tracker-app-v27';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
-  '/javascript.js'
+  '/javascript.js',
+  '/translations.js',
+  '/assets/flag-sr.svg',
+  '/assets/flag-en.svg',
+  '/assets/flag-de.svg'
 ];
 
 self.addEventListener('install', (event) => {

@@ -1,4 +1,5 @@
 /*-- FIREBASE ENGINE & AUTH */
+  import { TRANSLATIONS } from './translations.js';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -270,16 +271,13 @@ window.handleAuthSubmit = async function(e) {
   };
 
   function formatDateClean(isoString, includeYear = true) {
-    if (!isoString) return 'Nedavno';
+    if (!isoString) return translateUiText('Nedavno');
     const d = new Date(isoString);
-    if (isNaN(d.getTime())) return 'Nedavno';
-
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Avg', 'Sep', 'Okt', 'Nov', 'Dec'];
-    const day = d.getDate();
-    const month = months[d.getMonth()];
-    const year = d.getFullYear();
-
-    return includeYear ? `${day}. ${month} ${year}.` : `${day}. ${month}`;
+    if (isNaN(d.getTime())) return translateUiText('Nedavno');
+    const locale = { sr: 'sr-Latn-RS', en: 'en-GB', de: 'de-DE' }[getCurrentLanguage()] || 'sr-Latn-RS';
+    return new Intl.DateTimeFormat(locale, {
+      day: 'numeric', month: 'short', ...(includeYear ? { year: 'numeric' } : {})
+    }).format(d);
   }
 
   window.vibrate = function(ms = 35) {
@@ -895,12 +893,18 @@ window.handleAuthSubmit = async function(e) {
         if (isDurationExercise(exName)) {
           const previousSeconds = [s1, s2, s3].map((set) => parseInt(set.seconds ?? set.weight, 10) || 0);
           const nextSeconds = previousSeconds[0] + 5;
-          return `🎯 Cilj danas: Pokušaj ${nextSeconds} sekundi (Prošli put: ${previousSeconds.join('/') } sek)`;
+          if (getCurrentLanguage() === 'en') return `🎯 Today's goal: Try ${nextSeconds} seconds (Last time: ${previousSeconds.join('/')} sec)`;
+          if (getCurrentLanguage() === 'de') return `🎯 Heutiges Ziel: Versuche ${nextSeconds} Sekunden (Letztes Mal: ${previousSeconds.join('/')} Sek.)`;
+          return `🎯 Cilj danas: Pokušaj ${nextSeconds} sekundi (Prošli put: ${previousSeconds.join('/')} sek)`;
         }
         
         if (s1.reps >= 12 && s2.reps >= 12 && s3.reps >= 12) {
+          if (getCurrentLanguage() === 'en') return `🎯 Today's goal: INCREASE WEIGHT to ${s1.weight + 2.5}kg! (Completed ${s1.weight}kg × 12/12/12)`;
+          if (getCurrentLanguage() === 'de') return `🎯 Heutiges Ziel: GEWICHT auf ${s1.weight + 2.5}kg ERHÖHEN! (Geschafft: ${s1.weight}kg × 12/12/12)`;
           return `🎯 Cilj danas: POVEĆAJ KILAŽU na ${s1.weight + 2.5}kg! (Ispunjeno ${s1.weight}kg × 12/12/12)`;
         } else {
+          if (getCurrentLanguage() === 'en') return `🎯 Today's goal: Try 12/12/12 at ${s1.weight}kg (Last time: ${s1.reps}/${s2.reps}/${s3.reps})`;
+          if (getCurrentLanguage() === 'de') return `🎯 Heutiges Ziel: Versuche 12/12/12 mit ${s1.weight}kg (Letztes Mal: ${s1.reps}/${s2.reps}/${s3.reps})`;
           return `🎯 Cilj danas: Pokušaj 12/12/12 sa ${s1.weight}kg (Prošli put: ${s1.reps}/${s2.reps}/${s3.reps})`;
         }
       }
@@ -1758,7 +1762,7 @@ function renderPendingSyncStatus() {
       data: {
         labels: labels,
         datasets: [{
-          label: `Max Kg (${exName})`,
+          label: `${getCurrentLanguage() === 'de' ? 'Max. kg' : getCurrentLanguage() === 'en' ? 'Max kg' : 'Maks. kg'} (${exName})`,
           data: dataPoints,
           borderColor: '#10b981',
           backgroundColor: 'rgba(16, 185, 129, 0.15)',
@@ -1789,7 +1793,7 @@ function renderPendingSyncStatus() {
       toast.className = 'toast-notification';
       document.body.appendChild(toast);
     }
-    toast.innerText = message;
+    toast.innerText = translateUiText(String(message));
     toast.style.borderColor = type === 'error' ? 'var(--danger)' : 'var(--primary)';
     toast.style.boxShadow = type === 'error' ? '0 20px 40px rgba(0,0,0,0.6), 0 0 25px rgba(239, 68, 68, 0.4)' : '0 20px 40px rgba(0,0,0,0.6), 0 0 25px var(--primary-glow)';
     
@@ -2024,9 +2028,109 @@ function renderPendingSyncStatus() {
     if (toggle) toggle.setAttribute('aria-checked', String(selectedTheme === 'light'));
   }
 
+  function getCurrentLanguage() {
+    const language = localStorage.getItem('gym-language');
+    return ['sr', 'en', 'de'].includes(language) ? language : 'sr';
+  }
+
+  function normalizeTranslationKey(value) {
+    return String(value)
+      .replace(/\s+/g, ' ')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D');
+  }
+
+  const translationLookup = Object.fromEntries(
+    Object.entries(TRANSLATIONS).map(([language, phrases]) => [
+      language,
+      Object.fromEntries(Object.entries(phrases).map(([source, target]) => [normalizeTranslationKey(source), target]))
+    ])
+  );
+
+  function translateUiText(value, language = getCurrentLanguage()) {
+    if (language === 'sr' || typeof value !== 'string') return value;
+    const leading = value.match(/^\s*/)?.[0] || '';
+    const trailing = value.match(/\s*$/)?.[0] || '';
+    const translated = translationLookup[language]?.[normalizeTranslationKey(value.trim())];
+    return translated ? `${leading}${translated}${trailing}` : value;
+  }
+
+  function localizeElement(element) {
+    if (!(element instanceof Element)) return;
+    for (const attribute of ['placeholder', 'title', 'aria-label', 'alt']) {
+      if (element.hasAttribute(attribute)) {
+        const original = element.getAttribute(attribute);
+        const translated = translateUiText(original);
+        if (translated !== original) element.setAttribute(attribute, translated);
+      }
+    }
+  }
+
+  function localizeSubtree(root = document.body) {
+    if (!root) return;
+    if (root instanceof Element) localizeElement(root);
+    const elementRoot = root instanceof Element || root instanceof Document ? root : root.parentElement;
+    elementRoot?.querySelectorAll?.('[placeholder], [title], [aria-label], [alt]').forEach(localizeElement);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest('script, style, textarea, option, code')) continue;
+      const translated = translateUiText(node.nodeValue);
+      if (translated !== node.nodeValue) node.nodeValue = translated;
+    }
+  }
+
+  function observeLocalization() {
+    const observer = new MutationObserver((changes) => {
+      if (getCurrentLanguage() === 'sr') return;
+      changes.forEach((change) => {
+        if (change.type === 'characterData') {
+          const parent = change.target.parentElement;
+          if (parent && !parent.closest('script, style, textarea, option, code')) {
+            const translated = translateUiText(change.target.nodeValue);
+            if (translated !== change.target.nodeValue) change.target.nodeValue = translated;
+          }
+        }
+        change.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) localizeSubtree(node);
+          if (node.nodeType === Node.TEXT_NODE) {
+            const translated = translateUiText(node.nodeValue);
+            if (translated !== node.nodeValue) node.nodeValue = translated;
+          }
+        });
+      });
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
+  function showLanguageLoading(language) {
+    const loader = document.getElementById('language-loading');
+    if (!loader) return;
+    const copy = {
+      sr: ['Učitavanje jezika…', 'Pripremamo aplikaciju za tebe.'],
+      en: ['Loading language…', 'Preparing the app for you.'],
+      de: ['Sprache wird geladen…', 'Die App wird vorbereitet.']
+    }[language] || ['Učitavanje jezika…', 'Pripremamo aplikaciju za tebe.'];
+    document.getElementById('language-loading-title').textContent = copy[0];
+    document.getElementById('language-loading-text').textContent = copy[1];
+    loader.hidden = false;
+  }
+
+  function changeAppLanguage(language) {
+    const selectedLanguage = ['sr', 'en', 'de'].includes(language) ? language : 'sr';
+    if (selectedLanguage === getCurrentLanguage()) return;
+    localStorage.setItem('gym-language', selectedLanguage);
+    showLanguageLoading(selectedLanguage);
+    window.setTimeout(() => window.location.reload(), 360);
+  }
+
   function applyLanguage(language) {
     const selectedLanguage = ['sr', 'en', 'de'].includes(language) ? language : 'sr';
-    document.documentElement.lang = selectedLanguage === 'sr' ? 'sr' : selectedLanguage;
+    document.documentElement.lang = selectedLanguage === 'sr' ? 'sr-Latn' : selectedLanguage;
     localStorage.setItem('gym-language', selectedLanguage);
     document.querySelectorAll('.language-option').forEach((button) => {
       button.classList.toggle('active', button.dataset.language === selectedLanguage);
@@ -2036,9 +2140,25 @@ function renderPendingSyncStatus() {
     if (status) status.textContent = selectedLanguage === 'sr' ? 'Odabran je srpski jezik.' : selectedLanguage === 'en' ? 'English selected.' : 'Deutsch ausgewählt.';
   }
 
+  function renderLanguageFlagIcons() {
+    const flags = {
+      sr: '<span class="flag-image"><img src="assets/flag-sr.svg" alt="Srpska zastava"></span>',
+      en: '<span class="flag-image"><img src="assets/flag-en.svg" alt="British flag"></span>',
+      de: '<span class="flag-image"><img src="assets/flag-de.svg" alt="Njemačka zastava"></span>'
+    };
+    document.querySelectorAll('.language-option').forEach((button) => {
+      const language = button.dataset.language;
+      const label = language === 'sr' ? 'Srpski' : language === 'en' ? 'English' : 'Deutsch';
+      if (flags[language]) button.innerHTML = `${flags[language]}<small>${label}</small>`;
+    });
+  }
+
   function initializeAppearanceSettings() {
     applyTheme(localStorage.getItem('gym-theme') || 'dark');
+    renderLanguageFlagIcons();
     applyLanguage(localStorage.getItem('gym-language') || 'sr');
+    localizeSubtree();
+    observeLocalization();
   }
 
   function showConfirm(message) {
@@ -2074,7 +2194,7 @@ function renderPendingSyncStatus() {
           applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
           break;
         case 'set-language':
-          applyLanguage(button.dataset.language);
+          changeAppLanguage(button.dataset.language);
           break;
         case 'go-home':
           window.goHome();
