@@ -611,7 +611,7 @@ window.handleAuthSubmit = async function(e) {
         card.innerHTML = `
           <div class="flex-between">
             <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(ex.name)} 🏃‍♂️</h3>
-            <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
+            <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
           </div>
           <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
             ${ex.minutes ? `⏱️ <strong>${escapeHtml(ex.minutes)} min</strong>` : ''} ${ex.calories ? ` · 🔥 <strong>${escapeHtml(ex.calories)} kcal</strong>` : ''}
@@ -631,7 +631,7 @@ window.handleAuthSubmit = async function(e) {
             <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(ex.name)}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="pr-badge-slot"></span>
-              <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
+              <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
             </div>
           </div>
           <div class="sets-container">
@@ -763,7 +763,7 @@ window.handleAuthSubmit = async function(e) {
             <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(exName)}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="pr-badge-slot"></span>
-              <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
+              <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
             </div>
           </div>
           ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
@@ -905,7 +905,7 @@ window.handleAuthSubmit = async function(e) {
       card.innerHTML = `
         <div class="flex-between">
           <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(name)} 🏃‍♂️</h3>
-          <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
+          <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
         </div>
         <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
           ${min ? `⏱️ <strong>${escapeHtml(min)} min</strong>` : ''} ${cal ? ` · 🔥 <strong>${escapeHtml(cal)} kcal</strong>` : ''}
@@ -939,7 +939,7 @@ window.handleAuthSubmit = async function(e) {
           <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(name)}</h3>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="pr-badge-slot"></span>
-            <button class="btn-remove-ex" data-action="remove-exercise">Ukloni 🗑️</button>
+            <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
           </div>
         </div>
         ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
