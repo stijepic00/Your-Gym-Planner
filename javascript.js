@@ -389,17 +389,25 @@ window.handleAuthSubmit = async function(e) {
 
   function listenToUserRoutines(userId) {
     if (routinesUnsubscribe) routinesUnsubscribe();
-    userRoutines = readRoutineCache(userId);
+    const localRoutines = readRoutineCache(userId);
+    userRoutines = localRoutines;
     renderWorkouts();
 
     const routinesRef = collection(db, "routines");
     const q = query(routinesRef, where("userId", "==", userId));
 
     routinesUnsubscribe = onSnapshot(q, (querySnapshot) => {
-      userRoutines = [];
+      const nextRoutines = [];
       querySnapshot.forEach((docSnap) => {
-        userRoutines.push({ id: docSnap.id, ...docSnap.data() });
+        nextRoutines.push({ id: docSnap.id, ...docSnap.data() });
       });
+      const isOfflineSnapshot = querySnapshot.metadata?.fromCache === true || !navigator.onLine;
+      if (isOfflineSnapshot && nextRoutines.length === 0 && localRoutines.length > 0) {
+        userRoutines = localRoutines;
+        renderWorkouts();
+        return;
+      }
+      userRoutines = nextRoutines;
       writeRoutineCache(userId, userRoutines);
       renderWorkouts();
     }, (error) => {
