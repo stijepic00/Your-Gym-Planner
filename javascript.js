@@ -364,8 +364,32 @@ window.handleAuthSubmit = async function(e) {
   };
 
   // UČITAVANJE UŽIVO (StreamBuilder / onSnapshot) - Odgovara novim pravilima
+  function getRoutineCacheKey(userId) {
+    return `gym_routines_cache_v1_${userId}`;
+  }
+
+  function readRoutineCache(userId) {
+    try {
+      const raw = localStorage.getItem(getRoutineCacheKey(userId));
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeRoutineCache(userId, routines) {
+    try {
+      localStorage.setItem(getRoutineCacheKey(userId), JSON.stringify(routines));
+    } catch (error) {
+      console.warn('Lokalni cache rutina nije mogao biti sačuvan:', error);
+    }
+  }
+
   function listenToUserRoutines(userId) {
     if (routinesUnsubscribe) routinesUnsubscribe();
+    userRoutines = readRoutineCache(userId);
+    renderWorkouts();
 
     const routinesRef = collection(db, "routines");
     const q = query(routinesRef, where("userId", "==", userId));
@@ -375,6 +399,7 @@ window.handleAuthSubmit = async function(e) {
       querySnapshot.forEach((docSnap) => {
         userRoutines.push({ id: docSnap.id, ...docSnap.data() });
       });
+      writeRoutineCache(userId, userRoutines);
       renderWorkouts();
     }, (error) => {
       console.error("Greška u uživo slušanju rutina: ", error);
