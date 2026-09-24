@@ -248,6 +248,34 @@
   </div>
 </div>
 
-<script type="module" src="javascript.js?v=20260924-navigation-1"></script>
+<!-- Modal za uređivanje postojećeg dana -->
+<div id="editRoutineModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">✎ Uredi Dan / Karticu</h3>
+
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Emoji kartice:</label>
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+      <input type="text" id="editRoutineEmojiInput" class="custom-input" style="margin-bottom: 0; width: 80px; text-align: center; font-size: 1.3rem;" placeholder="🏋️">
+      <button type="button" class="emoji-btn-quick" data-action="set-edit-routine-emoji" data-emoji="🏋️">🏋️</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-edit-routine-emoji" data-emoji="💪">💪</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-edit-routine-emoji" data-emoji="🔥">🔥</button>
+      <button type="button" class="emoji-btn-quick" data-action="set-edit-routine-emoji" data-emoji="🦵">🦵</button>
+    </div>
+
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Naziv kartice:</label>
+    <input type="text" id="editRoutineNameInput" class="custom-input" placeholder="npr. Gornji A">
+
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin: 10px 0 6px 0;">Vježbe, jedna po redu:</label>
+    <textarea id="editRoutineExercisesInput" class="custom-input" rows="5" placeholder="Bench Press 4x10&#10;Kosi Potisak 3x12"></textarea>
+
+    <div style="display: flex; gap: 10px; margin-top: 12px;">
+      <button class="btn" data-action="save-routine-edits">Sačuvaj Izmjene</button>
+      <button class="btn btn-secondary" data-action="close-modal" data-modal-id="editRoutineModal">Otkaži</button>
+    </div>
+    <button class="btn btn-danger" style="margin-top: 12px; width: 100%;" data-action="delete-editing-routine">Obriši cijeli dan</button>
+  </div>
+</div>
+
+<script type="module" src="javascript.js?v=20260924-routine-edit-1"></script>
 </body>
 </html>

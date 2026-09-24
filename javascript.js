@@ -17,6 +17,7 @@
     getDoc, 
     doc, 
     setDoc, 
+    updateDoc,
     deleteDoc,
     query, 
     where,
@@ -79,6 +80,8 @@
   let chartInstance = null;
   let routinesUnsubscribe = null;
   let navigationGuardReady = false;
+  let routineEditMode = false;
+  let editingRoutineId = null;
 
   const defaultWorkouts = [
     { id: 'custom-extra', name: 'Poseban / Kardio Dan', emoji: '⚡', exercises: [] }
@@ -310,9 +313,14 @@ window.handleAuthSubmit = async function(e) {
     if (!container) return;
 
     let html = `
-      <button class="btn btn-purple" style="margin-bottom: 16px;" data-action="open-create-routine">
-        ➕ Napravi Novi Dan / Karticu
-      </button>
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <button class="btn btn-purple" style="flex:1;" data-action="open-create-routine">
+          ➕ Napravi Novi Dan / Karticu
+        </button>
+        <button class="btn ${routineEditMode ? 'btn-purple' : 'btn-secondary'}" style="width:auto; padding:10px 14px;" data-action="toggle-routine-edit-mode">
+          ${routineEditMode ? '✓ Gotovo' : '✎ Uredi dane'}
+        </button>
+      </div>
     `;
 
     if (userRoutines.length === 0) {
@@ -336,8 +344,9 @@ window.handleAuthSubmit = async function(e) {
               </p>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(w.id)}">Započni →</button>
-              <button class="btn-remove-ex" style="padding: 10px 12px; font-size: 0.9rem;" data-action="delete-routine" data-routine-id="${escapeHtml(w.id)}">🗑️</button>
+              ${routineEditMode
+                ? `<button class="btn btn-secondary" style="padding:10px 14px; font-size:0.85rem;" data-action="open-edit-routine" data-routine-id="${escapeHtml(w.id)}">✎ Uredi</button>`
+                : `<button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(w.id)}">Započni →</button>`}
             </div>
           </div>
         `;
@@ -373,6 +382,74 @@ window.handleAuthSubmit = async function(e) {
       } catch (error) {
         ShowToast("Greška pri brisanju: " + error.message, 'error');
       }
+    }
+  };
+
+  window.toggleRoutineEditMode = function() {
+    routineEditMode = !routineEditMode;
+    window.renderWorkouts();
+  };
+
+  window.openEditRoutineModal = function(routineId) {
+    const routine = userRoutines.find((item) => item.id === routineId);
+    if (!routine) return;
+
+    editingRoutineId = routine.id;
+    document.getElementById('editRoutineEmojiInput').value = routine.emoji || getEmojiForRoutine(routine.name);
+    document.getElementById('editRoutineNameInput').value = routine.name || '';
+    document.getElementById('editRoutineExercisesInput').value = (routine.exercises || [])
+      .map((exercise) => typeof exercise === 'string' ? exercise : (exercise?.name || ''))
+      .filter(Boolean)
+      .join('\n');
+    document.getElementById('editRoutineModal').style.display = 'flex';
+  };
+
+  window.setEditRoutineEmoji = function(emoji) {
+    const input = document.getElementById('editRoutineEmojiInput');
+    if (input) input.value = emoji;
+  };
+
+  window.saveRoutineEdits = async function() {
+    if (!editingRoutineId) return;
+
+    const emoji = document.getElementById('editRoutineEmojiInput').value.trim();
+    const name = document.getElementById('editRoutineNameInput').value.trim();
+    const exercises = document.getElementById('editRoutineExercisesInput').value
+      .split('\n')
+      .map((exercise) => exercise.trim())
+      .filter(Boolean);
+
+    if (!name) {
+      ShowToast('Naziv dana je obavezan.', 'error');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'routines', editingRoutineId), {
+        emoji: emoji || getEmojiForRoutine(name),
+        name,
+        exercises
+      });
+      document.getElementById('editRoutineModal').style.display = 'none';
+      editingRoutineId = null;
+      ShowToast('Izmjene su sačuvane.');
+    } catch (error) {
+      ShowToast('Greška pri čuvanju izmjena: ' + error.message, 'error');
+    }
+  };
+
+  window.deleteEditingRoutine = async function() {
+    if (!editingRoutineId) return;
+    if (!(await showConfirm('Obrisati cijeli dan i sve vježbe iz njega?'))) return;
+
+    try {
+      await deleteDoc(doc(db, 'routines', editingRoutineId));
+      document.getElementById('editRoutineModal').style.display = 'none';
+      editingRoutineId = null;
+      routineEditMode = false;
+      ShowToast('Dan je obrisan.');
+    } catch (error) {
+      ShowToast('Greška pri brisanju dana: ' + error.message, 'error');
     }
   };
 
@@ -1373,6 +1450,21 @@ async function loadCloudData() {
           break;
         case 'open-create-routine':
           window.openCreateRoutineModal();
+          break;
+        case 'toggle-routine-edit-mode':
+          window.toggleRoutineEditMode();
+          break;
+        case 'open-edit-routine':
+          if (button.dataset.routineId) window.openEditRoutineModal(button.dataset.routineId);
+          break;
+        case 'set-edit-routine-emoji':
+          window.setEditRoutineEmoji(button.dataset.emoji || '');
+          break;
+        case 'save-routine-edits':
+          window.saveRoutineEdits();
+          break;
+        case 'delete-editing-routine':
+          window.deleteEditingRoutine();
           break;
         case 'start-routine':
           if (button.dataset.routineId) window.startWorkout(button.dataset.routineId);
