@@ -7,7 +7,8 @@
     signInWithPopup, 
     GoogleAuthProvider,
     onAuthStateChanged,
-    signOut 
+    signOut,
+    updateProfile
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { 
     getFirestore, 
@@ -86,6 +87,7 @@
   let pendingWorkoutsMemory = [];
   let pendingWorkoutsLoaded = false;
   let pendingDbPromise = null;
+  let currentProfileData = null;
   const HISTORY_CACHE_VERSION = 1;
 
   const defaultWorkouts = [
@@ -219,12 +221,14 @@ window.handleAuthSubmit = async function(e) {
       if (mailDisplay) {
         try {
           const userDoc = await getDoc(doc(db, "users", user.uid));
+          currentProfileData = userDoc.exists() ? userDoc.data() : null;
           if (userDoc.exists() && userDoc.data().fullName) {
             mailDisplay.innerText = userDoc.data().fullName;
           } else {
             mailDisplay.innerText = user.email;
           }
         } catch {
+          currentProfileData = null;
           mailDisplay.innerText = user.email;
         }
         mailDisplay.style.display = 'inline-block';
@@ -242,6 +246,7 @@ window.handleAuthSubmit = async function(e) {
         routinesUnsubscribe = null;
       }
       currentUser = null;
+      currentProfileData = null;
       navigationGuardReady = false;
       userRoutines = [];
       if (bottomNav) bottomNav.style.display = 'none';
@@ -283,7 +288,7 @@ window.handleAuthSubmit = async function(e) {
     if (targetView) targetView.classList.add('active');
 
     const navBtns = document.querySelectorAll('.nav-item');
-    const indexMap = { dashboard: 0, workouts: 1, analytics: 2, history: 3 };
+    const indexMap = { dashboard: 0, workouts: 1, analytics: 2, history: 3, settings: 4 };
     if (indexMap[tabId] !== undefined && navBtns[indexMap[tabId]]) {
       navBtns[indexMap[tabId]].classList.add('active');
     }
@@ -292,6 +297,7 @@ window.handleAuthSubmit = async function(e) {
     if (tabId === 'dashboard') { checkDraftState(); renderDashboard(); }
     if (tabId === 'workouts') renderWorkouts();
     if (tabId === 'analytics') setupAnalyticsUI();
+    if (tabId === 'settings') renderProfileSettings();
   };
 
   window.goHome = function() {
@@ -1788,6 +1794,110 @@ function renderPendingSyncStatus() {
     }, 2500);
   };
 
+  function getProfilePhotoKey(userId) {
+    return `gym_profile_photo_v1_${userId}`;
+  }
+
+  function renderProfileSettings() {
+    if (!currentUser) return;
+    const nameInput = document.getElementById('profile-name-input');
+    const emailInput = document.getElementById('profile-email-input');
+    const avatar = document.getElementById('profile-avatar');
+    if (nameInput) nameInput.value = currentProfileData?.fullName || currentUser.displayName || '';
+    if (emailInput) emailInput.value = currentUser.email || '';
+    if (avatar) {
+      const photo = localStorage.getItem(getProfilePhotoKey(currentUser.uid));
+      avatar.textContent = (currentProfileData?.fullName || currentUser.email || 'K').trim().charAt(0).toUpperCase();
+      avatar.style.backgroundImage = photo ? `url(${photo})` : '';
+      avatar.classList.toggle('has-photo', Boolean(photo));
+    }
+  }
+
+  async function handleProfilePhotoChange(event) {
+    const file = event.target.files?.[0];
+    if (!file || !currentUser) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      ShowToast('Slika mora biti PNG, JPG ili WebP do 5 MB.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const size = 320;
+        const scale = Math.min(1, size / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.78);
+        try {
+          localStorage.setItem(getProfilePhotoKey(currentUser.uid), compressed);
+          renderProfileSettings();
+          ShowToast('Profilna slika je sačuvana na ovom uređaju.');
+        } catch {
+          ShowToast('Slika je prevelika za lokalno čuvanje.', 'error');
+        }
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  window.requestProfileEmailCode = async function() {
+    if (!currentUser) return;
+    const emailInput = document.getElementById('profile-email-input');
+    const codeInput = document.getElementById('profile-email-code-input');
+    const nextEmail = emailInput.value.trim().toLowerCase();
+    if (!nextEmail || nextEmail === currentUser.email.toLowerCase()) {
+      ShowToast('Unesite novu email adresu.', 'error');
+      return;
+    }
+    try {
+      await sendVerificationCodeEmail(nextEmail);
+      codeInput.style.display = 'block';
+      document.getElementById('profile-settings-status').textContent = 'Kod je poslat na novu email adresu.';
+    } catch (error) {
+      ShowToast(error.message, 'error');
+    }
+  };
+
+  window.saveProfileSettings = async function() {
+    if (!currentUser) return;
+    const name = document.getElementById('profile-name-input').value.trim();
+    const email = document.getElementById('profile-email-input').value.trim().toLowerCase();
+    const code = document.getElementById('profile-email-code-input').value.trim();
+    if (!name || name.length > 100) {
+      ShowToast('Ime i prezime moraju imati između 1 i 100 karaktera.', 'error');
+      return;
+    }
+    const emailChanged = email !== String(currentUser.email || '').toLowerCase();
+    if (emailChanged && !/^\d{6}$/.test(code)) {
+      ShowToast('Za novu email adresu unesite tačan šestocifreni kod.', 'error');
+      return;
+    }
+    try {
+      const headers = await getProtectedApiHeaders();
+      headers.Authorization = `Bearer ${await currentUser.getIdToken(true)}`;
+      const response = await fetch('https://your-gym-planner.vercel.app/api/update-profile', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name, email: emailChanged ? email : undefined, code: emailChanged ? code : undefined })
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'Profil nije moguće sačuvati.');
+      await updateProfile(currentUser, { displayName: name });
+      await currentUser.reload();
+      currentProfileData = { ...(currentProfileData || {}), fullName: name, email: result.email || currentUser.email };
+      document.getElementById('user-email-display').innerText = name;
+      document.getElementById('profile-email-code-input').style.display = 'none';
+      document.getElementById('profile-settings-status').textContent = 'Profil je uspješno sačuvan.';
+      ShowToast('Profil je ažuriran.');
+    } catch (error) {
+      ShowToast(error.message, 'error');
+    }
+  };
+
   function showConfirm(message) {
     return new Promise((resolve) => {
       const confirmed = window.confirm(message);
@@ -1861,6 +1971,12 @@ function renderPendingSyncStatus() {
           break;
         case 'finish-workout':
           window.finishWorkout();
+          break;
+        case 'request-profile-email-code':
+          window.requestProfileEmailCode();
+          break;
+        case 'save-profile-settings':
+          window.saveProfileSettings();
           break;
         case 'sync-pending-workouts':
           window.syncPendingWorkoutsNow();
@@ -1947,6 +2063,7 @@ function renderPendingSyncStatus() {
         saveWorkoutDraft();
       }
     });
+    document.getElementById('profile-photo-input')?.addEventListener('change', handleProfilePhotoChange);
   }
 
   function registerOfflineWorker() {

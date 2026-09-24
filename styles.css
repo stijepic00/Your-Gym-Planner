@@ -170,6 +170,14 @@ main {
   letter-spacing: -0.3px;
 }
 
+.profile-settings-card { display: grid; gap: 10px; }
+.profile-avatar-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.profile-avatar { width: 76px; height: 76px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary), var(--info)); color: #061008; font-size: 1.8rem; font-weight: 900; background-size: cover; background-position: center; }
+.profile-avatar.has-photo { color: transparent; }
+.profile-avatar-button { width: auto; height: 40px; padding: 0 14px; font-size: 0.8rem; }
+.settings-label { color: var(--text-muted); font-size: 0.82rem; font-weight: 800; margin-top: 4px; }
+.settings-status { min-height: 1.2em; color: var(--text-muted); font-size: 0.82rem; }
+
 .card-subtitle {
   font-size: 0.875rem;
   color: var(--text-muted);
