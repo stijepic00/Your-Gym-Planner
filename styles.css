@@ -39,6 +39,26 @@
   --max-width: 640px;
 }
 
+html[data-theme="light"] {
+  --bg-main: #eef3f8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-input: #f1f5f9;
+  --border-color: rgba(15, 23, 42, 0.12);
+  --text-main: #0f172a;
+  --text-muted: #526174;
+  --text-dim: #64748b;
+  --accent-primary: #059669;
+  --accent-primary-hover: #047857;
+  --accent-glow: rgba(5, 150, 105, 0.2);
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.1);
+  --info: #2563eb;
+}
+
+html[data-theme="light"] body { background: var(--bg-main); color: var(--text-main); }
+html[data-theme="light"] header { background: rgba(255, 255, 255, 0.88); }
+
 /* ==========================================================================
    RESET & BASE STYLES
    ========================================================================== */
@@ -171,30 +191,90 @@ main {
 }
 
 .profile-settings-card { display: grid; gap: 0; }
-.profile-avatar-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.profile-avatar-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
 .profile-avatar { width: 76px; height: 76px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary), var(--info)); color: #061008; font-size: 1.8rem; font-weight: 900; background-size: cover; background-position: center; }
+.profile-avatar:not(.has-photo) { background: linear-gradient(135deg, #34d399, #38bdf8); color: #061008; }
 .profile-avatar.has-photo { color: transparent; }
 .profile-avatar-button { width: auto; height: 40px; padding: 0 14px; font-size: 0.8rem; }
+.profile-avatar-remove { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; padding: 0 0 2px; border: 1px solid rgba(248, 113, 113, 0.55); border-radius: 50%; background: rgba(239, 68, 68, 0.16); color: #fecaca; font: 500 1.35rem/1 Arial, sans-serif; cursor: pointer; box-shadow: 0 6px 18px rgba(239, 68, 68, 0.16); transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease; }
+.profile-avatar-remove:hover { transform: scale(1.08); background: rgba(239, 68, 68, 0.3); box-shadow: 0 8px 22px rgba(239, 68, 68, 0.28); }
 .settings-label { display: block; color: var(--text-muted); font-size: 0.82rem; font-weight: 800; line-height: 1.2; margin: 0 0 8px; }
+.settings-preference-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 0 17px; margin-bottom: 18px; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
+.settings-preference-title { color: var(--text-main); font-size: 0.92rem; font-weight: 800; }
+.settings-preference-help { color: var(--text-muted); font-size: 0.76rem; margin-top: 4px; }
+.settings-language-block { padding-bottom: 18px; margin-bottom: 4px; }
+.language-options { display: flex; gap: 10px; margin-top: 12px; }
+.language-option { width: 66px; min-height: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 7px 5px; border: 1px solid var(--border-color); border-radius: 16px; background: var(--bg-input); color: var(--text-main); cursor: pointer; transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+.language-option span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-card); font-size: 1.35rem; box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+.language-option small { font-size: 0.66rem; font-weight: 800; }
+.language-option:hover, .language-option.active { transform: translateY(-2px); border-color: var(--accent-primary); background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-input)); box-shadow: 0 0 0 3px var(--accent-glow); }
+.theme-toggle { display: inline-flex; align-items: center; gap: 7px; width: auto; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--bg-input); color: var(--text-main); cursor: pointer; }
+.theme-toggle-icon { font-size: 0.9rem; line-height: 1; }
+.theme-toggle-track { position: relative; width: 48px; height: 26px; border-radius: 999px; background: #334155; padding: 3px; transition: background 0.2s ease; }
+.theme-toggle-thumb { display: block; width: 20px; height: 20px; border-radius: 50%; background: #f8fafc; box-shadow: 0 2px 6px rgba(0,0,0,0.28); transform: translateX(0); transition: transform 0.22s ease; }
+.theme-toggle[aria-checked="true"] .theme-toggle-track { background: var(--accent-primary); }
+.theme-toggle[aria-checked="true"] .theme-toggle-thumb { transform: translateX(22px); }
 .profile-settings-card > .custom-input { margin: 0 0 18px; }
 .profile-settings-card > .settings-label:not(:first-child) { margin-top: 2px; }
 .settings-email-row { display: flex; align-items: center; gap: 8px; }
-.settings-email-row .custom-input { flex: 1; min-width: 0; margin-bottom: 0; }
+.settings-email-row .custom-input { flex: 1 1 0; width: 100%; min-width: 0; box-sizing: border-box; margin-bottom: 0; }
 .settings-email-row { margin-bottom: 18px; }
-.settings-email-button { width: auto; flex: 0 0 auto; padding: 0 12px; min-height: 44px; font-size: 0.78rem; white-space: nowrap; }
+.settings-current-email { min-width: 0; width: 100%; text-overflow: ellipsis; }
+.settings-email-row .settings-email-button { width: auto !important; flex: 0 0 auto; padding: 0 12px; min-height: 44px; font-size: 0.78rem; white-space: nowrap; }
 .profile-settings-card > .mt-12 { margin-top: 0; margin-bottom: 16px; }
 .profile-settings-card > [data-action="save-profile-settings"] { margin-top: 2px; }
 .profile-photo-modal-content { text-align: center; }
-.photo-editor-frame { width: min(78vw, 280px); aspect-ratio: 1; margin: 16px auto; border-radius: 50%; overflow: hidden; background: var(--bg-input); border: 2px solid var(--accent-primary); display: grid; place-items: center; }
-.photo-editor-frame img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; transition: transform 0.12s ease-out; }
+.photo-editor-frame { width: min(78vw, 280px); aspect-ratio: 1; margin: 16px auto; border-radius: 50%; overflow: hidden; background: var(--bg-input); border: 2px solid var(--accent-primary); display: grid; place-items: center; cursor: grab; touch-action: none; }
+.photo-editor-frame.is-dragging { cursor: grabbing; }
+.photo-editor-frame img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; transition: transform 0.12s ease-out; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .photo-zoom { width: 100%; accent-color: var(--accent-primary); }
 .profile-photo-actions { display: flex; gap: 8px; margin-top: 16px; }
 .profile-photo-actions .btn { flex: 1; }
+.profile-email-modal-content,
+.profile-photo-modal-content { position: relative; }
+.profile-email-modal-content .modal-close,
+.profile-photo-modal-content .modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 50%;
+  background: rgba(30, 41, 59, 0.82);
+  color: var(--text-main);
+  font-family: Arial, sans-serif;
+  font-size: 1.45rem;
+  font-weight: 500;
+  line-height: 38px;
+  text-align: center;
+  transform-origin: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  z-index: 2;
+}
+.profile-email-modal-content .modal-close:hover,
+.profile-photo-modal-content .modal-close:hover {
+  transform: rotate(90deg) scale(1.06);
+  background: rgba(139, 92, 246, 0.85);
+  border-color: rgba(196, 181, 253, 0.8);
+}
+.profile-email-modal-content h3,
+.profile-photo-modal-content h3 { padding-right: 42px; margin-bottom: 4px; }
+.profile-modal-help { color: var(--text-muted); font-size: 0.88rem; line-height: 1.45; margin: 8px 0 20px; }
+.profile-email-modal-input { width: 100%; min-height: 50px; margin: 0 0 14px; font-size: 1rem; }
+.profile-email-send-button { margin-bottom: 18px; }
+.profile-email-code-label { margin-top: 2px; }
+.profile-email-modal-content > [data-action="save-profile-settings"] { margin-top: 8px; }
 .settings-status { min-height: 1.2em; color: var(--text-muted); font-size: 0.82rem; }
 
 @media (max-width: 420px) {
   .settings-email-row { align-items: stretch; flex-direction: column; gap: 10px; }
-  .settings-email-button { width: 100%; }
+  .settings-email-row .custom-input { flex: 0 0 auto; width: 100%; min-height: 50px; }
+  .settings-email-row .settings-email-button { width: 100% !important; }
 }
 
 .card-subtitle {

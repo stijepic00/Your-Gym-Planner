@@ -90,6 +90,9 @@
   let currentProfileData = null;
   let pendingProfilePhotoImage = null;
   let profilePhotoZoom = 1;
+  let profilePhotoOffsetX = 0;
+  let profilePhotoOffsetY = 0;
+  let profilePhotoDrag = null;
   let profileEmailCodeTarget = '';
   const HISTORY_CACHE_VERSION = 1;
 
@@ -1805,15 +1808,22 @@ function renderPendingSyncStatus() {
     if (!currentUser) return;
     const nameInput = document.getElementById('profile-name-input');
     const emailInput = document.getElementById('profile-email-input');
+    const currentEmailInput = document.getElementById('profile-email-current');
     const avatar = document.getElementById('profile-avatar');
     if (nameInput) nameInput.value = currentProfileData?.fullName || currentUser.displayName || '';
     if (emailInput) emailInput.value = currentUser.email || '';
+    if (currentEmailInput) currentEmailInput.value = currentUser.email || '';
     if (avatar) {
-      const photo = localStorage.getItem(getProfilePhotoKey(currentUser.uid));
+      const photo = localStorage.getItem(getProfilePhotoKey(currentUser.uid)) || '';
       avatar.textContent = (currentProfileData?.fullName || currentUser.email || 'K').trim().charAt(0).toUpperCase();
-      avatar.style.backgroundImage = photo ? `url(${photo})` : '';
+      avatar.style.backgroundImage = photo ? `url("${photo}")` : '';
       avatar.classList.toggle('has-photo', Boolean(photo));
     }
+  }
+
+  function updateProfilePhotoPreview() {
+    const preview = document.getElementById('profile-photo-preview');
+    if (preview) preview.style.transform = `translate(${profilePhotoOffsetX}px, ${profilePhotoOffsetY}px) scale(${profilePhotoZoom})`;
   }
 
   async function handleProfilePhotoChange(event) {
@@ -1827,11 +1837,19 @@ function renderPendingSyncStatus() {
     reader.onload = () => {
       const image = new Image();
       image.onload = () => {
+        const largestSide = Math.max(image.width, image.height);
+        const pixels = image.width * image.height;
+        if (image.width < 160 || image.height < 160 || largestSide > 4096 || pixels > 16000000) {
+          ShowToast('Slika mora imati najmanje 160×160 i najviše 4096 px po strani.', 'error');
+          return;
+        }
         pendingProfilePhotoImage = image;
         profilePhotoZoom = 1;
+        profilePhotoOffsetX = 0;
+        profilePhotoOffsetY = 0;
         const preview = document.getElementById('profile-photo-preview');
         const zoom = document.getElementById('profile-photo-zoom');
-        if (preview) { preview.src = reader.result; preview.style.transform = 'scale(1)'; }
+        if (preview) { preview.src = reader.result; updateProfilePhotoPreview(); }
         if (zoom) zoom.value = '1';
         const modal = document.getElementById('profile-photo-modal');
         if (modal) modal.style.display = 'flex';
@@ -1864,7 +1882,7 @@ function renderPendingSyncStatus() {
     reader.readAsDataURL(file);
   }
 
-  window.applyProfilePhoto = function() {
+  window.applyProfilePhoto = async function() {
     if (!currentUser || !pendingProfilePhotoImage) return;
     const size = 512;
     const image = pendingProfilePhotoImage;
@@ -1874,9 +1892,12 @@ function renderPendingSyncStatus() {
     const scale = Math.max(size / image.width, size / image.height) * profilePhotoZoom;
     const width = image.width * scale;
     const height = image.height * scale;
-    context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+    const frameSize = document.querySelector('.photo-editor-frame')?.clientWidth || 280;
+    const offsetScale = size / frameSize;
+    context.drawImage(image, (size - width) / 2 + profilePhotoOffsetX * offsetScale, (size - height) / 2 + profilePhotoOffsetY * offsetScale, width, height);
     try {
-      localStorage.setItem(getProfilePhotoKey(currentUser.uid), canvas.toDataURL('image/jpeg', 0.82));
+      const photoDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      localStorage.setItem(getProfilePhotoKey(currentUser.uid), photoDataUrl);
       pendingProfilePhotoImage = null;
       document.getElementById('profile-photo-modal').style.display = 'none';
       renderProfileSettings();
@@ -1884,6 +1905,33 @@ function renderPendingSyncStatus() {
     } catch {
       ShowToast('Slika je prevelika za lokalno Äuvanje.', 'error');
     }
+  };
+
+  window.removeProfilePhoto = async function() {
+    if (!currentUser) return;
+    if (!await showConfirm('Da li sigurno želiš obrisati profilnu sliku?')) return;
+    try {
+      localStorage.removeItem(getProfilePhotoKey(currentUser.uid));
+      pendingProfilePhotoImage = null;
+      document.getElementById('profile-photo-modal').style.display = 'none';
+      renderProfileSettings();
+      ShowToast('Profilna slika je uklonjena.');
+    } catch (error) {
+      console.error('Uklanjanje profilne slike nije uspjelo:', error);
+      ShowToast('Profilnu sliku nije moguće ukloniti.', 'error');
+    }
+  };
+
+  window.openProfileEmailModal = function() {
+    if (!currentUser) return;
+    const emailInput = document.getElementById('profile-email-input');
+    const codeInput = document.getElementById('profile-email-code-input');
+    const status = document.getElementById('profile-email-modal-status');
+    if (emailInput) emailInput.value = '';
+    if (codeInput) { codeInput.value = ''; codeInput.style.display = 'none'; }
+    if (status) status.textContent = '';
+    profileEmailCodeTarget = '';
+    document.getElementById('profile-email-modal').style.display = 'flex';
   };
 
   window.requestProfileEmailCode = async function() {
@@ -1899,7 +1947,8 @@ function renderPendingSyncStatus() {
       await sendVerificationCodeEmail(nextEmail);
       profileEmailCodeTarget = nextEmail;
       codeInput.style.display = 'block';
-      document.getElementById('profile-settings-status').textContent = 'Kod je poslat na novu email adresu.';
+      const status = document.getElementById('profile-email-modal-status');
+      if (status) status.textContent = 'Kod je poslat na novu email adresu.';
     } catch (error) {
       ShowToast(error.message, 'error');
     }
@@ -1948,12 +1997,40 @@ function renderPendingSyncStatus() {
       document.getElementById('user-email-display').innerText = name;
       document.getElementById('profile-email-code-input').style.display = 'none';
       profileEmailCodeTarget = '';
+      document.getElementById('profile-email-modal').style.display = 'none';
+      const currentEmailInput = document.getElementById('profile-email-current');
+      if (currentEmailInput) currentEmailInput.value = currentUser.email || email;
       document.getElementById('profile-settings-status').textContent = 'Profil je uspješno sačuvan.';
       ShowToast('Profil je ažuriran.');
     } catch (error) {
       ShowToast(error.message, 'error');
     }
   };
+
+  function applyTheme(theme) {
+    const selectedTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = selectedTheme;
+    localStorage.setItem('gym-theme', selectedTheme);
+    const toggle = document.getElementById('theme-toggle');
+    if (toggle) toggle.setAttribute('aria-checked', String(selectedTheme === 'light'));
+  }
+
+  function applyLanguage(language) {
+    const selectedLanguage = ['sr', 'en', 'de'].includes(language) ? language : 'sr';
+    document.documentElement.lang = selectedLanguage === 'sr' ? 'sr' : selectedLanguage;
+    localStorage.setItem('gym-language', selectedLanguage);
+    document.querySelectorAll('.language-option').forEach((button) => {
+      button.classList.toggle('active', button.dataset.language === selectedLanguage);
+      button.setAttribute('aria-pressed', String(button.dataset.language === selectedLanguage));
+    });
+    const status = document.getElementById('language-settings-status');
+    if (status) status.textContent = selectedLanguage === 'sr' ? 'Odabran je srpski jezik.' : selectedLanguage === 'en' ? 'English selected.' : 'Deutsch ausgewählt.';
+  }
+
+  function initializeAppearanceSettings() {
+    applyTheme(localStorage.getItem('gym-theme') || 'dark');
+    applyLanguage(localStorage.getItem('gym-language') || 'sr');
+  }
 
   function showConfirm(message) {
     return new Promise((resolve) => {
@@ -1984,6 +2061,12 @@ function renderPendingSyncStatus() {
       }
 
       switch (action) {
+        case 'toggle-theme':
+          applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+          break;
+        case 'set-language':
+          applyLanguage(button.dataset.language);
+          break;
         case 'go-home':
           window.goHome();
           break;
@@ -2029,11 +2112,17 @@ function renderPendingSyncStatus() {
         case 'finish-workout':
           window.finishWorkout();
           break;
+        case 'open-profile-email-modal':
+          window.openProfileEmailModal();
+          break;
         case 'start-profile-email-change':
           window.requestProfileEmailCode();
           break;
         case 'apply-profile-photo':
           window.applyProfilePhoto();
+          break;
+        case 'remove-profile-photo':
+          window.removeProfilePhoto();
           break;
         case 'save-profile-settings':
           window.saveProfileSettings();
@@ -2127,9 +2216,34 @@ function renderPendingSyncStatus() {
     document.getElementById('profile-photo-input')?.addEventListener('change', handleProfilePhotoChange);
     document.getElementById('profile-photo-zoom')?.addEventListener('input', (event) => {
       profilePhotoZoom = Number(event.target.value) || 1;
-      const preview = document.getElementById('profile-photo-preview');
-      if (preview) preview.style.transform = `scale(${profilePhotoZoom})`;
+      updateProfilePhotoPreview();
     });
+    const photoFrame = document.querySelector('.photo-editor-frame');
+    if (photoFrame) {
+      photoFrame.addEventListener('pointerdown', (event) => {
+        if (!pendingProfilePhotoImage) return;
+        event.preventDefault();
+        photoFrame.setPointerCapture?.(event.pointerId);
+        profilePhotoDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, offsetX: profilePhotoOffsetX, offsetY: profilePhotoOffsetY };
+        photoFrame.classList.add('is-dragging');
+      });
+      photoFrame.addEventListener('pointermove', (event) => {
+        if (!profilePhotoDrag || profilePhotoDrag.pointerId !== event.pointerId) return;
+        const frameSize = photoFrame.clientWidth || 280;
+        const maxOffset = frameSize * Math.max(0.35, profilePhotoZoom - 0.5);
+        profilePhotoOffsetX = Math.max(-maxOffset, Math.min(maxOffset, profilePhotoDrag.offsetX + event.clientX - profilePhotoDrag.startX));
+        profilePhotoOffsetY = Math.max(-maxOffset, Math.min(maxOffset, profilePhotoDrag.offsetY + event.clientY - profilePhotoDrag.startY));
+        updateProfilePhotoPreview();
+      });
+      const stopPhotoDrag = (event) => {
+        if (profilePhotoDrag?.pointerId === event.pointerId) {
+          profilePhotoDrag = null;
+          photoFrame.classList.remove('is-dragging');
+        }
+      };
+      photoFrame.addEventListener('pointerup', stopPhotoDrag);
+      photoFrame.addEventListener('pointercancel', stopPhotoDrag);
+    }
   }
 
   function registerOfflineWorker() {
@@ -2141,6 +2255,7 @@ function renderPendingSyncStatus() {
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }
 
+  initializeAppearanceSettings();
   setupEventHandlers();
   registerOfflineWorker();
 

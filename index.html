@@ -184,19 +184,38 @@
       <div class="card profile-settings-card">
         <div class="profile-avatar-wrap">
           <div id="profile-avatar" class="profile-avatar" aria-label="Profilna slika">K</div>
+          <button class="profile-avatar-remove" data-action="remove-profile-photo" type="button" aria-label="Ukloni profilnu sliku">×</button>
           <label class="btn btn-secondary profile-avatar-button" for="profile-photo-input">
             Promijeni sliku
             <input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
           </label>
         </div>
+        <div class="settings-preference-row">
+          <div>
+            <p class="settings-preference-title">Izgled aplikacije</p>
+            <p class="settings-preference-help">Izaberi tamni ili svijetli prikaz.</p>
+          </div>
+          <button id="theme-toggle" class="theme-toggle" data-action="toggle-theme" type="button" role="switch" aria-checked="false" aria-label="Promijeni temu">
+            <span class="theme-toggle-icon">☀️</span><span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span><span class="theme-toggle-icon">🌙</span>
+          </button>
+        </div>
+        <div class="settings-language-block">
+          <p class="settings-preference-title">Jezik aplikacije</p>
+          <p class="settings-preference-help">Izaberi jezik koji želiš koristiti.</p>
+          <div class="language-options" role="group" aria-label="Izbor jezika">
+            <button class="language-option" data-action="set-language" data-language="sr" type="button" aria-label="Srpski"><span>🇷🇸</span><small>Srpski</small></button>
+            <button class="language-option" data-action="set-language" data-language="en" type="button" aria-label="English"><span>🇬🇧</span><small>English</small></button>
+            <button class="language-option" data-action="set-language" data-language="de" type="button" aria-label="Deutsch"><span>🇩🇪</span><small>Deutsch</small></button>
+          </div>
+          <p id="language-settings-status" class="settings-status" role="status"></p>
+        </div>
         <label class="settings-label" for="profile-name-input">Ime i prezime</label>
         <input id="profile-name-input" class="custom-input" type="text" maxlength="100" autocomplete="name">
-        <label class="settings-label" for="profile-email-input">Email adresa</label>
+        <label class="settings-label" for="profile-email-current">Email adresa</label>
         <div class="settings-email-row">
-          <input id="profile-email-input" class="custom-input" type="email" maxlength="254" autocomplete="email">
-          <button class="btn btn-secondary settings-email-button" data-action="start-profile-email-change" type="button">Promijeni email</button>
+          <input id="profile-email-current" class="custom-input settings-current-email" type="email" readonly autocomplete="email">
+          <button class="btn btn-secondary settings-email-button" data-action="open-profile-email-modal" type="button">Promijeni email</button>
         </div>
-        <input id="profile-email-code-input" class="custom-input mt-12" type="text" inputmode="numeric" maxlength="6" placeholder="Kod za novu email adresu" style="display:none;">
         <button class="btn btn-purple mt-12" data-action="save-profile-settings">Sačuvaj profil</button>
         <p id="profile-settings-status" class="settings-status" role="status"></p>
       </div>
@@ -210,8 +229,23 @@
         <input id="profile-photo-zoom" class="photo-zoom" type="range" min="1" max="3" step="0.01" value="1">
         <div class="profile-photo-actions">
           <button class="btn btn-secondary" data-action="close-modal" type="button">Otkaži</button>
+          <button class="btn btn-danger" data-action="remove-profile-photo" type="button">Ukloni sliku</button>
           <button class="btn btn-purple" data-action="apply-profile-photo" type="button">Sačuvaj sliku</button>
         </div>
+      </div>
+    </div>
+    <div id="profile-email-modal" class="modal" style="display:none;">
+      <div class="modal-content profile-email-modal-content">
+        <button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button>
+        <h3>Promjena email adrese</h3>
+        <p class="profile-modal-help">Upiši novu email adresu. Na nju ćemo poslati verifikacioni kod.</p>
+        <label class="settings-label" for="profile-email-input">Nova email adresa</label>
+        <input id="profile-email-input" class="custom-input profile-email-modal-input" type="email" maxlength="254" autocomplete="email" placeholder="ime@example.com">
+        <button class="btn btn-secondary profile-email-send-button" data-action="start-profile-email-change" type="button">Pošalji verifikacioni kod</button>
+        <label class="settings-label profile-email-code-label" for="profile-email-code-input">Verifikacioni kod</label>
+        <input id="profile-email-code-input" class="custom-input profile-email-modal-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="display:none;">
+        <button class="btn btn-purple" data-action="save-profile-settings" type="button">Potvrdi promjenu</button>
+        <p id="profile-email-modal-status" class="settings-status" role="status"></p>
       </div>
     </div>
 </main>
@@ -320,6 +354,6 @@
   </div>
 </div>
 
-<script type="module" src="javascript.js?v=20260924-settings-2"></script>
+<script type="module" src="javascript.js?v=20260924-settings-9"></script>
 </body>
 </html>
