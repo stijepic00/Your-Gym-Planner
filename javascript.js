@@ -230,7 +230,6 @@ window.handleAuthSubmit = async function(e) {
         mailDisplay.style.display = 'inline-block';
       }
 
-      hideAppLoader();
       await loadPendingWorkouts(user.uid);
       await loadCloudData();
       await syncPendingWorkouts();
@@ -249,7 +248,6 @@ window.handleAuthSubmit = async function(e) {
       if (logoutBtn) logoutBtn.style.display = 'none';
       if (mailDisplay) mailDisplay.style.display = 'none';
       if (loginBtn) loginBtn.style.display = 'inline-block';
-      hideAppLoader();
       switchTab('login');
     }
   });
@@ -1797,11 +1795,6 @@ function renderPendingSyncStatus() {
     });
   }
 
-  function hideAppLoader() {
-    const loader = document.getElementById('app-loader');
-    if (loader) loader.classList.add('is-hidden');
-  }
-
   function setupEventHandlers() {
     const authForm = document.getElementById('auth-form');
     if (authForm) authForm.addEventListener('submit', window.handleAuthSubmit);
@@ -1967,7 +1960,6 @@ function renderPendingSyncStatus() {
 
   setupEventHandlers();
   registerOfflineWorker();
-  setTimeout(hideAppLoader, 7000);
 
 
 async function getProtectedApiHeaders() {
