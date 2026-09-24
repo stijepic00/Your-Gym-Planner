@@ -24,7 +24,7 @@
     limit,
     onSnapshot 
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-  import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
+  import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCPZxiv-5ob5aYhcVvyuQ_uFu8Q2i6rcSk",
@@ -40,8 +40,13 @@
   const appCheckSiteKey = document.querySelector('meta[name="firebase-app-check-site-key"]')?.content.trim();
   let appCheck = null;
   if (appCheckSiteKey) {
+    // Local development only: opt in from this browser's DevTools.
+    if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
+        && localStorage.getItem('gym-app-check-debug') === 'true') {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
     appCheck = initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(appCheckSiteKey),
+      provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true
     });
   }
@@ -1386,8 +1391,13 @@ async function loadCloudData() {
 async function getProtectedApiHeaders() {
   const headers = { 'Content-Type': 'application/json' };
   if (appCheck) {
-    const token = await getToken(appCheck);
-    headers['X-Firebase-AppCheck'] = token.token;
+    try {
+      const result = await getToken(appCheck, false);
+      if (!result.token) throw new Error('Missing App Check token');
+      headers['X-Firebase-AppCheck'] = result.token;
+    } catch {
+      throw new Error('Sigurnosna provjera nije uspjela. Osvježite stranicu i pokušajte ponovo.');
+    }
   }
   return headers;
 }
@@ -1504,46 +1514,4 @@ window.confirmVerificationCode = async function() {
     }
   }
   return;
-
-  const verificationExpiresAfterMs = 10 * 60 * 1000;
-  if (pendingVerification.createdAt && Date.now() - pendingVerification.createdAt > verificationExpiresAfterMs) {
-    if (verifyError) {
-      verifyError.innerText = 'Verifikacioni kod je istekao. Započnite registraciju ponovo da dobijete novi kod.';
-      verifyError.style.display = 'block';
-    }
-    return;
-  }
-
-  if (inputCode === pendingVerification.code) {
-    try {
-      // Kod je tačan – kreiramo korisnika na Firebase
-      const userCredential = await createUserWithEmailAndPassword(auth, pendingVerification.email, pendingVerification.password);
-      
-      if (pendingVerification.name) {
-        await updateProfile(userCredential.user, { displayName: pendingVerification.name });
-      }
-
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        fullName: pendingVerification.name || "Korisnik",
-        email: pendingVerification.email,
-        createdAt: new Date().toISOString()
-      });
-
-      document.getElementById('verificationModal').style.display = 'none';
-      ShowToast("Registracija uspješna! Dobrodošli 🔥");
-      
-      const form = document.getElementById('auth-form');
-      if (form) form.reset();
-    } catch (error) {
-      if (verifyError) {
-        verifyError.innerText = "Greška pri registraciji: " + error.message;
-        verifyError.style.display = 'block';
-      }
-    }
-  } else {
-    if (verifyError) {
-      verifyError.innerText = "Netačan verifikacioni kod! Pokušajte ponovo.";
-      verifyError.style.display = 'block';
-    }
-  }
 };
