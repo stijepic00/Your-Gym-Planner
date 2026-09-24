@@ -28,14 +28,16 @@ export function getAdminDb() {
 }
 
 export async function verifyAppCheckRequest(req) {
-  if (process.env.APP_CHECK_ENFORCED !== 'true') return true;
+  // Only an absent setting or explicit false permits the staged rollout.
+  const enforcement = process.env.APP_CHECK_ENFORCED;
+  if (enforcement === undefined || enforcement === 'false') return true;
 
   const token = req.headers['x-firebase-appcheck'];
   if (!token || typeof token !== 'string') return false;
 
   try {
-    await getAppCheck(getAdminApp()).verifyToken(token);
-    return true;
+    const claims = await getAppCheck(getAdminApp()).verifyToken(token);
+    return claims.appId === '1:106914789522:web:f287e0e84d3252cb328e4b';
   } catch {
     return false;
   }
