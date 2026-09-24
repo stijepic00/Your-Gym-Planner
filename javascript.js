@@ -228,6 +228,7 @@ window.handleAuthSubmit = async function(e) {
       }
 
       await loadCloudData();
+      await syncPendingWorkouts();
       listenToUserRoutines(user.uid);
       switchTab('dashboard');
       ensureInAppHistory();
@@ -1122,6 +1123,76 @@ window.handleAuthSubmit = async function(e) {
     }
   };
 
+  function createWorkoutId() {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    return `workout-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  function getPendingWorkoutKey(userId) {
+    return `gym_pending_workouts_v1_${userId}`;
+  }
+
+  function readPendingWorkouts(userId) {
+    try {
+      const raw = localStorage.getItem(getPendingWorkoutKey(userId));
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writePendingWorkouts(userId, queue) {
+    localStorage.setItem(getPendingWorkoutKey(userId), JSON.stringify(queue));
+  }
+
+  function isOfflineError(error) {
+    const message = String(error?.message || '').toLowerCase();
+    return !navigator.onLine
+      || ['unavailable', 'deadline-exceeded', 'internal'].includes(error?.code)
+      || message.includes('network')
+      || message.includes('failed to fetch')
+      || message.includes('offline');
+  }
+
+  function queueWorkoutForSync(workoutId, workoutData) {
+    const queue = readPendingWorkouts(currentUser.uid);
+    if (!queue.some((item) => item.id === workoutId)) {
+      queue.push({ id: workoutId, data: workoutData, queuedAt: Date.now() });
+      writePendingWorkouts(currentUser.uid, queue);
+    }
+    const localCopy = { ...workoutData, _localId: workoutId };
+    cachedHistory = [localCopy, ...cachedHistory.filter((item) => item._localId !== workoutId)].slice(0, 30);
+    writeHistoryCache(currentUser.uid, cachedHistory);
+  }
+
+  async function syncPendingWorkouts() {
+    if (!currentUser || !navigator.onLine) return;
+    const queue = readPendingWorkouts(currentUser.uid);
+    if (queue.length === 0) return;
+    renderPendingSyncStatus();
+
+    const remaining = [];
+    let syncedCount = 0;
+    for (const item of queue) {
+      try {
+        await setDoc(doc(db, 'workouts', item.id), item.data);
+        syncedCount += 1;
+      } catch (error) {
+        remaining.push(item);
+        if (!isOfflineError(error)) console.error('Greška pri sinhronizaciji treninga:', error);
+      }
+    }
+    writePendingWorkouts(currentUser.uid, remaining);
+    renderPendingSyncStatus();
+    if (syncedCount > 0) {
+      await loadCloudData();
+      ShowToast(remaining.length ? `Sinhronizovano: ${syncedCount}. Čeka još: ${remaining.length}.` : 'Trening sinhronizovan sa Cloudom.');
+    }
+  }
+
+  window.syncPendingWorkoutsNow = syncPendingWorkouts;
+
   window.finishWorkout = async function() {
     if (!currentUser) {
       ShowToast("Morate biti prijavljeni da biste sačuvali trening!", 'error');
@@ -1129,6 +1200,7 @@ window.handleAuthSubmit = async function(e) {
     }
 
     const blocks = document.querySelectorAll('.exercise-block');
+    const workoutId = createWorkoutId();
     const workoutData = { 
       userId: currentUser.uid,
       userEmail: currentUser.email,
@@ -1170,7 +1242,7 @@ window.handleAuthSubmit = async function(e) {
     }
 
     try {
-      await addDoc(collection(db, "workouts"), workoutData);
+      await setDoc(doc(db, "workouts", workoutId), workoutData);
       
       vibrate([100, 50, 100]);
       ShowToast('Trening sačuvan u "workouts" kolekciju! ☁️💪');
@@ -1180,6 +1252,15 @@ window.handleAuthSubmit = async function(e) {
       await loadCloudData();
       switchTab('dashboard');
     } catch (e) {
+      if (isOfflineError(e)) {
+        queueWorkoutForSync(workoutId, workoutData);
+        currentWorkout = null;
+        clearWorkoutDraft();
+        renderDashboard();
+        ShowToast('Sačuvano na uređaju — čeka internet.');
+        switchTab('dashboard');
+        return;
+      }
       console.error("Greška pri čuvanju: ", e);
       ShowToast('Greška pri čuvanju na cloud: ' + e.message, 'error');
     }
@@ -1236,7 +1317,37 @@ async function loadCloudData() {
   }
 }
 
+function renderPendingSyncStatus() {
+  const container = document.getElementById('pending-sync-container');
+  if (!container || !currentUser) return;
+  const pending = readPendingWorkouts(currentUser.uid);
+  if (pending.length === 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  const connectionText = navigator.onLine ? 'Internet je dostupan — pokušavam poslati.' : 'Čeka internetnu vezu.';
+  const rows = pending.map((item) => {
+    const name = item.data?.name || 'Trening';
+    const date = item.data?.date ? formatDateClean(item.data.date, false) : 'Novi zapis';
+    return `<li style="margin: 6px 0;"><strong>${escapeHtml(name)}</strong><span style="color:var(--text-muted);"> · ${escapeHtml(date)}</span></li>`;
+  }).join('');
+
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="flex-between" style="gap: 10px; align-items: flex-start;">
+      <div>
+        <strong style="color: var(--accent-purple);">⏳ ${pending.length} trening${pending.length === 1 ? '' : 'a'} čeka sinhronizaciju</strong>
+        <div style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">${connectionText}</div>
+      </div>
+      <button class="btn btn-secondary" style="width:auto; padding:8px 10px; font-size:0.8rem;" data-action="sync-pending-workouts">Pokušaj sada</button>
+    </div>
+    <ul style="margin: 10px 0 0 18px; padding:0;">${rows}</ul>`;
+}
+
   function renderDashboard() {
+    renderPendingSyncStatus();
     const container = document.getElementById('last-workout-container');
     if (cachedHistory.length === 0) {
       container.innerHTML = '<p style="color: var(--text-muted);">Još nema zapisa na Cloud-u.</p>';
@@ -1519,6 +1630,7 @@ async function loadCloudData() {
   function setupEventHandlers() {
     const authForm = document.getElementById('auth-form');
     if (authForm) authForm.addEventListener('submit', window.handleAuthSubmit);
+    window.addEventListener('online', syncPendingWorkouts);
 
     setupTouchReorder();
 
@@ -1581,6 +1693,9 @@ async function loadCloudData() {
           break;
         case 'finish-workout':
           window.finishWorkout();
+          break;
+        case 'sync-pending-workouts':
+          window.syncPendingWorkoutsNow();
           break;
         case 'copy-ai-rules':
           window.copyAIRules();
