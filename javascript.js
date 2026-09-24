@@ -284,6 +284,14 @@ window.handleAuthSubmit = async function(e) {
     if ('vibrate' in navigator) navigator.vibrate(ms);
   };
 
+  function scrollAppToTop() {
+    // Mobile browsers can keep the previous scroll position when a view is swapped.
+    // Reset both possible scroll containers so the sticky header starts at the top.
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
+
   window.switchTab = function(tabId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -302,16 +310,15 @@ window.handleAuthSubmit = async function(e) {
     if (tabId === 'workouts') renderWorkouts();
     if (tabId === 'analytics') setupAnalyticsUI();
     if (tabId === 'settings') renderProfileSettings();
+
+    if (tabId === 'dashboard' || tabId === 'login') {
+      scrollAppToTop();
+      requestAnimationFrame(scrollAppToTop);
+    }
   };
 
   window.goHome = function() {
     window.switchTab(currentUser ? 'dashboard' : 'login');
-
-    if (currentUser) {
-      requestAnimationFrame(() => {
-        document.getElementById('dashboard-ready')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    }
   };
 
   function ensureInAppHistory() {
@@ -2143,7 +2150,7 @@ function renderPendingSyncStatus() {
   function renderLanguageFlagIcons() {
     const flags = {
       sr: '<span class="flag-image"><img src="assets/flag-sr.svg" alt="Srpska zastava"></span>',
-      en: '<span class="flag-image"><img src="assets/flag-en.svg" alt="British flag"></span>',
+      en: '<span class="flag-image"><img class="flag-uk" src="assets/flag-en.svg" alt="British flag"></span>',
       de: '<span class="flag-image"><img src="assets/flag-de.svg" alt="Njemačka zastava"></span>'
     };
     document.querySelectorAll('.language-option').forEach((button) => {
