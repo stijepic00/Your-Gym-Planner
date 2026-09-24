@@ -170,15 +170,20 @@ main {
   letter-spacing: -0.3px;
 }
 
-.profile-settings-card { display: grid; gap: 10px; }
-.profile-avatar-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.profile-settings-card { display: grid; gap: 0; }
+.profile-avatar-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .profile-avatar { width: 76px; height: 76px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary), var(--info)); color: #061008; font-size: 1.8rem; font-weight: 900; background-size: cover; background-position: center; }
 .profile-avatar.has-photo { color: transparent; }
 .profile-avatar-button { width: auto; height: 40px; padding: 0 14px; font-size: 0.8rem; }
-.settings-label { color: var(--text-muted); font-size: 0.82rem; font-weight: 800; margin-top: 4px; }
+.settings-label { display: block; color: var(--text-muted); font-size: 0.82rem; font-weight: 800; line-height: 1.2; margin: 0 0 8px; }
+.profile-settings-card > .custom-input { margin: 0 0 18px; }
+.profile-settings-card > .settings-label:not(:first-child) { margin-top: 2px; }
 .settings-email-row { display: flex; align-items: center; gap: 8px; }
 .settings-email-row .custom-input { flex: 1; min-width: 0; margin-bottom: 0; }
+.settings-email-row { margin-bottom: 18px; }
 .settings-email-button { width: auto; flex: 0 0 auto; padding: 0 12px; min-height: 44px; font-size: 0.78rem; white-space: nowrap; }
+.profile-settings-card > .mt-12 { margin-top: 0; margin-bottom: 16px; }
+.profile-settings-card > [data-action="save-profile-settings"] { margin-top: 2px; }
 .profile-photo-modal-content { text-align: center; }
 .photo-editor-frame { width: min(78vw, 280px); aspect-ratio: 1; margin: 16px auto; border-radius: 50%; overflow: hidden; background: var(--bg-input); border: 2px solid var(--accent-primary); display: grid; place-items: center; }
 .photo-editor-frame img { width: 100%; height: 100%; object-fit: cover; transform-origin: center; transition: transform 0.12s ease-out; }
@@ -186,6 +191,11 @@ main {
 .profile-photo-actions { display: flex; gap: 8px; margin-top: 16px; }
 .profile-photo-actions .btn { flex: 1; }
 .settings-status { min-height: 1.2em; color: var(--text-muted); font-size: 0.82rem; }
+
+@media (max-width: 420px) {
+  .settings-email-row { align-items: stretch; flex-direction: column; gap: 10px; }
+  .settings-email-button { width: 100%; }
+}
 
 .card-subtitle {
   font-size: 0.875rem;
