@@ -1823,7 +1823,14 @@ function renderPendingSyncStatus() {
 
   function updateProfilePhotoPreview() {
     const preview = document.getElementById('profile-photo-preview');
-    if (preview) preview.style.transform = `translate(${profilePhotoOffsetX}px, ${profilePhotoOffsetY}px) scale(${profilePhotoZoom})`;
+    const frame = document.querySelector('.photo-editor-frame');
+    if (!preview || !frame || !pendingProfilePhotoImage) return;
+    const frameSize = frame.clientWidth || 280;
+    const image = pendingProfilePhotoImage;
+    const baseScale = Math.max(frameSize / image.width, frameSize / image.height);
+    preview.style.width = `${image.width * baseScale}px`;
+    preview.style.height = `${image.height * baseScale}px`;
+    preview.style.transform = `translate(-50%, -50%) translate(${profilePhotoOffsetX}px, ${profilePhotoOffsetY}px) scale(${profilePhotoZoom})`;
   }
 
   async function handleProfilePhotoChange(event) {
@@ -1901,6 +1908,8 @@ function renderPendingSyncStatus() {
       pendingProfilePhotoImage = null;
       document.getElementById('profile-photo-modal').style.display = 'none';
       renderProfileSettings();
+      ShowToast('Profilna slika je sa\u010duvana na ovom ure\u0111aju.');
+      return;
       ShowToast('Profilna slika je saÄuvana na ovom ureÄ‘aju.');
     } catch {
       ShowToast('Slika je prevelika za lokalno Äuvanje.', 'error');
