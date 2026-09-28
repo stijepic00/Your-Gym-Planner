@@ -5,8 +5,7 @@
     getAuth, 
     signInWithEmailAndPassword, 
     signInWithCustomToken,
-    signInWithRedirect,
-    getRedirectResult,
+    signInWithPopup,
     GoogleAuthProvider,
     onAuthStateChanged,
     signOut,
@@ -207,18 +206,12 @@ window.handleAuthSubmit = async function(e) {
   window.handleGoogleLogin = async function() {
     const provider = new GoogleAuthProvider();
     try {
-      // Redirect is more reliable than a popup on mobile browsers and private windows.
-      await signInWithRedirect(auth, provider);
+      await signInWithPopup(auth, provider);
     } catch (error) {
       ShowToast("Greška pri Google prijavi: " + error.message, 'error');
     }
   };
 
-  // Firebase completes the Google sign-in here after returning from Google.
-  getRedirectResult(auth).catch((error) => {
-    console.error('Google redirect prijava nije uspjela:', error);
-    ShowToast('Greška pri Google prijavi: ' + error.message, 'error');
-  });
 
   onAuthStateChanged(auth, async (user) => {
     const loginBtn = document.getElementById('login-modal-btn');
