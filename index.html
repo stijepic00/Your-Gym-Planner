@@ -27,7 +27,6 @@
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
       <span id="user-email-display" class="user-pill" style="display:none;"></span>
       <button id="login-modal-btn" style="background: var(--primary); border: none; color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 800; cursor: pointer;" data-action="switch-tab" data-tab="login">Prijava / Registracija 🔑</button>
-      <button id="logout-btn" style="display:none; background:rgba(239, 68, 68, 0.15); border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:5px 8px; font-size:0.75rem; font-weight:800; cursor:pointer;" data-action="logout">Odjava 🔒</button>
     </div>
 </header>
 
@@ -180,46 +179,26 @@
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view">
-      <h2 style="margin-bottom: 16px; font-size: 1.3rem; font-weight: 800;">Podešavanja</h2>
-      <div class="card profile-settings-card">
-        <div class="profile-avatar-wrap">
-          <div id="profile-avatar" class="profile-avatar" aria-label="Profilna slika">K</div>
-          <button class="profile-avatar-remove" data-action="remove-profile-photo" type="button" aria-label="Ukloni profilnu sliku">×</button>
-          <label class="btn btn-secondary profile-avatar-button" for="profile-photo-input">
-            Promijeni sliku
-            <input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-          </label>
-        </div>
-        <div class="settings-preference-row">
-          <div>
-            <p class="settings-preference-title">Izgled aplikacije</p>
-            <p class="settings-preference-help">Izaberi tamni ili svijetli prikaz.</p>
-          </div>
-          <button id="theme-toggle" class="theme-toggle" data-action="toggle-theme" type="button" role="switch" aria-checked="false" aria-label="Promijeni temu">
-            <span class="theme-toggle-icon">☀️</span><span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span><span class="theme-toggle-icon">🌙</span>
-          </button>
-        </div>
-        <div class="settings-language-block">
-          <p class="settings-preference-title">Jezik aplikacije</p>
-          <p class="settings-preference-help">Izaberi jezik koji želiš koristiti.</p>
-          <div class="language-options" role="group" aria-label="Izbor jezika">
-            <button class="language-option" data-action="set-language" data-language="sr" type="button" aria-label="Srpski"><span>🇷🇸</span><small>Srpski</small></button>
-            <button class="language-option" data-action="set-language" data-language="en" type="button" aria-label="English"><span>🇬🇧</span><small>English</small></button>
-            <button class="language-option" data-action="set-language" data-language="de" type="button" aria-label="Deutsch"><span>🇩🇪</span><small>Deutsch</small></button>
-          </div>
-          <p id="language-settings-status" class="settings-status" role="status"></p>
-        </div>
-        <label class="settings-label" for="profile-name-input">Ime i prezime</label>
-        <input id="profile-name-input" class="custom-input" type="text" maxlength="100" autocomplete="name">
-        <label class="settings-label" for="profile-email-current">Email adresa</label>
-        <div class="settings-email-row">
-          <input id="profile-email-current" class="custom-input settings-current-email" type="email" readonly autocomplete="email">
-          <button class="btn btn-secondary settings-email-button" data-action="open-profile-email-modal" type="button">Promijeni email</button>
-        </div>
-        <button class="btn btn-purple mt-12" data-action="save-profile-settings">Sačuvaj profil</button>
-        <p id="profile-settings-status" class="settings-status" role="status"></p>
+      <div class="settings-heading"><div><span class="settings-eyebrow">TVOJ NALOG</span><h2>Podešavanja</h2><p>Pregledaj svoje podatke i izaberi šta želiš promijeniti.</p></div></div>
+      <div class="settings-summary-grid">
+        <button class="settings-summary-card settings-profile-summary" data-action="open-settings-editor" data-editor="name" type="button">
+          <span id="settings-name-initial" class="settings-card-icon settings-name-initial">K</span><span class="settings-summary-copy"><small>Ime i prezime</small><strong id="settings-name-summary">Korisnik</strong><span>Ime na tvom profilu</span></span><span class="settings-card-chevron">›</span>
+        </button>
+        <button class="settings-summary-card" data-action="open-settings-editor" data-editor="photo" type="button"><span id="profile-avatar" class="profile-avatar settings-photo-summary-avatar" aria-label="Profilna slika">K</span><span class="settings-summary-copy"><small>Profilna fotografija</small><strong id="settings-photo-summary">Nije dodata</strong><span>Sačuvana samo na ovom uređaju</span></span><span class="settings-card-chevron">›</span></button>
+        <button class="settings-summary-card" data-action="open-settings-editor" data-editor="email" type="button"><span class="settings-card-icon">✉</span><span class="settings-summary-copy"><small>Email adresa</small><strong id="settings-email-summary">—</strong><span>Potvrđena adresa naloga</span></span><span class="settings-card-chevron">›</span></button>
+        <button class="settings-summary-card" data-action="open-settings-editor" data-editor="language" type="button"><span class="settings-card-icon">文</span><span class="settings-summary-copy"><small>Jezik aplikacije</small><strong id="settings-language-summary">Srpski</strong><span>Jezik prikaza aplikacije</span></span><span class="settings-card-chevron">›</span></button>
+        <button class="settings-summary-card" data-action="open-settings-editor" data-editor="appearance" type="button"><span class="settings-card-icon" id="settings-theme-icon">☾</span><span class="settings-summary-copy"><small>Izgled aplikacije</small><strong id="settings-theme-summary">Tamni prikaz</strong><span>Boje i prikaz aplikacije</span></span><span class="settings-card-chevron">›</span></button>
+      </div>
+      <div class="card settings-account-card">
+        <div><span class="settings-eyebrow">SIGURNOST NALOGA</span><h3>Upravljanje nalogom</h3><p>Odjavi se ili trajno ukloni nalog i povezane podatke.</p></div>
+        <button class="btn btn-secondary settings-logout-button" data-action="logout" type="button">↪ Odjavi se</button>
+        <button class="settings-delete-link" data-action="open-delete-account" type="button">Obriši nalog i sve podatke <span>›</span></button>
       </div>
     </section>
+    <div id="settings-name-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">LIČNI PODACI</span><h3>Ime i prezime</h3><p class="profile-modal-help">Ovo ime se prikazuje na tvom nalogu.</p><label class="settings-label" for="profile-name-input">Ime i prezime</label><input id="profile-name-input" class="custom-input" type="text" maxlength="100" autocomplete="name"><button class="btn btn-purple settings-modal-save" data-action="save-profile-name" type="button">Sačuvaj promjene</button><p id="profile-settings-status" class="settings-status" role="status"></p></div></div>
+    <div id="settings-language-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal settings-language-editor"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">PREFERENCIJE</span><h3>Jezik aplikacije</h3><p class="profile-modal-help">Izaberi jezik koji želiš koristiti.</p><div class="language-options" role="group" aria-label="Izbor jezika"><button class="language-option" data-action="set-language" data-language="sr" type="button" aria-label="Srpski"><span>🇷🇸</span><small>Srpski</small></button><button class="language-option" data-action="set-language" data-language="en" type="button" aria-label="English"><span>🇬🇧</span><small>English</small></button><button class="language-option" data-action="set-language" data-language="de" type="button" aria-label="Deutsch"><span>🇩🇪</span><small>Deutsch</small></button></div><p id="language-settings-status" class="settings-status" role="status"></p></div></div>
+    <div id="settings-appearance-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal settings-appearance-editor"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">PREFERENCIJE</span><h3>Izgled aplikacije</h3><p class="profile-modal-help">Izaberi tamni ili svijetli prikaz.</p><button id="theme-toggle" class="theme-toggle" data-action="toggle-theme" type="button" role="switch" aria-checked="false" aria-label="Promijeni temu" aria-describedby="theme-toggle-label"><span id="theme-toggle-label" class="theme-toggle-label">Tamni prikaz</span><span class="theme-toggle-track" aria-hidden="true"><span class="theme-toggle-thumb"><span class="theme-toggle-sun">☀</span><span class="theme-toggle-moon">☾</span></span></span></button></div></div>
+    <div id="settings-photo-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal settings-photo-editor"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">PROFIL</span><h3>Profilna fotografija</h3><p class="profile-modal-help">Fotografija se čuva samo na ovom uređaju.</p><div class="settings-photo-preview"><span id="settings-photo-avatar" class="profile-avatar">K</span></div><label class="btn btn-secondary profile-avatar-button" for="profile-photo-input">Promijeni sliku<input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden></label><button class="settings-photo-remove" data-action="remove-profile-photo" type="button">Ukloni fotografiju</button></div></div>
     <div id="profile-photo-modal" class="modal" style="display:none;">
       <div class="modal-content profile-photo-modal-content">
         <button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button>
@@ -248,6 +227,7 @@
         <p id="profile-email-modal-status" class="settings-status" role="status"></p>
       </div>
     </div>
+    <div id="delete-account-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal delete-account-modal-content"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><div class="delete-account-symbol">!</div><span class="settings-eyebrow">TRAJNA RADNJA</span><h3>Obriši nalog</h3><p class="delete-account-warning"><strong>Ovo se ne može poništiti.</strong> Nalog, profil, rutine i istorija treninga biće trajno obrisani. Sačuvani podaci se ne mogu vratiti.</p><p class="delete-account-local-note">Brišemo cloud podatke i kopije sa ovog uređaja. Offline kopije na drugim uređajima ne možemo ukloniti na daljinu.</p><fieldset class="delete-reasons"><legend>Zašto odlaziš?</legend><label><input type="radio" name="account-delete-reason" value="no-longer-needed"><span>Više mi nije potrebno</span></label><label><input type="radio" name="account-delete-reason" value="missing-features"><span>Nedostaju mi funkcije</span></label><label><input type="radio" name="account-delete-reason" value="too-difficult"><span>Aplikacija mi je teška za korištenje</span></label><label><input type="radio" name="account-delete-reason" value="technical-problems"><span>Imam tehničke probleme</span></label><label><input type="radio" name="account-delete-reason" value="privacy"><span>Brinem o privatnosti</span></label><label><input type="radio" name="account-delete-reason" value="other"><span>Drugi razlog</span></label></fieldset><label class="settings-label" for="account-delete-details">Ako želiš, napiši nam više</label><textarea id="account-delete-details" class="custom-input delete-details-input" maxlength="500" rows="3" placeholder="Dodatni komentar (opcionalno)"></textarea><label class="settings-label delete-confirm-label" for="account-delete-confirm-text">Za potvrdu upiši <strong id="account-delete-confirm-word">OBRIŠI</strong></label><input id="account-delete-confirm-text" class="custom-input" type="text" autocomplete="off" maxlength="20"><p id="account-delete-status" class="settings-status" role="status"></p><button class="btn btn-danger settings-delete-confirm" data-action="confirm-delete-account" type="button" disabled>Trajno obriši moj nalog</button><button class="settings-delete-cancel" data-action="close-modal" type="button">Zadrži moj nalog</button><p class="delete-feedback-privacy">Odgovor se čuva bez ID-a naloga i email adrese. Nemoj unositi lične podatke u komentar.</p></div></div>
 </main>
 
 <nav id="bottom-nav" style="display: none;">
@@ -361,6 +341,6 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20260928-google-diagnostic-1"></script>
+<script type="module" src="javascript.js?v=20260928-account-settings-1"></script>
 </body>
 </html>

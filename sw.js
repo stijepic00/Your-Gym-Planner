@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gym-tracker-app-v33';
+const CACHE_NAME = 'gym-tracker-app-v37';
 const APP_SHELL = [
   '/',
   '/index.html',

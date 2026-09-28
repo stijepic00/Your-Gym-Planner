@@ -272,8 +272,12 @@ window.handleAuthSubmit = async function(e) {
   });
 
   window.handleLogout = async function() {
-    if (await showConfirm("Da li želite da se odjavite?")) {
-      signOut(auth);
+    try {
+      await signOut(auth);
+      ShowToast('Uspješno si se odjavio.');
+    } catch (error) {
+      ShowToast('Odjava nije uspjela. Pokušaj ponovo.', 'error');
+      console.error('Odjava nije uspjela:', error);
     }
   };
 
@@ -1827,17 +1831,196 @@ function renderPendingSyncStatus() {
     const nameInput = document.getElementById('profile-name-input');
     const emailInput = document.getElementById('profile-email-input');
     const currentEmailInput = document.getElementById('profile-email-current');
-    const avatar = document.getElementById('profile-avatar');
-    if (nameInput) nameInput.value = currentProfileData?.fullName || currentUser.displayName || '';
+    const name = currentProfileData?.fullName || currentUser.displayName || currentUser.email?.split('@')[0] || 'Korisnik';
+    const email = currentUser.email || '';
+    if (nameInput) nameInput.value = name;
     if (emailInput) emailInput.value = currentUser.email || '';
     if (currentEmailInput) currentEmailInput.value = currentUser.email || '';
-    if (avatar) {
-      const photo = localStorage.getItem(getProfilePhotoKey(currentUser.uid)) || '';
-      avatar.textContent = (currentProfileData?.fullName || currentUser.email || 'K').trim().charAt(0).toUpperCase();
+    const nameSummary = document.getElementById('settings-name-summary');
+    const emailSummary = document.getElementById('settings-email-summary');
+    const languageSummary = document.getElementById('settings-language-summary');
+    const themeSummary = document.getElementById('settings-theme-summary');
+    const themeIcon = document.getElementById('settings-theme-icon');
+    const nameInitial = document.getElementById('settings-name-initial');
+    const photoSummary = document.getElementById('settings-photo-summary');
+    const selectedLanguage = getCurrentLanguage();
+    const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch' };
+    const themeNames = {
+      sr: isLight => isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
+      en: isLight => isLight ? 'Light mode' : 'Dark mode',
+      de: isLight => isLight ? 'Heller Modus' : 'Dunkler Modus'
+    };
+    const isLight = document.documentElement.dataset.theme === 'light';
+    if (nameSummary) nameSummary.textContent = name;
+    if (emailSummary) emailSummary.textContent = email || '—';
+    if (languageSummary) languageSummary.textContent = languageNames[selectedLanguage] || languageNames.sr;
+    if (themeSummary) themeSummary.textContent = (themeNames[selectedLanguage] || themeNames.sr)(isLight);
+    if (themeIcon) themeIcon.textContent = isLight ? '☀' : '☾';
+    const photo = localStorage.getItem(getProfilePhotoKey(currentUser.uid)) || '';
+    const initial = name.trim().charAt(0).toUpperCase() || 'K';
+    if (nameInitial) nameInitial.textContent = initial;
+    if (photoSummary) photoSummary.textContent = photo
+      ? ({ sr: 'Dodana', en: 'Added', de: 'Hinzugefügt' }[selectedLanguage] || 'Dodana')
+      : ({ sr: 'Nije dodata', en: 'Not added', de: 'Nicht hinzugefügt' }[selectedLanguage] || 'Nije dodata');
+    ['profile-avatar', 'settings-photo-avatar'].forEach((id) => {
+      const avatar = document.getElementById(id);
+      if (!avatar) return;
+      avatar.textContent = initial;
       avatar.style.backgroundImage = photo ? `url("${photo}")` : '';
       avatar.classList.toggle('has-photo', Boolean(photo));
+    });
+  }
+
+  window.openSettingsEditor = function(editor) {
+    if (!currentUser) return;
+    const modalIds = {
+      name: 'settings-name-modal',
+      email: 'profile-email-modal',
+      language: 'settings-language-modal',
+      appearance: 'settings-appearance-modal',
+      photo: 'settings-photo-modal'
+    };
+    const modal = document.getElementById(modalIds[editor]);
+    if (!modal) return;
+    if (editor === 'name') {
+      const input = document.getElementById('profile-name-input');
+      if (input) input.value = currentProfileData?.fullName || currentUser.displayName || '';
+    }
+    if (editor === 'email') window.openProfileEmailModal();
+    else modal.style.display = 'flex';
+  };
+
+  window.saveProfileName = async function() {
+    if (!currentUser) return;
+    const name = document.getElementById('profile-name-input')?.value.trim() || '';
+    if (!name || name.length > 100) {
+      ShowToast('Ime i prezime moraju imati između 1 i 100 karaktera.', 'error');
+      return;
+    }
+    try {
+      await setDoc(doc(db, 'users', currentUser.uid), {
+        fullName: name,
+        email: currentUser.email || '',
+        createdAt: currentProfileData?.createdAt || new Date().toISOString()
+      }, { merge: true });
+      await updateProfile(currentUser, { displayName: name });
+      currentProfileData = { ...(currentProfileData || {}), fullName: name, email: currentUser.email };
+      const headerName = document.getElementById('user-email-display');
+      if (headerName) headerName.textContent = name;
+      renderProfileSettings();
+      document.getElementById('settings-name-modal').style.display = 'none';
+      ShowToast('Ime i prezime su sačuvani.');
+    } catch (error) {
+      ShowToast(error.message || 'Ime nije moguće sačuvati.', 'error');
+    }
+  };
+
+  window.openDeleteAccountModal = function() {
+    const modal = document.getElementById('delete-account-modal');
+    if (!currentUser || !modal) return;
+    modal.querySelectorAll('input[name="account-delete-reason"]').forEach((input) => { input.checked = false; });
+    const details = document.getElementById('account-delete-details');
+    const phrase = document.getElementById('account-delete-confirm-text');
+    const status = document.getElementById('account-delete-status');
+    const confirmButton = document.querySelector('.settings-delete-confirm');
+    const language = getCurrentLanguage();
+    const words = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN' };
+    const prompts = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN' };
+    if (details) details.value = '';
+    if (phrase) { phrase.value = ''; phrase.dataset.requiredPhrase = prompts[language] || prompts.sr; }
+    const word = document.getElementById('account-delete-confirm-word');
+    if (word) word.textContent = words[language] || words.sr;
+    if (status) status.textContent = '';
+    if (confirmButton) confirmButton.disabled = true;
+    modal.style.display = 'flex';
+  };
+
+  function updateDeleteAccountButton() {
+    const modal = document.getElementById('delete-account-modal');
+    if (!modal) return;
+    const hasReason = Boolean(modal.querySelector('input[name="account-delete-reason"]:checked'));
+    const phraseInput = document.getElementById('account-delete-confirm-text');
+    const expectedPhrase = phraseInput?.dataset.requiredPhrase || 'OBRIŠI';
+    const phraseMatches = phraseInput?.value.trim().toLocaleUpperCase() === expectedPhrase;
+    const button = modal.querySelector('.settings-delete-confirm');
+    if (button) button.disabled = !(hasReason && phraseMatches);
+  }
+
+  async function clearLocalUserData(userId) {
+    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v'];
+    const matchingKeys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && key.endsWith(`_${userId}`) && prefixes.some((prefix) => key.startsWith(prefix))) matchingKeys.push(key);
+    }
+    matchingKeys.forEach((key) => localStorage.removeItem(key));
+    localStorage.removeItem('active_workout_draft');
+    currentWorkout = null;
+    activeWorkoutEditMode = false;
+    pendingWorkoutsMemory = [];
+    pendingWorkoutsLoaded = false;
+    cachedHistory = [];
+    userRoutines = [];
+
+    try {
+      const dbInstance = await openPendingWorkoutsDb();
+      await new Promise((resolve, reject) => {
+        const transaction = dbInstance.transaction('pendingWorkouts', 'readwrite');
+        const store = transaction.objectStore('pendingWorkouts');
+        const request = store.getAll();
+        request.onsuccess = () => (request.result || []).forEach((item) => {
+          if (item.userId === userId) store.delete(item.id);
+        });
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+    } catch (error) {
+      console.warn('Lokalni red nije mogao biti očišćen:', error);
     }
   }
+
+  window.deleteAccount = async function() {
+    if (!currentUser) return;
+    const modal = document.getElementById('delete-account-modal');
+    const reason = modal?.querySelector('input[name="account-delete-reason"]:checked')?.value;
+    const details = document.getElementById('account-delete-details')?.value.trim() || '';
+    const phraseInput = document.getElementById('account-delete-confirm-text');
+    const button = modal?.querySelector('.settings-delete-confirm');
+    const status = document.getElementById('account-delete-status');
+    if (!reason || phraseInput?.value.trim().toLocaleUpperCase() !== phraseInput?.dataset.requiredPhrase) {
+      updateDeleteAccountButton();
+      return;
+    }
+
+    const originalButtonText = button?.textContent || '';
+    if (button) { button.disabled = true; button.textContent = 'Brisanje naloga…'; }
+    if (status) status.textContent = 'Uklanjamo nalog i sve povezane podatke…';
+    try {
+      const headers = await getProtectedApiHeaders();
+      headers.Authorization = `Bearer ${await currentUser.getIdToken(true)}`;
+      const response = await fetch('https://your-gym-planner.vercel.app/api/delete-account', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ reason, details })
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 401 && result?.code === 'RECENT_LOGIN_REQUIRED') {
+          throw new Error('Zbog sigurnosti prijavi se ponovo, pa odmah pokušaj brisanje naloga.');
+        }
+        throw new Error(result?.error || 'Nalog nije moguće obrisati. Pokušaj ponovo.');
+      }
+
+      const deletedUserId = currentUser.uid;
+      await clearLocalUserData(deletedUserId);
+      modal.style.display = 'none';
+      await signOut(auth);
+      ShowToast('Nalog i podaci su trajno obrisani.');
+    } catch (error) {
+      if (status) status.textContent = error.message || 'Brisanje nije uspjelo. Pokušaj ponovo.';
+      if (button) { button.disabled = false; button.textContent = originalButtonText; }
+    }
+  };
 
   function updateProfilePhotoPreview() {
     const preview = document.getElementById('profile-photo-preview');
@@ -2022,6 +2205,7 @@ function renderPendingSyncStatus() {
       await currentUser.reload();
       currentProfileData = { ...(currentProfileData || {}), fullName: name, email: result.email || currentUser.email };
       document.getElementById('user-email-display').innerText = name;
+      renderProfileSettings();
       document.getElementById('profile-email-code-input').style.display = 'none';
       profileEmailCodeTarget = '';
       document.getElementById('profile-email-modal').style.display = 'none';
@@ -2039,7 +2223,19 @@ function renderPendingSyncStatus() {
     document.documentElement.dataset.theme = selectedTheme;
     localStorage.setItem('gym-theme', selectedTheme);
     const toggle = document.getElementById('theme-toggle');
-    if (toggle) toggle.setAttribute('aria-checked', String(selectedTheme === 'light'));
+    if (toggle) {
+      const isLight = selectedTheme === 'light';
+      const language = localStorage.getItem('gym-language') || 'sr';
+      const labels = {
+        sr: isLight ? 'Svetli prikaz' : 'Tamni prikaz',
+        en: isLight ? 'Light mode' : 'Dark mode',
+        de: isLight ? 'Heller Modus' : 'Dunkler Modus'
+      };
+      toggle.setAttribute('aria-checked', String(isLight));
+      toggle.setAttribute('aria-label', labels[language] || labels.sr);
+      const label = document.getElementById('theme-toggle-label');
+      if (label) label.textContent = labels[language] || labels.sr;
+    }
   }
 
   function getCurrentLanguage() {
@@ -2187,6 +2383,9 @@ function renderPendingSyncStatus() {
     if (authForm) authForm.addEventListener('submit', window.handleAuthSubmit);
     window.addEventListener('online', syncPendingWorkouts);
 
+    document.getElementById('delete-account-modal')?.addEventListener('input', updateDeleteAccountButton);
+    document.getElementById('delete-account-modal')?.addEventListener('change', updateDeleteAccountButton);
+
     setupTouchReorder();
 
     const analyticsSelect = document.getElementById('analytics-ex-select');
@@ -2206,6 +2405,7 @@ function renderPendingSyncStatus() {
       switch (action) {
         case 'toggle-theme':
           applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+          renderProfileSettings();
           break;
         case 'set-language':
           changeAppLanguage(button.dataset.language);
@@ -2257,6 +2457,18 @@ function renderPendingSyncStatus() {
           break;
         case 'open-profile-email-modal':
           window.openProfileEmailModal();
+          break;
+        case 'open-settings-editor':
+          window.openSettingsEditor(button.dataset.editor);
+          break;
+        case 'save-profile-name':
+          window.saveProfileName();
+          break;
+        case 'open-delete-account':
+          window.openDeleteAccountModal();
+          break;
+        case 'confirm-delete-account':
+          window.deleteAccount();
           break;
         case 'start-profile-email-change':
           window.requestProfileEmailCode();
