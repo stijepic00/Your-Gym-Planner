@@ -208,6 +208,12 @@ window.handleAuthSubmit = async function(e) {
     try {
       await signInWithPopup(auth, provider);
     } catch (error) {
+      // Keep the detailed Firebase response in DevTools while the UI stays safe for users.
+      console.error('Google Auth diagnostic:', JSON.stringify({
+        code: error?.code,
+        message: error?.message,
+        customData: error?.customData || null
+      }));
       ShowToast("Greška pri Google prijavi: " + error.message, 'error');
     }
   };
