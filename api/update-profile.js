@@ -83,7 +83,7 @@ export default async function handler(req, res) {
       fullName: name,
       email: emailChanged ? email : (user.email || existing.email || ''),
       createdAt: existing.createdAt || new Date().toISOString()
-    });
+    }, { merge: true });
 
     return res.status(200).json({ success: true, email: emailChanged ? email : user.email });
   } catch (error) {
