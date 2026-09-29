@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gymleader-app-v6';
+const CACHE_NAME = 'gymleader-app-v7';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -53,38 +53,37 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Keep CDN JavaScript available after the app has loaded once online.
-  // This includes Firebase modules and the chart library used by the UI.
+  // When online, always prefer the newest scripts/styles/fonts. The cache is
+  // only the fallback for offline use, so users do not get stuck on old UI.
   if (['script', 'style', 'font'].includes(request.destination)) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        const networkRequest = fetch(request).then((response) => {
+      fetch(request).then((response) => {
           if (response.ok || response.type === 'opaque') {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return response;
-        }).catch(() => cached || Response.error());
-        return cached || networkRequest;
-      })
+        }).catch(() => caches.match(request, { ignoreSearch: true }).then((cached) => {
+          return cached || Response.error();
+        })
+      )
     );
     return;
   }
 
-  // Cache local app files. The query string on javascript.js is ignored so
-  // cache-busting deployments still use the offline copy.
+  // Same-origin images and app files also prefer the network while online.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(request, { ignoreSearch: true }).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          if (response.ok) {
+      fetch(request).then((response) => {
+          if (response.ok || response.type === 'opaque') {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return response;
-        });
-      })
+        }).catch(() => caches.match(request, { ignoreSearch: true }).then((cached) => {
+          return cached || Response.error();
+        })
+      )
     );
   }
 });
