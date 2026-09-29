@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gymleader-app-v7';
+const CACHE_NAME = 'gymleader-app-v8';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -6,7 +6,7 @@ const APP_SHELL = [
   '/javascript.js',
   '/translations.js',
   '/manifest.webmanifest',
-  '/assets/gymleader-mark.png',
+  '/assets/gymleader-mark-v2.png',
   '/assets/gymleader-icon.png',
   '/assets/flag-sr.svg',
   '/assets/flag-en.svg',

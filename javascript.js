@@ -3273,7 +3273,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    navigator.serviceWorker.register('/sw.js?v=20260929-cache-fix-1', { scope: '/' })
       .then((registration) => registration.update())
       .catch((error) => console.warn('Offline worker nije registrovan:', error));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
