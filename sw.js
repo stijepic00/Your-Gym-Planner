@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gymleader-app-v4';
+const CACHE_NAME = 'gymleader-app-v6';
 const APP_SHELL = [
   '/',
   '/index.html',

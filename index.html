@@ -3,14 +3,61 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>GymLeader — Train. Track. Lead.</title>
-  <meta name="description" content="GymLeader ti pomaže da napraviš plan treninga, pratiš kilaže i vidiš svoj napredak.">
+  <title>GymLeader — Planiraj trening. Prati napredak.</title>
+  <meta name="description" content="GymLeader je aplikacija za planiranje treninga, praćenje kilaža, ponavljanja, PR-ova i napretka.">
   <meta name="application-name" content="GymLeader">
   <meta name="apple-mobile-web-app-title" content="GymLeader">
-  <meta property="og:title" content="GymLeader — Train. Track. Lead.">
-  <meta property="og:description" content="Planiraj trening, prati napredak i obori svoj sljedeći PR.">
-  <meta property="og:image" content="/assets/gymleader-icon.png">
+  <meta name="author" content="GymLeader">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://gymleader.app/">
+  <meta property="og:site_name" content="GymLeader">
+  <meta property="og:title" content="GymLeader — Planiraj trening. Prati napredak.">
+  <meta property="og:description" content="Planiraj trening, prati kilaže, ponavljanja i PR-ove. GymLeader čuva tvoj napredak iz treninga u trening.">
+  <meta property="og:url" content="https://gymleader.app/">
+  <meta property="og:image" content="https://gymleader.app/assets/gymleader-icon.png?v=4">
+  <meta property="og:image:secure_url" content="https://gymleader.app/assets/gymleader-icon.png?v=4">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:locale" content="bs_BA">
   <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="GymLeader — Planiraj trening. Prati napredak.">
+  <meta name="twitter:description" content="Aplikacija za planove treninga, kilaže, ponavljanja i lični napredak.">
+  <meta name="twitter:image" content="https://gymleader.app/assets/gymleader-icon.png?v=4">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://gymleader.app/#website",
+        "url": "https://gymleader.app/",
+        "name": "GymLeader",
+        "description": "Aplikacija za planiranje treninga i praćenje napretka.",
+        "inLanguage": "bs"
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://gymleader.app/#application",
+        "name": "GymLeader",
+        "url": "https://gymleader.app/",
+        "description": "Planiraj trening, prati kilaže, ponavljanja, PR-ove i napredak.",
+        "applicationCategory": "SportsApplication",
+        "operatingSystem": "Web",
+        "browserRequirements": "Requires JavaScript",
+        "image": "https://gymleader.app/assets/gymleader-icon.png?v=4",
+        "isPartOf": { "@id": "https://gymleader.app/#website" },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "EUR",
+          "description": "Besplatan osnovni nalog"
+        }
+      }
+    ]
+  }
+  </script>
   <!-- Fill with the Enterprise score-based web key registered in Firebase App Check. -->
   <meta name="firebase-app-check-site-key" content="6LdpQswtAAAAAEtpfSmId5SzAtCf1ZkvKn1X9dox">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com https://apis.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://www.gstatic.com data:; connect-src 'self' https://www.google.com/recaptcha/ https://your-gym-planner.vercel.app https://apis.google.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com https://accounts.google.com; frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/ https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -273,6 +320,7 @@
         <button class="settings-summary-card" data-action="open-settings-editor" data-editor="security" type="button"><span class="settings-card-icon">🔐</span><span class="settings-summary-copy"><small>Sigurnost naloga</small><strong>Lozinka i pristup</strong><span>Promijeni GymLeader lozinku</span></span><span class="settings-card-chevron">›</span></button>
         <button class="settings-summary-card" data-action="open-settings-editor" data-editor="language" type="button"><span class="settings-card-icon">文</span><span class="settings-summary-copy"><small>Jezik aplikacije</small><strong id="settings-language-summary">Srpski</strong><span>Jezik prikaza aplikacije</span></span><span class="settings-card-chevron">›</span></button>
         <button class="settings-summary-card" data-action="open-settings-editor" data-editor="appearance" type="button"><span class="settings-card-icon" id="settings-theme-icon">☾</span><span class="settings-summary-copy"><small>Izgled aplikacije</small><strong id="settings-theme-summary">Tamni prikaz</strong><span>Boje i prikaz aplikacije</span></span><span class="settings-card-chevron">›</span></button>
+        <button class="settings-summary-card settings-legal-summary" data-action="open-legal-documents" type="button"><span class="settings-card-icon">⚖</span><span class="settings-summary-copy"><small>Pravila i privatnost</small><strong>Pravila korištenja</strong><span>Pročitaj kako GymLeader koristi podatke</span></span><span class="settings-card-chevron">›</span></button>
       </div>
       <div class="card settings-account-card">
         <div><span class="settings-eyebrow">SIGURNOST NALOGA</span><h3>Upravljanje nalogom</h3><p>Odjavi se ili trajno ukloni nalog i povezane podatke.</p></div>
@@ -313,7 +361,9 @@
         <p id="profile-email-modal-status" class="settings-status" role="status"></p>
       </div>
     </div>
-    <div id="delete-account-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal delete-account-modal-content"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><div class="delete-account-symbol">!</div><span class="settings-eyebrow">TRAJNA RADNJA</span><h3>Obriši nalog</h3><p class="delete-account-warning"><strong>Ovo se ne može poništiti.</strong> Nalog, profil, rutine i istorija treninga biće trajno obrisani. Sačuvani podaci se ne mogu vratiti.</p><p class="delete-account-local-note">Brišemo cloud podatke i kopije sa ovog uređaja. Offline kopije na drugim uređajima ne možemo ukloniti na daljinu.</p><fieldset class="delete-reasons"><legend>Zašto odlaziš?</legend><label><input type="radio" name="account-delete-reason" value="no-longer-needed"><span>Više mi nije potrebno</span></label><label><input type="radio" name="account-delete-reason" value="missing-features"><span>Nedostaju mi funkcije</span></label><label><input type="radio" name="account-delete-reason" value="too-difficult"><span>Aplikacija mi je teška za korištenje</span></label><label><input type="radio" name="account-delete-reason" value="technical-problems"><span>Imam tehničke probleme</span></label><label><input type="radio" name="account-delete-reason" value="privacy"><span>Brinem o privatnosti</span></label><label><input type="radio" name="account-delete-reason" value="other"><span>Drugi razlog</span></label></fieldset><label class="settings-label" for="account-delete-details">Ako želiš, napiši nam više</label><textarea id="account-delete-details" class="custom-input delete-details-input" maxlength="500" rows="3" placeholder="Dodatni komentar (opcionalno)"></textarea><label class="settings-label delete-confirm-label" for="account-delete-confirm-text">Za potvrdu upiši <strong id="account-delete-confirm-word">OBRIŠI</strong></label><input id="account-delete-confirm-text" class="custom-input" type="text" autocomplete="off" maxlength="20"><p id="account-delete-status" class="settings-status" role="status"></p><button class="btn btn-danger settings-delete-confirm" data-action="confirm-delete-account" type="button" disabled>Trajno obriši moj nalog</button><button class="settings-delete-cancel" data-action="close-modal" type="button">Zadrži moj nalog</button><p class="delete-feedback-privacy">Odgovor se čuva bez ID-a naloga i email adrese. Nemoj unositi lične podatke u komentar.</p></div></div>
+    <div id="delete-account-modal" class="modal" data-nosnippet style="display:none;"><div class="modal-content settings-editor-modal delete-account-modal-content"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><div class="delete-account-symbol">!</div><span class="settings-eyebrow">TRAJNA RADNJA</span><h3>Obriši nalog</h3><p class="delete-account-warning"><strong>Ovo se ne može poništiti.</strong> Nalog, profil, rutine i istorija treninga biće trajno obrisani. Sačuvani podaci se ne mogu vratiti.</p><p class="delete-account-local-note">Brišemo cloud podatke i kopije sa ovog uređaja. Offline kopije na drugim uređajima ne možemo ukloniti na daljinu.</p><fieldset class="delete-reasons"><legend>Zašto odlaziš?</legend><label><input type="radio" name="account-delete-reason" value="no-longer-needed"><span>Više mi nije potrebno</span></label><label><input type="radio" name="account-delete-reason" value="missing-features"><span>Nedostaju mi funkcije</span></label><label><input type="radio" name="account-delete-reason" value="too-difficult"><span>Aplikacija mi je teška za korištenje</span></label><label><input type="radio" name="account-delete-reason" value="technical-problems"><span>Imam tehničke probleme</span></label><label><input type="radio" name="account-delete-reason" value="privacy"><span>Brinem o privatnosti</span></label><label><input type="radio" name="account-delete-reason" value="other"><span>Drugi razlog</span></label></fieldset><label class="settings-label" for="account-delete-details">Ako želiš, napiši nam više</label><textarea id="account-delete-details" class="custom-input delete-details-input" maxlength="500" rows="3" placeholder="Dodatni komentar (opcionalno)"></textarea><label class="settings-label delete-confirm-label" for="account-delete-confirm-text">Za potvrdu upiši <strong id="account-delete-confirm-word">OBRIŠI</strong></label><input id="account-delete-confirm-text" class="custom-input" type="text" autocomplete="off" maxlength="20"><p id="account-delete-status" class="settings-status" role="status"></p><button class="btn btn-danger settings-delete-confirm" data-action="confirm-delete-account" type="button" disabled>Trajno obriši moj nalog</button><button class="settings-delete-cancel" data-action="close-modal" type="button">Zadrži moj nalog</button><p class="delete-feedback-privacy">Odgovor se čuva bez ID-a naloga i email adrese. Nemoj unositi lične podatke u komentar.</p></div></div>
+    <div id="legal-documents-modal" class="modal" style="display:none;"><div class="modal-content legal-documents-modal"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">GYMLEADER</span><h3>Pravila i privatnost</h3><div class="legal-document-tabs" role="tablist"><button class="legal-document-tab is-active" data-action="show-legal-document" data-legal-document="terms" type="button">Pravila korištenja</button><button class="legal-document-tab" data-action="show-legal-document" data-legal-document="privacy" type="button">Politika privatnosti</button></div><article id="legal-terms-document" class="legal-document"><h4>Pravila korištenja</h4><p><strong>Posljednja izmjena: 29. septembar 2026.</strong></p><p>GymLeader je aplikacija za pravljenje planova treninga, bilježenje vježbi, praćenje kilaža, ponavljanja, trajanja, napretka i ličnih rezultata.</p><p>GymLeader nije medicinska usluga i ne zamjenjuje doktora, fizioterapeuta ili kvalifikovanog trenera. Korisnik sam procjenjuje da li je određena vježba sigurna za njega. Ako imaš povredu, bolest ili nedoumicu, obrati se zdravstvenom stručnjaku.</p><p>Odgovoran/na si za tačnost podataka koje unosiš i za čuvanje pristupa svom nalogu. Nije dozvoljeno dijeljenje naloga radi zloupotrebe, neovlašten pristup tuđim podacima, pokušaj zaobilaženja sigurnosnih mjera, slanje zlonamjernog koda ili preopterećivanje aplikacije.</p><p>Trudimo se da GymLeader bude dostupan, siguran i pouzdan. Zbog problema s internetom, uređajem, serverom, održavanjem ili drugih tehničkih okolnosti može doći do prekida, kašnjenja ili gubitka podataka. Offline podaci čekaju sinhronizaciju; povremeno provjeri status sinhronizacije važnih treninga.</p><p>Možeš obrisati nalog kroz Podešavanja. Brisanje može trajno ukloniti profil, rutine, treninge i druge podatke, osim podataka koje smo dužni čuvati prema zakonu.</p><p>Naziv GymLeader, logo, dizajn, kod i sadržaj aplikacije zaštićeni su. Dobijaš ograničeno pravo korištenja aplikacije za lične ili odobrene poslovne potrebe.</p><p>Možemo mijenjati, poboljšavati ili privremeno obustaviti dijelove aplikacije. Kod važnih promjena prikazaćemo novu verziju ovih pravila.</p></article><article id="legal-privacy-document" class="legal-document" hidden><h4>Politika privatnosti</h4><p><strong>Posljednja izmjena: 29. septembar 2026.</strong></p><p>GymLeader obrađuje podatke potrebne za rad aplikacije i korisničkog naloga: ime ili nadimak, email adresu, podatke za prijavu, rutine, istoriju treninga, kilaže, ponavljanja, trajanje, bilješke, jezik, podešavanja i tehničke podatke potrebne za sigurnost i sinhronizaciju.</p><p>Podatke koristimo za kreiranje i održavanje naloga, prijavu i potvrdu email adrese, čuvanje rutina i treninga, sinhronizaciju između uređaja, sigurnost sistema i pružanje podrške. Podatke ne prodajemo.</p><p>Za rad aplikacije koristimo pouzdane tehničke provajdere, uključujući Firebase, Vercel i Brevo, samo u obimu potrebnom za njihove funkcije. Ako kasnije aktiviraš plaćanje, Lemon Squeezy će obrađivati podatke potrebne za naplatu prema svojim pravilima.</p><p>Možeš zatražiti pristup, ispravku, brisanje ili izvoz svojih podataka kada je to zakonski primjenjivo. Dok ne objavimo poslovni kontakt, zahtjeve možeš poslati kroz budući kanal podrške u aplikaciji.</p><p>Podatke čuvamo onoliko dugo koliko je potrebno za rad naloga, sigurnost sistema ili zakonske obaveze. Koristimo razumne tehničke mjere zaštite, ali nijedan online sistem ne može garantovati apsolutnu sigurnost ili neprekidan rad.</p><p>Ovu politiku možemo ažurirati. Kada promjena zahtijeva novu potvrdu, prikazaćemo novu verziju prije nastavka korištenja aplikacije.</p></article></div></div>
+    <div id="legal-acceptance-modal" class="modal legal-acceptance-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="legal-acceptance-title"><div class="modal-content legal-acceptance-content"><span class="settings-eyebrow">DOBRO DOŠAO/LA U GYMLEADER</span><h3 id="legal-acceptance-title">Prije nastavka</h3><p>Da bi koristio/la GymLeader, pročitaj i prihvati Pravila korištenja i Politiku privatnosti.</p><div class="legal-acceptance-links"><button data-action="open-legal-document-from-acceptance" data-legal-document="terms" type="button">Pravila korištenja <span>›</span></button><button data-action="open-legal-document-from-acceptance" data-legal-document="privacy" type="button">Politika privatnosti <span>›</span></button></div><label class="legal-consent-check"><input id="accept-terms-checkbox" type="checkbox"><span>Pročitao/la sam i prihvatam Pravila korištenja.</span></label><label class="legal-consent-check"><input id="accept-privacy-checkbox" type="checkbox"><span>Pročitao/la sam i prihvatam Politiku privatnosti.</span></label><p id="legal-acceptance-status" class="settings-status" role="status"></p><button id="accept-legal-button" class="btn legal-accept-button" data-action="accept-legal-documents" type="button" disabled>Prihvati i nastavi</button><button class="legal-logout-button" data-action="logout" type="button">Odjavi se</button></div></div>
 </main>
 
 <nav id="bottom-nav" style="display: none;">
@@ -429,6 +479,6 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20260929-gymleader-brand-system-1"></script>
+<script type="module" src="javascript.js?v=20260929-legal-documents-1"></script>
 </body>
 </html>

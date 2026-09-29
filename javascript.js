@@ -103,6 +103,7 @@
   let profilePhotoDrag = null;
   let profileEmailCodeTarget = '';
   const HISTORY_CACHE_VERSION = 1;
+  const LEGAL_DOCUMENT_VERSION = '2026-09-29';
 
   const defaultWorkouts = [
     { id: 'custom-extra', name: 'Poseban / Kardio Dan', emoji: '⚡', exercises: [] }
@@ -491,6 +492,82 @@ window.handleAuthSubmit = async function(e) {
     }
   };
 
+  function renderLegalDocument(documentName = 'terms') {
+    const isPrivacy = documentName === 'privacy';
+    document.getElementById('legal-terms-document')?.toggleAttribute('hidden', isPrivacy);
+    document.getElementById('legal-privacy-document')?.toggleAttribute('hidden', !isPrivacy);
+    document.querySelectorAll('.legal-document-tab').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.legalDocument === (isPrivacy ? 'privacy' : 'terms'));
+    });
+  }
+
+  window.openLegalDocuments = function(documentName = 'terms') {
+    const modal = document.getElementById('legal-documents-modal');
+    if (!modal) return;
+    renderLegalDocument(documentName);
+    modal.style.display = 'flex';
+  };
+
+  function updateLegalAcceptanceButton() {
+    const terms = document.getElementById('accept-terms-checkbox')?.checked;
+    const privacy = document.getElementById('accept-privacy-checkbox')?.checked;
+    const button = document.getElementById('accept-legal-button');
+    if (button) button.disabled = !(terms && privacy);
+  }
+
+  function showLegalAcceptanceIfRequired() {
+    if (!currentUser) return;
+    const accepted = currentProfileData?.termsVersion === LEGAL_DOCUMENT_VERSION
+      && currentProfileData?.privacyVersion === LEGAL_DOCUMENT_VERSION;
+    const modal = document.getElementById('legal-acceptance-modal');
+    if (!modal) return;
+    if (accepted) {
+      modal.style.display = 'none';
+      return;
+    }
+    document.getElementById('accept-terms-checkbox').checked = false;
+    document.getElementById('accept-privacy-checkbox').checked = false;
+    const status = document.getElementById('legal-acceptance-status');
+    if (status) status.textContent = '';
+    updateLegalAcceptanceButton();
+    modal.style.display = 'flex';
+  }
+
+  window.acceptLegalDocuments = async function() {
+    if (!currentUser) return;
+    if (!document.getElementById('accept-terms-checkbox')?.checked || !document.getElementById('accept-privacy-checkbox')?.checked) return;
+
+    const button = document.getElementById('accept-legal-button');
+    const status = document.getElementById('legal-acceptance-status');
+    const acceptedAt = new Date().toISOString();
+    if (button) { button.disabled = true; button.textContent = 'Čuvanje…'; }
+    if (status) status.textContent = '';
+
+    try {
+      const profile = {
+        fullName: currentProfileData?.fullName || currentUser.displayName || 'Korisnik',
+        email: currentUser.email || currentProfileData?.email || '',
+        createdAt: currentProfileData?.createdAt || acceptedAt,
+        termsVersion: LEGAL_DOCUMENT_VERSION,
+        termsAcceptedAt: acceptedAt,
+        privacyVersion: LEGAL_DOCUMENT_VERSION,
+        privacyAcceptedAt: acceptedAt
+      };
+      await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
+      currentProfileData = { ...(currentProfileData || {}), ...profile };
+      document.getElementById('legal-acceptance-modal').style.display = 'none';
+      ShowToast('Hvala — možeš nastaviti u GymLeader.');
+    } catch (error) {
+      console.error('Legal acceptance diagnostic:', error);
+      if (status) {
+        status.textContent = 'Potvrdu trenutno nije moguće sačuvati. Provjeri internet i pokušaj ponovo.';
+        status.style.color = 'var(--danger)';
+      }
+    } finally {
+      if (button) { button.textContent = 'Prihvati i nastavi'; updateLegalAcceptanceButton(); }
+    }
+  };
+
   onAuthStateChanged(auth, async (user) => {
     const loginBtn = document.getElementById('login-modal-btn');
     const logoutBtn = document.getElementById('logout-btn');
@@ -520,6 +597,8 @@ window.handleAuthSubmit = async function(e) {
         mailDisplay.style.display = 'inline-block';
       }
 
+      showLegalAcceptanceIfRequired();
+
       await loadPendingWorkouts(user.uid);
       await loadCloudData();
       await syncPendingWorkouts();
@@ -533,6 +612,8 @@ window.handleAuthSubmit = async function(e) {
       }
       currentUser = null;
       currentProfileData = null;
+      document.getElementById('legal-acceptance-modal')?.style.setProperty('display', 'none');
+      document.getElementById('legal-documents-modal')?.style.setProperty('display', 'none');
       navigationGuardReady = false;
       userRoutines = [];
       if (bottomNav) bottomNav.style.display = 'none';
@@ -2906,6 +2987,8 @@ function renderPendingSyncStatus() {
 
     document.getElementById('delete-account-modal')?.addEventListener('input', updateDeleteAccountButton);
     document.getElementById('delete-account-modal')?.addEventListener('change', updateDeleteAccountButton);
+    document.getElementById('accept-terms-checkbox')?.addEventListener('change', updateLegalAcceptanceButton);
+    document.getElementById('accept-privacy-checkbox')?.addEventListener('change', updateLegalAcceptanceButton);
 
     setupTouchReorder();
 
@@ -3028,6 +3111,18 @@ function renderPendingSyncStatus() {
           break;
         case 'open-settings-editor':
           window.openSettingsEditor(button.dataset.editor);
+          break;
+        case 'open-legal-documents':
+          window.openLegalDocuments('terms');
+          break;
+        case 'show-legal-document':
+          renderLegalDocument(button.dataset.legalDocument || 'terms');
+          break;
+        case 'open-legal-document-from-acceptance':
+          window.openLegalDocuments(button.dataset.legalDocument || 'terms');
+          break;
+        case 'accept-legal-documents':
+          window.acceptLegalDocuments();
           break;
         case 'save-profile-name':
           window.saveProfileName();

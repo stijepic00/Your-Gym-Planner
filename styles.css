@@ -419,6 +419,32 @@ html[data-theme="light"] .theme-toggle:not([aria-checked="true"]) { background: 
 .settings-delete-confirm:disabled { opacity: .42; cursor: not-allowed; filter: saturate(.45); }
 .settings-delete-cancel { width: 100%; margin-top: 10px; padding: 8px; border: 0; background: transparent; color: var(--text-muted); font-size: .82rem; font-weight: 800; cursor: pointer; }
 .delete-feedback-privacy { margin-top: 12px; color: var(--text-dim); text-align: center; font-size: .66rem; line-height: 1.45; }
+.settings-legal-summary { grid-column: 1 / -1; }
+#legal-documents-modal { z-index: 100002; }
+.legal-documents-modal { max-width: 560px; }
+.legal-documents-modal h3 { margin: 5px 42px 18px 0; font-size: 1.3rem; }
+.legal-document-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 15px; padding: 4px; border: 1px solid var(--border-color); border-radius: 13px; background: var(--bg-input); }
+.legal-document-tab { min-height: 39px; border: 0; border-radius: 9px; background: transparent; color: var(--text-muted); font: inherit; font-size: .76rem; font-weight: 800; cursor: pointer; }
+.legal-document-tab.is-active { background: color-mix(in srgb, var(--accent-primary) 20%, var(--bg-card)); color: var(--text-main); box-shadow: 0 2px 7px rgba(0,0,0,.16); }
+.legal-document { padding: 2px 3px 10px; color: var(--text-muted); font-size: .82rem; line-height: 1.58; }
+.legal-document h4 { margin: 2px 0 7px; color: var(--text-main); font-size: 1rem; }
+.legal-document p { margin: 0 0 12px; }
+.legal-document strong { color: var(--text-main); }
+.legal-acceptance-modal { z-index: 100001; }
+.legal-acceptance-content { max-width: 470px; padding: 27px; }
+.legal-acceptance-content h3 { margin: 6px 0 8px; color: var(--text-main); font-size: 1.42rem; letter-spacing: -.03em; }
+.legal-acceptance-content > p { margin: 0 0 17px; color: var(--text-muted); font-size: .86rem; line-height: 1.48; }
+.legal-acceptance-links { display: grid; gap: 8px; margin: 0 0 17px; }
+.legal-acceptance-links button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 48px; padding: 0 13px; border: 1px solid color-mix(in srgb, var(--accent-primary) 35%, var(--border-color)); border-radius: 12px; background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-input)); color: var(--text-main); font: inherit; font-size: .82rem; font-weight: 800; text-align: left; cursor: pointer; }
+.legal-acceptance-links button:hover { border-color: var(--accent-primary); background: color-mix(in srgb, var(--accent-primary) 14%, var(--bg-input)); }
+.legal-acceptance-links span { color: var(--accent-cyan); font-size: 1.35rem; }
+.legal-consent-check { display: flex; align-items: flex-start; gap: 10px; margin: 11px 0; color: var(--text-main); font-size: .8rem; font-weight: 700; line-height: 1.38; cursor: pointer; }
+.legal-consent-check input { width: 18px; height: 18px; flex: 0 0 auto; margin: 0; accent-color: var(--accent-primary); cursor: pointer; }
+.legal-acceptance-content .settings-status { margin: 10px 0 0; }
+.legal-accept-button { width: 100%; min-height: 49px; margin-top: 7px; background: var(--accent-primary); font-weight: 900; }
+.legal-accept-button:disabled { cursor: not-allowed; opacity: .45; filter: saturate(.35); }
+.legal-logout-button { display: block; width: 100%; margin: 10px 0 0; padding: 8px; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: .8rem; font-weight: 800; cursor: pointer; }
+.legal-logout-button:hover { color: var(--text-main); }
 html[data-theme="light"] .settings-summary-card { background: linear-gradient(145deg,#fff,#f6f9fc); box-shadow: 0 8px 22px rgba(15,23,42,.06); }
 html[data-theme="light"] .modal-content { background: rgba(255,255,255,.98); border-color: rgba(15,23,42,.12); color: var(--text-main); box-shadow: 0 25px 50px rgba(15,23,42,.2); }
 @media (max-width: 520px) { .settings-summary-grid { grid-template-columns: 1fr; gap: 10px; } .settings-profile-summary { grid-column: auto; } .settings-summary-card { min-height: 94px; } .settings-profile-summary { min-height: 106px; } .delete-account-modal-content { padding: 21px 18px; } }
