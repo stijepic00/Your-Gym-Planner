@@ -33,20 +33,32 @@
 <main>
     <!-- LOGIN SCREEN -->
     <section id="view-login" class="view active" style="align-items: center; justify-content: center; min-height: 80vh;">
-      <div class="card" style="width: 100%; max-width: 400px; padding: 24px;">
-        <div style="display: flex; justify-content: space-between; border-bottom: 2px solid var(--bg-card-border); margin-bottom: 20px; padding-bottom: 8px;">
-          <button id="tab-btn-login" data-action="auth-mode" data-mode="login" style="background: none; border: none; font-weight: 800; font-size: 1.1rem; color: var(--primary); cursor: pointer; padding: 4px 8px;">
-            Prijava 🔑
+      <div class="card auth-card">
+        <div class="auth-welcome">
+          <span class="badge">GYMLEADER</span>
+          <h1>Uđi u svoj trening</h1>
+          <p>Sačuvaj planove, prati kilaže i vidi svoj napredak iz treninga u trening.</p>
+        </div>
+
+        <div class="auth-choice-grid" aria-label="Izaberi način ulaska">
+          <button id="tab-btn-register" class="auth-choice" data-action="auth-mode" data-mode="register" type="button">
+            <span class="auth-choice-icon">✨</span>
+            <span class="auth-choice-label">Prvi put koristiš GymLeader?</span>
+            <strong>Napravi besplatan nalog</strong>
           </button>
-          <button id="tab-btn-register" data-action="auth-mode" data-mode="register" style="background: none; border: none; font-weight: 800; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; padding: 4px 8px;">
-            Registracija 📝
+          <button id="tab-btn-login" class="auth-choice is-active" data-action="auth-mode" data-mode="login" type="button">
+            <span class="auth-choice-icon">👋</span>
+            <span class="auth-choice-label">Već imaš nalog?</span>
+            <strong>Prijavi se</strong>
           </button>
         </div>
+
+        <p id="auth-mode-hint" class="auth-mode-hint">Unesi email i lozinku svog GymLeader naloga.</p>
 
         <form id="auth-form">
           <div id="group-name" style="display: none; margin-bottom: 16px;">
             <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.9rem;">Ime i Prezime / Nadimak:</label>
-            <input type="text" id="auth-name" class="input" placeholder="npr. Marko Marković">
+            <input type="text" id="auth-name" class="input" placeholder="npr. Marko Marković" autocomplete="name" maxlength="80">
           </div>
 
           <div style="margin-bottom: 16px;">
@@ -54,9 +66,35 @@
             <input type="email" id="auth-email" class="input" placeholder="tvoj@email.com" required>
           </div>
 
-          <div style="margin-bottom: 20px;">
+          <div style="margin-bottom: 8px;">
             <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.9rem;">Lozinka:</label>
-            <input type="password" id="auth-password" class="input" placeholder="Minimalno 8 karaktera" required minlength="8">
+            <div class="auth-password-wrap">
+              <input type="password" id="auth-password" class="input" placeholder="Lozinka za GymLeader" required minlength="8" autocomplete="current-password">
+              <button type="button" class="auth-password-toggle" data-action="toggle-auth-password" data-password-target="auth-password" aria-label="Prikaži lozinku">Prikaži</button>
+            </div>
+          </div>
+
+          <div id="group-confirm-password" class="auth-register-only" style="display: none; margin-bottom: 8px;">
+            <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.9rem;">Potvrdi lozinku:</label>
+            <div class="auth-password-wrap">
+              <input type="password" id="auth-password-confirm" class="input" placeholder="Ponovi lozinku za GymLeader" autocomplete="new-password" minlength="8">
+              <button type="button" class="auth-password-toggle" data-action="toggle-auth-password" data-password-target="auth-password-confirm" aria-label="Prikaži potvrdu lozinke">Prikaži</button>
+            </div>
+            <p id="auth-password-match" class="auth-field-message" aria-live="polite"></p>
+          </div>
+
+          <div id="register-password-rules" class="auth-register-only auth-password-rules" style="display: none;" aria-live="polite">
+            <strong>Pravila lozinke:</strong>
+            <span data-password-rule="length">✓ Najmanje 8 karaktera</span>
+            <span data-password-rule="letter">✓ Najmanje jedno slovo</span>
+            <span data-password-rule="number">✓ Najmanje jedan broj</span>
+          </div>
+
+          <p class="auth-password-note">Ovo je lozinka za GymLeader, nije lozinka tvog Gmaila ili drugog email naloga.</p>
+
+          <div id="auth-login-actions" class="auth-login-actions">
+            <button type="button" class="auth-inline-link auth-forgot-link" data-action="open-forgot-password">Zaboravio/la sam lozinku</button>
+            <button type="button" class="auth-inline-link" data-action="auth-mode" data-mode="register">Nemam nalog — napravi ga</button>
           </div>
 
           <div id="auth-error" style="color: #ff4d4d; font-size: 0.85rem; margin-bottom: 12px; display: none;"></div>
@@ -65,6 +103,19 @@
             Prijavi Se →
           </button>
         </form>
+
+        <button id="auth-back-to-login" class="auth-inline-link" type="button" data-action="auth-mode" data-mode="login" style="display: none;">
+          Već imaš nalog? Vrati se na prijavu
+        </button>
+
+        <div id="registration-resume" class="auth-resume" style="display: none;" aria-live="polite">
+          <strong>Nastavak registracije</strong>
+          <p>Imamo sačuvane podatke iz započete registracije. Nastavi gdje si stao ili počni ispočetka.</p>
+          <div class="auth-resume-actions">
+            <button type="button" class="btn" data-action="resume-registration">Nastavi registraciju</button>
+            <button type="button" class="btn btn-secondary" data-action="discard-registration">Obriši nacrt</button>
+          </div>
+        </div>
 
         <div style="margin-top: 20px; text-align: center;">
           <p id="social-auth-text" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px;">ili se prijavi jednim klikom:</p>
@@ -87,9 +138,22 @@
 
       <div id="dashboard-ready" class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.05)); border-color: rgba(16, 185, 129, 0.25);">
         <span class="badge" style="color: var(--primary);">SYSTEM ONLINE ⚡</span>
-        <h2 style="margin: 10px 0 6px 0; font-size: 1.5rem; font-weight: 900;">Spreman za trening?</h2>
-        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 18px;">Ostvari novu ličnu pobjedu i obori PR danas!</p>
-        <button class="btn" data-action="switch-tab" data-tab="workouts">Započni Trening →</button>
+        <h2 style="margin: 10px 0 6px 0; font-size: 1.5rem; font-weight: 900;">Šta želiš trenirati danas?</h2>
+        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 10px;">GymLeader ti pomaže da sačuvaš svoje planove, upišeš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>
+        <p class="dashboard-next-step">Sljedeći korak: izaberi svoj plan treninga i klikni <strong>„Započni ovaj trening“</strong>.</p>
+        <button class="btn" data-action="switch-tab" data-tab="workouts">Izaberi plan treninga →</button>
+      </div>
+
+      <div class="dashboard-guide card">
+        <h3>Kako koristiš GymLeader?</h3>
+        <div class="dashboard-guide-row"><span>1</span><p><strong>Napravi plan</strong><br><small>Jedan plan je jedan trening koji ponavljaš, na primjer „Noge“ ili „Gornji dio“.</small></p></div>
+        <div class="dashboard-guide-row"><span>2</span><p><strong>Započni trening</strong><br><small>Otvori svoj plan i upiši šta si danas uradio.</small></p></div>
+        <div class="dashboard-guide-row"><span>3</span><p><strong>Prati napredak</strong><br><small>Sljedeći put vidiš prošle kilaže, ponavljanja i lične rekorde.</small></p></div>
+      </div>
+
+      <div class="dashboard-coming-soon card">
+        <span class="badge">USKORO</span>
+        <p><strong>Još dolazi:</strong> pametniji planovi za teretane, treneri, motivacija i napredniji pregled rezultata.</p>
       </div>
 
       <h3 style="margin: 24px 0 12px 0; font-size: 1.1rem; font-weight: 800;">Posljednji Sačuvani Trening</h3>
@@ -101,9 +165,15 @@
 
     <!-- WORKOUT ROUTINES -->
     <section id="view-workouts" class="view">
-      <h2 style="margin-bottom: 16px; font-size: 1.3rem; font-weight: 800;">Izaberi Rutinu</h2>
-      <button class="btn btn-secondary" style="margin-bottom: 12px; border-color: var(--accent-purple);" data-action="open-import-modal">
-        📋 Uvezi Trening iz Notes-a / AI
+      <h2 style="margin-bottom: 6px; font-size: 1.3rem; font-weight: 800;">Moji planovi treninga</h2>
+      <p class="routine-page-intro">Ovdje čuvaš svoje planove. <strong>Jedan plan = jedan trening koji ponavljaš.</strong> Nazovi ga kako želiš, dodaj svoje vježbe i pokreni ga kad si spreman.</p>
+      <div class="routine-how-it-works" aria-label="Kako koristiti planove treninga">
+        <div><span>1</span><strong>Napravi plan</strong><small>Izaberi naziv i vježbe.</small></div>
+        <div><span>2</span><strong>Započni trening</strong><small>Upiši serije, kilaže i ponavljanja.</small></div>
+        <div><span>3</span><strong>Sačuvaj rezultat</strong><small>Sljedeći put vidiš svoj napredak.</small></div>
+      </div>
+      <button class="btn btn-secondary routine-import-button" data-action="open-import-modal">
+        📋 Dodaj plan iz teksta
       </button>
       <div id="workout-list"></div>
     </section>
@@ -186,6 +256,7 @@
         </button>
         <button class="settings-summary-card" data-action="open-settings-editor" data-editor="photo" type="button"><span id="profile-avatar" class="profile-avatar settings-photo-summary-avatar" aria-label="Profilna slika">K</span><span class="settings-summary-copy"><small>Profilna fotografija</small><strong id="settings-photo-summary">Nije dodata</strong><span>Sačuvana samo na ovom uređaju</span></span><span class="settings-card-chevron">›</span></button>
         <button class="settings-summary-card" data-action="open-settings-editor" data-editor="email" type="button"><span class="settings-card-icon">✉</span><span class="settings-summary-copy"><small>Email adresa</small><strong id="settings-email-summary">—</strong><span>Potvrđena adresa naloga</span></span><span class="settings-card-chevron">›</span></button>
+        <button class="settings-summary-card" data-action="open-settings-editor" data-editor="security" type="button"><span class="settings-card-icon">🔐</span><span class="settings-summary-copy"><small>Sigurnost naloga</small><strong>Lozinka i pristup</strong><span>Promijeni GymLeader lozinku</span></span><span class="settings-card-chevron">›</span></button>
         <button class="settings-summary-card" data-action="open-settings-editor" data-editor="language" type="button"><span class="settings-card-icon">文</span><span class="settings-summary-copy"><small>Jezik aplikacije</small><strong id="settings-language-summary">Srpski</strong><span>Jezik prikaza aplikacije</span></span><span class="settings-card-chevron">›</span></button>
         <button class="settings-summary-card" data-action="open-settings-editor" data-editor="appearance" type="button"><span class="settings-card-icon" id="settings-theme-icon">☾</span><span class="settings-summary-copy"><small>Izgled aplikacije</small><strong id="settings-theme-summary">Tamni prikaz</strong><span>Boje i prikaz aplikacije</span></span><span class="settings-card-chevron">›</span></button>
       </div>
@@ -198,6 +269,7 @@
     <div id="settings-name-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">LIČNI PODACI</span><h3>Ime i prezime</h3><p class="profile-modal-help">Ovo ime se prikazuje na tvom nalogu.</p><label class="settings-label" for="profile-name-input">Ime i prezime</label><input id="profile-name-input" class="custom-input" type="text" maxlength="100" autocomplete="name"><button class="btn btn-purple settings-modal-save" data-action="save-profile-name" type="button">Sačuvaj promjene</button><p id="profile-settings-status" class="settings-status" role="status"></p></div></div>
     <div id="settings-language-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal settings-language-editor"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">PREFERENCIJE</span><h3>Jezik aplikacije</h3><p class="profile-modal-help">Izaberi jezik koji želiš koristiti.</p><div class="language-options" role="group" aria-label="Izbor jezika"><button class="language-option" data-action="set-language" data-language="sr" type="button" aria-label="Srpski"><span>🇷🇸</span><small>Srpski</small></button><button class="language-option" data-action="set-language" data-language="en" type="button" aria-label="English"><span>🇬🇧</span><small>English</small></button><button class="language-option" data-action="set-language" data-language="de" type="button" aria-label="Deutsch"><span>🇩🇪</span><small>Deutsch</small></button></div><p id="language-settings-status" class="settings-status" role="status"></p></div></div>
     <div id="settings-appearance-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal settings-appearance-editor"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">PREFERENCIJE</span><h3>Izgled aplikacije</h3><p class="profile-modal-help">Izaberi tamni ili svijetli prikaz.</p><button id="theme-toggle" class="theme-toggle" data-action="toggle-theme" type="button" role="switch" aria-checked="false" aria-label="Promijeni temu" aria-describedby="theme-toggle-label"><span id="theme-toggle-label" class="theme-toggle-label">Tamni prikaz</span><span class="theme-toggle-track" aria-hidden="true"><span class="theme-toggle-thumb"><span class="theme-toggle-sun">☀</span><span class="theme-toggle-moon">☾</span></span></span></button></div></div>
+    <div id="settings-security-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal settings-security-editor"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">SIGURNOST NALOGA</span><h3>Promijeni lozinku</h3><p id="security-password-help" class="profile-modal-help">Koristi posebnu GymLeader lozinku. Ne koristi lozinku svog email naloga.</p><div id="security-password-form"><label class="settings-label" for="current-password-input">Trenutna lozinka</label><div class="settings-password-wrap"><input id="current-password-input" class="custom-input" type="password" autocomplete="current-password" placeholder="Trenutna GymLeader lozinka"><button type="button" class="settings-password-toggle" data-action="toggle-settings-password" data-password-target="current-password-input">Prikaži</button></div><label class="settings-label" for="new-password-input">Nova lozinka</label><div class="settings-password-wrap"><input id="new-password-input" class="custom-input" type="password" autocomplete="new-password" placeholder="Nova GymLeader lozinka"><button type="button" class="settings-password-toggle" data-action="toggle-settings-password" data-password-target="new-password-input">Prikaži</button></div><label class="settings-label" for="confirm-new-password-input">Potvrdi novu lozinku</label><div class="settings-password-wrap"><input id="confirm-new-password-input" class="custom-input" type="password" autocomplete="new-password" placeholder="Ponovi novu lozinku"><button type="button" class="settings-password-toggle" data-action="toggle-settings-password" data-password-target="confirm-new-password-input">Prikaži</button></div><div class="settings-password-rules"><span>✓ Najmanje 8 karaktera</span><span>✓ Najmanje jedno slovo i jedan broj</span></div><button class="btn btn-purple settings-modal-save" data-action="change-password" type="button">Promijeni lozinku</button></div><div id="security-google-note" class="settings-google-note" style="display:none;"><strong>Prijavljen/a si preko Googlea</strong><p>Ovaj nalog nema posebnu GymLeader lozinku. Lozinku mijenjaš u svom Google nalogu.</p><a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">Otvori Google sigurnost</a></div><p id="security-password-status" class="settings-status" role="status"></p></div></div>
     <div id="settings-photo-modal" class="modal" style="display:none;"><div class="modal-content settings-editor-modal settings-photo-editor"><button class="modal-close" data-action="close-modal" aria-label="Zatvori">×</button><span class="settings-eyebrow">PROFIL</span><h3>Profilna fotografija</h3><p class="profile-modal-help">Fotografija se čuva samo na ovom uređaju.</p><div class="settings-photo-preview"><span id="settings-photo-avatar" class="profile-avatar">K</span></div><label class="btn btn-secondary profile-avatar-button" for="profile-photo-input">Promijeni sliku<input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden></label><button class="settings-photo-remove" data-action="remove-profile-photo" type="button">Ukloni fotografiju</button></div></div>
     <div id="profile-photo-modal" class="modal" style="display:none;">
       <div class="modal-content profile-photo-modal-content">
@@ -248,36 +320,36 @@
     </button>
 </nav>
 
-<!-- Modal za uvoz iz Notes-a -->
+<!-- Modal za dodavanje plana iz teksta -->
 <div id="importNotesModal" class="modal" style="display: none;">
   <div class="modal-content">
-    <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 6px;">📋 Uvezi Trening iz Notes-a / AI</h3>
-    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px;">Plan mora pratiti striktna pravila strukture kako bi ga algoritam prepoznao.</p>
+    <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 6px;">📋 Dodaj plan iz teksta</h3>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px;">Zalijepi plan iz bilješki ili poruke. Svaki plan počinje svojim nazivom, a ispod njega pišu vježbe.</p>
 
     <div class="rules-box">
-      <strong>📌 Pravila Formatiranja Plana:</strong><br>
-      1. Naziv dana mora početi sa npr. <code>Gornji A</code>, <code>Donji B</code>, <code>Dan 1: Grudi</code> ili <code>Ponedjeljak</code>.<br>
-      2. Ispod naziva dana pišu se vježbe, jedna po jedna u redu.<br>
-      3. Format za vježbu mora sadržavati serije i ponavljanja (npr. <code>Potisak sa klupe 4x10</code> ili <code>Čučanj 3x12</code>).
-      <button class="btn btn-secondary" style="margin-top: 8px; padding: 6px 10px; font-size: 0.75rem;" data-action="copy-ai-rules">📋 Kopiraj Uputstvo za AI</button>
+      <strong>📌 Primjer:</strong><br>
+      <code>Gornji dio</code><br>
+      <code>Bench Press 4x10</code><br>
+      <code>Veslanje 3x12</code><br><br>
+      Možeš koristiti bilo koji naziv plana koji ti odgovara.
     </div>
     
     <textarea id="importNotesArea" class="custom-input" rows="8" placeholder="Gornji A&#10;Potisak sa klupe 4x10&#10;Veslanje u pretklonu 3x12&#10;&#10;Donji A&#10;Čučanj 4x8&#10;Mrtvo dizanje 3x10"></textarea>
     
     <div style="display: flex; gap: 10px; margin-top: 10px;">
-      <button id="btnConfirmImport" class="btn" data-action="import-notes">Sačuvaj Treninge</button>
+      <button id="btnConfirmImport" class="btn" data-action="import-notes">Dodaj planove</button>
       <button class="btn btn-secondary" data-action="close-modal" data-modal-id="importNotesModal">Otkaži</button>
     </div>
   </div>
 </div>
 
-<!-- Modal za Kreiranje Novog Dana / Kartice sa Emoji Sistemom -->
+<!-- Modal za kreiranje plana sa emoji sistemom -->
 <div id="createRoutineModal" class="modal" style="display: none;">
   <div class="modal-content">
-    <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">➕ Novi Dan / Kartica</h3>
-    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 14px;">Unesite naziv kartice i izaberite emoji:</p>
+    <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">➕ Napravi plan treninga</h3>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 14px;">Ovo je jedan trening koji možeš ponavljati. Nazovi ga kako želiš i dodaj vježbe jednu po jednu.</p>
     
-    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Emoji kartice:</label>
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Emoji plana:</label>
     <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
       <input type="text" id="newRoutineEmojiInput" class="custom-input" style="margin-bottom: 0; width: 80px; text-align: center; font-size: 1.3rem;" placeholder="🏋️">
       <button type="button" class="btn btn-danger" style="width: 44px; height: 44px; padding: 0; font-weight: bold; font-size: 1.1rem; box-shadow: none;" data-action="clear-routine-emoji" title="Obriši emoji">✕</button>
@@ -293,25 +365,25 @@
       <button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🦾">🦾</button>
     </div>
 
-    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Naziv kartice:</label>
-    <input type="text" id="newRoutineNameInput" class="custom-input" placeholder="npr. Gornji A (Grudi & Ruke)">
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Naziv plana:</label>
+    <input type="text" id="newRoutineNameInput" class="custom-input" placeholder="npr. Gornji dio, Noge ili Street workout">
     
-    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin: 10px 0 6px 0;">Vježbe (jedna po jedna u redu):</label>
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin: 10px 0 6px 0;">Vježbe (svaka u svom redu):</label>
     <textarea id="newRoutineExercisesInput" class="custom-input" rows="5" placeholder="Bench Press 4x10&#10;Kosi Potisak 3x12&#10;Propadanja 3x10"></textarea>
 
     <div style="display: flex; gap: 10px; margin-top: 12px;">
-      <button class="btn" data-action="submit-new-routine">Kreiraj Karticu</button>
+      <button class="btn" data-action="submit-new-routine">Sačuvaj plan</button>
       <button class="btn btn-secondary" data-action="close-modal" data-modal-id="createRoutineModal">Otkaži</button>
     </div>
   </div>
 </div>
 
-<!-- Modal za uređivanje postojećeg dana -->
+<!-- Modal za uređivanje postojećeg plana -->
 <div id="editRoutineModal" class="modal" style="display: none;">
   <div class="modal-content">
-    <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">✎ Uredi Dan / Karticu</h3>
+    <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">✎ Uredi plan treninga</h3>
 
-    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Emoji kartice:</label>
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Emoji plana:</label>
     <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
       <input type="text" id="editRoutineEmojiInput" class="custom-input" style="margin-bottom: 0; width: 80px; text-align: center; font-size: 1.3rem;" placeholder="🏋️">
       <button type="button" class="emoji-btn-quick" data-action="set-edit-routine-emoji" data-emoji="🏋️">🏋️</button>
@@ -320,8 +392,8 @@
       <button type="button" class="emoji-btn-quick" data-action="set-edit-routine-emoji" data-emoji="🦵">🦵</button>
     </div>
 
-    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Naziv kartice:</label>
-    <input type="text" id="editRoutineNameInput" class="custom-input" placeholder="npr. Gornji A">
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Naziv plana:</label>
+    <input type="text" id="editRoutineNameInput" class="custom-input" placeholder="npr. Gornji dio">
 
     <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin: 10px 0 6px 0;">Vježbe, jedna po redu:</label>
     <textarea id="editRoutineExercisesInput" class="custom-input" rows="5" placeholder="Bench Press 4x10&#10;Kosi Potisak 3x12"></textarea>
@@ -330,7 +402,7 @@
       <button class="btn" data-action="save-routine-edits">Sačuvaj Izmjene</button>
       <button class="btn btn-secondary" data-action="close-modal" data-modal-id="editRoutineModal">Otkaži</button>
     </div>
-    <button class="btn btn-danger" style="margin-top: 12px; width: 100%;" data-action="delete-editing-routine">Obriši cijeli dan</button>
+    <button class="btn btn-danger" style="margin-top: 12px; width: 100%;" data-action="delete-editing-routine">Obriši ovaj plan</button>
   </div>
 </div>
 
@@ -341,6 +413,6 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20260928-account-settings-1"></script>
+<script type="module" src="javascript.js?v=20260929-auth-security-1"></script>
 </body>
 </html>

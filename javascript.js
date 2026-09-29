@@ -4,6 +4,10 @@
   import { 
     getAuth, 
     signInWithEmailAndPassword, 
+    sendPasswordResetEmail,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    updatePassword,
     signInWithCustomToken,
     signInWithPopup,
     GoogleAuthProvider,
@@ -75,6 +79,8 @@
 };
   let currentUser = null;
   let currentAuthMode = 'login';
+  const REGISTRATION_DRAFT_KEY = 'gymleader-registration-draft-v1';
+  const REGISTRATION_DRAFT_TTL_MS = 10 * 60 * 1000;
   let userRoutines = [];
   let cachedHistory = [];
   let customExType = 'existing';
@@ -131,22 +137,175 @@
     const tabRegister = document.getElementById('tab-btn-register');
     const errorDiv = document.getElementById('auth-error');
     const socialText = document.getElementById('social-auth-text');
+    const modeHint = document.getElementById('auth-mode-hint');
+    const confirmGroup = document.getElementById('group-confirm-password');
+    const passwordRules = document.getElementById('register-password-rules');
+    const backToLogin = document.getElementById('auth-back-to-login');
+    const loginActions = document.getElementById('auth-login-actions');
+    const passwordInput = document.getElementById('auth-password');
 
     if (errorDiv) errorDiv.style.display = 'none';
 
     if (mode === 'register') {
       if (groupName) groupName.style.display = 'block';
+      if (confirmGroup) confirmGroup.style.display = 'block';
+      if (passwordRules) passwordRules.style.display = 'flex';
+      if (backToLogin) backToLogin.style.display = 'block';
+      if (loginActions) loginActions.style.display = 'none';
+      if (passwordInput) {
+        passwordInput.autocomplete = 'new-password';
+        passwordInput.placeholder = 'Napravi lozinku za GymLeader';
+      }
       if (btnSubmit) btnSubmit.innerText = 'Kreiraj Novi Nalog 🚀';
-      if (tabLogin) { tabLogin.style.color = 'var(--text-muted)'; tabLogin.style.borderBottom = 'none'; }
-      if (tabRegister) { tabRegister.style.color = 'var(--primary)'; tabRegister.style.borderBottom = '2px solid var(--primary)'; }
+      if (tabLogin) tabLogin.classList.remove('is-active');
+      if (tabRegister) tabRegister.classList.add('is-active');
       if (socialText) socialText.innerText = 'ili napravi nalog jednim klikom:';
+      if (modeHint) modeHint.innerText = 'Napravi besplatan GymLeader nalog za svoje planove i napredak.';
     } else {
       if (groupName) groupName.style.display = 'none';
+      if (confirmGroup) confirmGroup.style.display = 'none';
+      if (passwordRules) passwordRules.style.display = 'none';
+      if (backToLogin) backToLogin.style.display = 'none';
+      if (loginActions) loginActions.style.display = 'block';
+      if (passwordInput) {
+        passwordInput.autocomplete = 'current-password';
+        passwordInput.placeholder = 'Lozinka za GymLeader';
+      }
       if (btnSubmit) btnSubmit.innerText = 'Prijavi Se na Nalog →';
-      if (tabLogin) { tabLogin.style.color = 'var(--primary)'; tabLogin.style.borderBottom = '2px solid var(--primary)'; }
-      if (tabRegister) { tabRegister.style.color = 'var(--text-muted)'; tabRegister.style.borderBottom = 'none'; }
+      if (tabLogin) tabLogin.classList.add('is-active');
+      if (tabRegister) tabRegister.classList.remove('is-active');
       if (socialText) socialText.innerText = 'ili se prijavi jednim klikom:';
+      if (modeHint) modeHint.innerText = 'Unesi email i lozinku svog GymLeader naloga.';
     }
+    updatePasswordRuleState();
+    renderRegistrationResume();
+  };
+
+  window.toggleAuthPassword = function(button) {
+    const targetId = button?.dataset?.passwordTarget || 'auth-password';
+    const input = document.getElementById(targetId);
+    const toggleButton = button || document.querySelector(`[data-action="toggle-auth-password"][data-password-target="${targetId}"]`);
+    if (!input || !toggleButton) return;
+    const shouldShow = input.type === 'password';
+    input.type = shouldShow ? 'text' : 'password';
+    toggleButton.textContent = shouldShow ? 'Sakrij' : 'Prikaži';
+    toggleButton.setAttribute('aria-label', shouldShow ? 'Sakrij lozinku' : 'Prikaži lozinku');
+  };
+
+  function getPasswordRules(password) {
+    return {
+      length: password.length >= 8 && password.length <= 256,
+      letter: /[A-Za-zČĆŽŠĐčćžšđ]/.test(password),
+      number: /\d/.test(password)
+    };
+  }
+
+  function isValidRegistrationPassword(password) {
+    const rules = getPasswordRules(password);
+    return rules.length && rules.letter && rules.number;
+  }
+
+  function updatePasswordRuleState() {
+    const password = document.getElementById('auth-password')?.value || '';
+    const confirmation = document.getElementById('auth-password-confirm')?.value || '';
+    const rules = getPasswordRules(password);
+    Object.entries(rules).forEach(([rule, isValid]) => {
+      const element = document.querySelector(`[data-password-rule="${rule}"]`);
+      if (!element) return;
+      element.classList.toggle('is-valid', isValid);
+      element.classList.toggle('is-invalid', !isValid);
+    });
+    const matchMessage = document.getElementById('auth-password-match');
+    if (!matchMessage || currentAuthMode !== 'register') return;
+    if (!confirmation) {
+      matchMessage.textContent = '';
+      matchMessage.classList.remove('is-valid');
+    } else if (password !== confirmation) {
+      matchMessage.textContent = 'Lozinke se ne podudaraju.';
+      matchMessage.classList.remove('is-valid');
+    } else {
+      matchMessage.textContent = 'Lozinke se podudaraju.';
+      matchMessage.classList.add('is-valid');
+    }
+  }
+
+  function saveRegistrationDraft({ email, name, codeSentAt = null }) {
+    try {
+      const startedAt = Date.now();
+      localStorage.setItem(REGISTRATION_DRAFT_KEY, JSON.stringify({
+        email: String(email || '').trim().toLowerCase(),
+        name: String(name || '').trim().slice(0, 80),
+        codeSentAt,
+        expiresAt: codeSentAt ? codeSentAt + REGISTRATION_DRAFT_TTL_MS : startedAt + (24 * 60 * 60 * 1000)
+      }));
+      renderRegistrationResume();
+    } catch (error) {
+      console.warn('Nacrt registracije nije sačuvan:', error);
+    }
+  }
+
+  function readRegistrationDraft() {
+    try {
+      const raw = localStorage.getItem(REGISTRATION_DRAFT_KEY);
+      if (!raw) return null;
+      const draft = JSON.parse(raw);
+      if (!draft?.email || !draft?.expiresAt || Date.now() > Number(draft.expiresAt)) {
+        localStorage.removeItem(REGISTRATION_DRAFT_KEY);
+        return null;
+      }
+      return draft;
+    } catch {
+      localStorage.removeItem(REGISTRATION_DRAFT_KEY);
+      return null;
+    }
+  }
+
+  function clearRegistrationDraft() {
+    try { localStorage.removeItem(REGISTRATION_DRAFT_KEY); } catch { /* storage may be blocked */ }
+    const resume = document.getElementById('registration-resume');
+    if (resume) resume.style.display = 'none';
+  }
+
+  function renderRegistrationResume() {
+    const resume = document.getElementById('registration-resume');
+    if (!resume) return;
+    if (currentAuthMode === 'register'
+      && (document.getElementById('auth-email')?.value || document.getElementById('auth-name')?.value)) {
+      resume.style.display = 'none';
+      return;
+    }
+    resume.style.display = readRegistrationDraft() ? 'block' : 'none';
+  }
+
+  window.resumeRegistration = function() {
+    const draft = readRegistrationDraft();
+    if (!draft) {
+      renderRegistrationResume();
+      return;
+    }
+    pendingVerification = { email: draft.email, name: draft.name, password: '' };
+    window.toggleAuthMode('register');
+    const emailInput = document.getElementById('auth-email');
+    const nameInput = document.getElementById('auth-name');
+    if (emailInput) emailInput.value = draft.email;
+    if (nameInput) nameInput.value = draft.name || '';
+    const resume = document.getElementById('registration-resume');
+    if (resume) resume.style.display = 'none';
+    if (draft.codeSentAt) {
+      window.openVerificationModal();
+    } else {
+      document.getElementById('auth-password')?.focus();
+      ShowToast('Podaci su vraćeni. Dovrši registraciju i pošalji kod.');
+    }
+  };
+
+  window.discardRegistration = function() {
+    clearRegistrationDraft();
+    pendingVerification = { email: '', name: '', password: '' };
+    const form = document.getElementById('auth-form');
+    if (form) form.reset();
+    window.toggleAuthMode('register');
+    ShowToast('Nacrt registracije je obrisan.');
   };
 
 window.handleAuthSubmit = async function(e) {
@@ -203,6 +362,56 @@ window.handleAuthSubmit = async function(e) {
   }
 };
 
+  // Registration flow is defined here after the legacy handler so older cached
+  // pages cannot bypass the confirmation and password checks below.
+  window.handleAuthSubmit = async function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const email = document.getElementById('auth-email')?.value.trim().toLowerCase() || '';
+    const password = document.getElementById('auth-password')?.value || '';
+    const confirmation = document.getElementById('auth-password-confirm')?.value || '';
+    const name = document.getElementById('auth-name')?.value.trim() || '';
+    const errorDiv = document.getElementById('auth-error');
+    if (errorDiv) { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
+
+    try {
+      if (currentAuthMode === 'register') {
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Unesi ispravnu email adresu.');
+        if (!name || name.length < 2) throw new Error('Unesi ime, prezime ili nadimak.');
+        if (name.length > 80) throw new Error('Ime ili nadimak može imati najviše 80 karaktera.');
+        if (!isValidRegistrationPassword(password)) throw new Error('Lozinka mora imati najmanje 8 karaktera, jedno slovo i jedan broj.');
+        if (password !== confirmation) throw new Error('Lozinke se ne podudaraju.');
+
+        pendingVerification = { email, password, name, createdAt: Date.now() };
+        await sendVerificationCodeEmail(email);
+        saveRegistrationDraft({ email, name });
+        openVerificationModal();
+        ShowToast('Verifikacioni kod je poslat na tvoj email. 📩');
+        return;
+      }
+
+      if (!email || !password) throw new Error('Unesi email i GymLeader lozinku.');
+      await signInWithEmailAndPassword(auth, email, password);
+      document.getElementById('auth-form')?.reset();
+    } catch (error) {
+      console.error('Auth greška:', error);
+      if (!errorDiv) return;
+      errorDiv.style.display = 'block';
+      if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/invalid-login-credentials') {
+        errorDiv.textContent = 'Email ili lozinka nisu tačni. Ako još nemaš GymLeader nalog, prvo se registruj.';
+      } else if (error?.code === 'auth/email-already-in-use') {
+        errorDiv.textContent = 'Ovaj email je već registrovan. Izaberi Prijavi se.';
+      } else if (error?.code === 'auth/too-many-requests') {
+        errorDiv.textContent = 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.';
+      } else if (error?.code === 'auth/network-request-failed') {
+        errorDiv.textContent = 'Nema internet veze. Provjeri vezu i pokušaj ponovo.';
+      } else {
+        errorDiv.textContent = currentAuthMode === 'register'
+          ? 'Registracija trenutno nije uspjela. Provjeri podatke i pokušaj ponovo.'
+          : 'Email ili lozinka nisu tačni. Ako još nemaš GymLeader nalog, prvo se registruj.';
+      }
+    }
+  };
+
   window.handleGoogleLogin = async function() {
     const provider = new GoogleAuthProvider();
     try {
@@ -214,10 +423,72 @@ window.handleAuthSubmit = async function(e) {
         message: error?.message,
         customData: error?.customData || null
       }));
-      ShowToast("Greška pri Google prijavi: " + error.message, 'error');
+      ShowToast('Google prijava trenutno nije uspjela. Pokušaj ponovo.', 'error');
     }
   };
 
+
+  window.openForgotPasswordModal = function() {
+    let modal = document.getElementById('forgotPasswordModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'forgotPasswordModal';
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content text-center">
+          <h3 style="font-size:1.2rem;font-weight:800;margin-bottom:8px;">Zaboravljena lozinka?</h3>
+          <p style="color:var(--text-muted);font-size:.85rem;line-height:1.45;margin-bottom:14px;">
+            Unesi email svog GymLeader naloga. Poslaćemo ti siguran link za novu lozinku.
+          </p>
+          <input type="email" id="forgot-password-email" class="custom-input" autocomplete="email" placeholder="tvoj@email.com">
+          <div id="forgot-password-status" style="display:none;margin-top:10px;font-size:.82rem;line-height:1.4;"></div>
+          <div style="display:flex;gap:10px;margin-top:14px;">
+            <button class="btn" data-action="send-forgot-password">Pošalji link</button>
+            <button class="btn btn-secondary" data-action="close-modal" data-modal-id="forgotPasswordModal">Otkaži</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    const emailInput = document.getElementById('forgot-password-email');
+    const currentEmail = document.getElementById('auth-email')?.value.trim() || '';
+    if (emailInput && !emailInput.value) emailInput.value = currentEmail;
+    const status = document.getElementById('forgot-password-status');
+    if (status) { status.textContent = ''; status.style.display = 'none'; }
+    modal.style.display = 'flex';
+    emailInput?.focus();
+  };
+
+  window.sendForgotPassword = async function() {
+    const emailInput = document.getElementById('forgot-password-email');
+    const status = document.getElementById('forgot-password-status');
+    const email = emailInput?.value.trim().toLowerCase() || '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (status) { status.textContent = 'Unesi ispravnu email adresu.'; status.style.color = 'var(--danger)'; status.style.display = 'block'; }
+      return;
+    }
+    const button = document.querySelector('[data-action="send-forgot-password"]');
+    if (button) { button.disabled = true; button.textContent = 'Šaljem…'; }
+    try {
+      await sendPasswordResetEmail(auth, email, { url: `${window.location.origin}/`, handleCodeInApp: false });
+      if (status) {
+        status.textContent = 'Ako taj GymLeader nalog postoji, na email je poslat link za novu lozinku. Provjeri i Spam folder.';
+        status.style.color = 'var(--primary)';
+        status.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Password reset diagnostic:', error?.code || error);
+      if (status) {
+        status.textContent = error?.code === 'auth/too-many-requests'
+          ? 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.'
+          : 'Slanje linka trenutno nije uspjelo. Provjeri email i pokušaj ponovo.';
+        status.style.color = 'var(--danger)';
+        status.style.display = 'block';
+      }
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Pošalji link'; }
+    }
+  };
 
   onAuthStateChanged(auth, async (user) => {
     const loginBtn = document.getElementById('login-modal-btn');
@@ -353,22 +624,23 @@ window.handleAuthSubmit = async function(e) {
     if (currentUser && userRoutines.length > 0) writeRoutineCache(currentUser.uid, userRoutines);
 
     let html = `
-      <div style="display:flex; gap:8px; margin-bottom:16px;">
-        <button class="btn btn-purple" style="flex:1;" data-action="open-create-routine">
-          ➕ Napravi Novi Dan / Karticu
+      <div class="routine-toolbar">
+        <button class="btn btn-purple routine-create-button" data-action="open-create-routine">
+          ➕ Napravi plan treninga
         </button>
-        <button class="btn ${routineEditMode ? 'btn-purple' : 'btn-secondary'}" style="width:auto; padding:10px 14px;" data-action="toggle-routine-edit-mode">
-          ${routineEditMode ? '✓ Gotovo' : '✎ Uredi dane'}
-        </button>
+        ${userRoutines.length > 0 ? `
+          <button class="btn ${routineEditMode ? 'btn-purple' : 'btn-secondary'} routine-edit-button" data-action="toggle-routine-edit-mode">
+            ${routineEditMode ? '✓ Gotovo' : '✎ Uredi planove'}
+          </button>
+        ` : ''}
       </div>
     `;
 
     if (userRoutines.length === 0) {
       html += `
-        <div class="card" style="text-align: center; padding: 25px 15px;">
-          <p style="color: var(--text-muted); font-size: 0.9rem;">
-            Nemate kreiranih planova. Kliknite na dugme iznad ili uvezite plan iz Notes-a!
-          </p>
+        <div class="card routine-empty-state">
+          <p class="routine-empty-title">Još nemaš plan treninga.</p>
+          <p class="routine-empty-text">Napravi svoj prvi plan, nazovi ga kako želiš i dodaj vježbe.</p>
         </div>
       `;
     } else {
@@ -386,7 +658,7 @@ window.handleAuthSubmit = async function(e) {
             <div style="display: flex; gap: 8px; align-items: center;">
               ${routineEditMode
                 ? `<button class="btn btn-secondary" style="padding:10px 14px; font-size:0.85rem;" data-action="open-edit-routine" data-routine-id="${escapeHtml(w.id)}">✎ Uredi</button>`
-                : `<button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(w.id)}">Započni →</button>`}
+                : `<button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(w.id)}">Započni ovaj trening →</button>`}
             </div>
           </div>
         `;
@@ -1591,6 +1863,7 @@ function renderPendingSyncStatus() {
     
     let currentRoutineName = null;
     let currentExercises = [];
+    let sawBlankLine = false;
 
     const restKeywords = ['odmor', 'oporavak', 'rest', 'off day'];
     const ignoreKeywords = ['trajanje:', 'minuta', 'zagrevanje', 'hlađenje'];
@@ -1610,7 +1883,10 @@ function renderPendingSyncStatus() {
 
     lines.forEach(line => {
       let cleanLine = line.trim();
-      if (!cleanLine) return;
+      if (!cleanLine) {
+        if (currentRoutineName && currentExercises.length > 0) sawBlankLine = true;
+        return;
+      }
 
       const isIgnored = ignoreKeywords.some(k => cleanLine.toLowerCase().startsWith(k));
       if (isIgnored) return;
@@ -1618,9 +1894,11 @@ function renderPendingSyncStatus() {
       const isDayHeader = /^(dan\s*\d+|day\s*\d+|ponedjeljak|utorak|srijeda|četvrtak|petak|subota|nedjelja|gornji|donji|full body|kardio)/i.test(cleanLine);
       const hasSetsReps = /\d+\s*x\s*\d+/i.test(cleanLine);
 
+      const isNewRoutineAfterSeparator = currentRoutineName && sawBlankLine && !hasSetsReps;
+
       if ((isDayHeader || !hasSetsReps) && !currentRoutineName) {
         currentRoutineName = cleanLine.replace(/^[-–—:]\s*/, '').trim();
-      } else if (isDayHeader && hasSetsReps === false) {
+      } else if ((isDayHeader && hasSetsReps === false) || isNewRoutineAfterSeparator) {
         saveCurrentRoutine();
         currentRoutineName = cleanLine.replace(/^[-–—:]\s*/, '').trim();
         currentExercises = [];
@@ -1634,6 +1912,7 @@ function renderPendingSyncStatus() {
           currentExercises.push(cleanLine);
         }
       }
+      sawBlankLine = false;
     });
 
     saveCurrentRoutine();
@@ -1876,6 +2155,7 @@ function renderPendingSyncStatus() {
     const modalIds = {
       name: 'settings-name-modal',
       email: 'profile-email-modal',
+      security: 'settings-security-modal',
       language: 'settings-language-modal',
       appearance: 'settings-appearance-modal',
       photo: 'settings-photo-modal'
@@ -1887,7 +2167,79 @@ function renderPendingSyncStatus() {
       if (input) input.value = currentProfileData?.fullName || currentUser.displayName || '';
     }
     if (editor === 'email') window.openProfileEmailModal();
+    else if (editor === 'security') window.openSecurityPasswordEditor();
     else modal.style.display = 'flex';
+  };
+
+  window.toggleSettingsPassword = function(button) {
+    const targetId = button?.dataset?.passwordTarget;
+    const input = targetId ? document.getElementById(targetId) : null;
+    if (!input || !button) return;
+    const visible = input.type === 'password';
+    input.type = visible ? 'text' : 'password';
+    button.textContent = visible ? 'Sakrij' : 'Prikaži';
+  };
+
+  window.openSecurityPasswordEditor = function() {
+    const modal = document.getElementById('settings-security-modal');
+    const form = document.getElementById('security-password-form');
+    const googleNote = document.getElementById('security-google-note');
+    const status = document.getElementById('security-password-status');
+    if (!modal || !currentUser) return;
+    const providers = currentUser.providerData || [];
+    const isGoogleOnly = providers.some(({ providerId }) => providerId === 'google.com')
+      && !providers.some(({ providerId }) => providerId === 'password');
+    // Custom-token email accounts may expose a generic provider id, so treat
+    // every non-Google-only account as an email/password account.
+    const hasPasswordProvider = !isGoogleOnly;
+    if (form) form.style.display = hasPasswordProvider ? 'block' : 'none';
+    if (googleNote) googleNote.style.display = hasPasswordProvider ? 'none' : 'block';
+    if (status) { status.textContent = ''; status.style.color = ''; }
+    ['current-password-input', 'new-password-input', 'confirm-new-password-input'].forEach((id) => {
+      const input = document.getElementById(id);
+      if (input) { input.value = ''; input.type = 'password'; }
+    });
+    modal.style.display = 'flex';
+  };
+
+  window.changePassword = async function() {
+    if (!currentUser) return;
+    const status = document.getElementById('security-password-status');
+    const current = document.getElementById('current-password-input')?.value || '';
+    const next = document.getElementById('new-password-input')?.value || '';
+    const confirmation = document.getElementById('confirm-new-password-input')?.value || '';
+    const showStatus = (message, error = false) => {
+      if (!status) return;
+      status.textContent = message;
+      status.style.color = error ? 'var(--danger)' : 'var(--primary)';
+    };
+    if (!current) return showStatus('Unesi trenutnu GymLeader lozinku.', true);
+    if (!isValidRegistrationPassword(next)) return showStatus('Nova lozinka mora imati najmanje 8 karaktera, jedno slovo i jedan broj.', true);
+    if (next !== confirmation) return showStatus('Nove lozinke se ne podudaraju.', true);
+    const button = document.querySelector('[data-action="change-password"]');
+    if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
+    try {
+      const credential = EmailAuthProvider.credential(currentUser.email, current);
+      await reauthenticateWithCredential(currentUser, credential);
+      await updatePassword(currentUser, next);
+      showStatus('Lozinka je uspješno promijenjena.');
+      ['current-password-input', 'new-password-input', 'confirm-new-password-input'].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
+      });
+    } catch (error) {
+      console.error('Password change diagnostic:', error?.code || error);
+      const message = error?.code === 'auth/wrong-password' || error?.code === 'auth/invalid-credential'
+        ? 'Trenutna lozinka nije tačna.'
+        : error?.code === 'auth/requires-recent-login'
+          ? 'Ponovo se prijavi pa pokušaj promjenu lozinke.'
+          : error?.code === 'auth/too-many-requests'
+            ? 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.'
+            : 'Lozinku trenutno nije moguće promijeniti. Pokušaj ponovo.';
+      showStatus(message, true);
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Promijeni lozinku'; }
+    }
   };
 
   window.saveProfileName = async function() {
@@ -2381,6 +2733,22 @@ function renderPendingSyncStatus() {
   function setupEventHandlers() {
     const authForm = document.getElementById('auth-form');
     if (authForm) authForm.addEventListener('submit', window.handleAuthSubmit);
+    document.getElementById('auth-password')?.addEventListener('input', updatePasswordRuleState);
+    document.getElementById('auth-password-confirm')?.addEventListener('input', updatePasswordRuleState);
+    const saveRegistrationProgress = () => {
+      if (currentAuthMode !== 'register') return;
+      const email = document.getElementById('auth-email')?.value.trim().toLowerCase() || '';
+      const name = document.getElementById('auth-name')?.value.trim() || '';
+      if (!email && !name) return;
+      const existing = readRegistrationDraft();
+      saveRegistrationDraft({
+        email,
+        name,
+        codeSentAt: existing?.email === email ? existing.codeSentAt || null : null
+      });
+    };
+    document.getElementById('auth-email')?.addEventListener('input', saveRegistrationProgress);
+    document.getElementById('auth-name')?.addEventListener('input', saveRegistrationProgress);
     window.addEventListener('online', syncPendingWorkouts);
 
     document.getElementById('delete-account-modal')?.addEventListener('input', updateDeleteAccountButton);
@@ -2424,6 +2792,31 @@ function renderPendingSyncStatus() {
           break;
         case 'google-login':
           window.handleGoogleLogin();
+          break;
+        case 'open-forgot-password':
+          window.openForgotPasswordModal();
+          break;
+        case 'send-forgot-password':
+          window.sendForgotPassword();
+          break;
+        case 'toggle-settings-password':
+          window.toggleSettingsPassword(button);
+          break;
+        case 'change-password':
+          window.changePassword();
+          break;
+        case 'toggle-auth-password':
+          window.toggleAuthPassword(button);
+          break;
+        case 'resume-registration':
+          window.resumeRegistration();
+          break;
+        case 'discard-registration':
+          window.discardRegistration();
+          break;
+        case 'start-onboarding':
+          document.getElementById('onboardingModal')?.style.setProperty('display', 'none');
+          window.switchTab('workouts');
           break;
         case 'resume-draft':
           window.resumeDraftWorkout();
@@ -2613,6 +3006,7 @@ function renderPendingSyncStatus() {
   initializeAppearanceSettings();
   setupEventHandlers();
   registerOfflineWorker();
+  renderRegistrationResume();
 
 
 async function getProtectedApiHeaders() {
@@ -2741,4 +3135,108 @@ window.confirmVerificationCode = async function() {
     }
   }
   return;
+};
+
+// The verification dialog can be reopened after a refresh. The password is
+// intentionally never written to localStorage; the user re-enters it only if
+// the browser was closed before confirmation.
+window.openVerificationModal = function() {
+  let modal = document.getElementById('verificationModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'verificationModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-content text-center">
+        <h3 style="font-size:1.2rem;font-weight:800;margin-bottom:8px;">🔑 Potvrdi email</h3>
+        <p style="color:var(--text-muted);font-size:.85rem;line-height:1.45;margin-bottom:10px;">
+          Poslali smo 6-cifreni kod na <strong id="verification-email-label"></strong>.
+          Kod važi 10 minuta. Ako zatvoriš aplikaciju, registraciju možeš nastaviti na ovom uređaju.
+        </p>
+        <div id="verification-password-wrap" style="display:none;text-align:left;margin-bottom:10px;">
+          <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:6px;">GymLeader lozinka</label>
+          <input type="password" id="verify-password-input" class="custom-input" autocomplete="new-password" placeholder="Ponovo unesi lozinku">
+          <small style="display:block;color:var(--text-muted);font-size:.72rem;margin-top:5px;">Lozinka se ne čuva na uređaju.</small>
+        </div>
+        <input type="text" id="verify-code-input" class="custom-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" style="text-align:center;font-size:1.5rem;letter-spacing:6px;" maxlength="6" placeholder="000000">
+        <div id="verify-error" style="color:var(--danger);font-size:.85rem;margin:10px 0;display:none;"></div>
+        <div style="display:flex;gap:10px;margin-top:12px;">
+          <button class="btn" data-action="confirm-verification">Potvrdi registraciju</button>
+          <button class="btn btn-secondary" data-action="close-modal" data-modal-id="verificationModal">Kasnije</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  const emailLabel = document.getElementById('verification-email-label');
+  if (emailLabel) emailLabel.textContent = pendingVerification.email || '';
+  const passwordWrap = document.getElementById('verification-password-wrap');
+  if (passwordWrap) passwordWrap.style.display = pendingVerification.password ? 'none' : 'block';
+  const codeInput = document.getElementById('verify-code-input');
+  const passwordInput = document.getElementById('verify-password-input');
+  if (codeInput) codeInput.value = '';
+  if (passwordInput) passwordInput.value = '';
+  const verifyError = document.getElementById('verify-error');
+  if (verifyError) { verifyError.textContent = ''; verifyError.style.display = 'none'; }
+  modal.style.display = 'flex';
+  (pendingVerification.password ? codeInput : passwordInput)?.focus();
+};
+
+window.confirmVerificationCode = async function() {
+  const inputCode = document.getElementById('verify-code-input')?.value.trim() || '';
+  const verifyPassword = document.getElementById('verify-password-input')?.value || '';
+  const verifyError = document.getElementById('verify-error');
+  try {
+    if (!/^\d{6}$/.test(inputCode)) throw new Error('Unesi tačno 6 cifara iz emaila.');
+    const password = pendingVerification.password || verifyPassword;
+    if (!isValidRegistrationPassword(password)) throw new Error('Unesi istu GymLeader lozinku koju si napravio pri registraciji.');
+    pendingVerification.password = password;
+    const response = await fetch('https://your-gym-planner.vercel.app/api/confirm-verification', {
+      method: 'POST',
+      headers: await getProtectedApiHeaders(),
+      body: JSON.stringify({
+        email: pendingVerification.email,
+        password,
+        name: pendingVerification.name,
+        code: inputCode
+      })
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.customToken) throw new Error(result?.error || 'Potvrda koda nije uspjela.');
+
+    await signInWithCustomToken(auth, result.customToken);
+    await auth.currentUser?.getIdToken(true);
+    clearRegistrationDraft();
+    pendingVerification = { email: '', name: '', password: '' };
+    document.getElementById('verificationModal').style.display = 'none';
+    document.getElementById('auth-form')?.reset();
+    ShowToast('Registracija uspješna! Dobrodošao u GymLeader. 🔥');
+    setTimeout(() => window.openOnboardingModal(), 250);
+  } catch (error) {
+    if (verifyError) { verifyError.textContent = error.message; verifyError.style.display = 'block'; }
+  }
+};
+
+window.openOnboardingModal = function() {
+  let modal = document.getElementById('onboardingModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'onboardingModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-content text-center">
+        <div style="font-size:2rem;margin-bottom:8px;">🏋️</div>
+        <h3 style="font-size:1.25rem;font-weight:900;margin:0 0 8px;">Dobrodošao u GymLeader!</h3>
+        <p style="color:var(--text-muted);font-size:.88rem;line-height:1.5;margin:0 auto 16px;max-width:340px;">
+          Napravi svoj prvi plan treninga, izaberi vježbe i prati svaku kilažu i ponavljanje.
+        </p>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button class="btn" data-action="start-onboarding">Napravi prvi plan →</button>
+          <button class="btn btn-secondary" data-action="close-modal" data-modal-id="onboardingModal">Kasnije</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
 };

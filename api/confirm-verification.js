@@ -5,7 +5,7 @@ const MAX_ATTEMPTS = 5;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function allowedOrigins() {
-  return (process.env.ALLOWED_ORIGINS || 'https://stijepic404.rf.gd,https://your-gym-planner.vercel.app,http://127.0.0.1:5500,http://localhost:5500')
+  return (process.env.ALLOWED_ORIGINS || 'https://gymleader.app,https://stijepic404.rf.gd,https://your-gym-planner.vercel.app,http://127.0.0.1:5500,http://localhost:5500')
     .split(',').map((origin) => origin.trim()).filter(Boolean);
 }
 
@@ -41,7 +41,10 @@ export default async function handler(req, res) {
   const fullName = cleanName(req.body?.name);
 
   if (!EMAIL_PATTERN.test(email) || email.length > 254 || !/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Podaci za potvrdu nisu ispravni.' });
-  if (password.length < 8 || password.length > 256) return res.status(400).json({ error: 'Lozinka mora imati najmanje 8 karaktera.' });
+  if (password.length < 8 || password.length > 256 || !/[A-Za-zČĆŽŠĐčćžšđ]/.test(password) || !/\d/.test(password)) {
+    return res.status(400).json({ error: 'Lozinka mora imati najmanje 8 karaktera, jedno slovo i jedan broj.' });
+  }
+  if (!fullName || fullName.length < 2) return res.status(400).json({ error: 'Ime ili nadimak je obavezan.' });
 
   try {
     const pepper = process.env.VERIFICATION_CODE_PEPPER;

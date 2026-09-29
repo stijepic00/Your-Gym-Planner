@@ -6,7 +6,7 @@ const RESEND_DELAY_MS = 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function allowedOrigins() {
-  return (process.env.ALLOWED_ORIGINS || 'https://stijepic404.rf.gd,https://your-gym-planner.vercel.app,http://127.0.0.1:5500,http://localhost:5500')
+  return (process.env.ALLOWED_ORIGINS || 'https://gymleader.app,https://stijepic404.rf.gd,https://your-gym-planner.vercel.app,http://127.0.0.1:5500,http://localhost:5500')
     .split(',').map((origin) => origin.trim()).filter(Boolean);
 }
 
