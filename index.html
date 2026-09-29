@@ -3,17 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Gym Tracker Pro</title>
+  <title>GymLeader — Train. Track. Lead.</title>
+  <meta name="description" content="GymLeader ti pomaže da napraviš plan treninga, pratiš kilaže i vidiš svoj napredak.">
+  <meta name="application-name" content="GymLeader">
+  <meta name="apple-mobile-web-app-title" content="GymLeader">
+  <meta property="og:title" content="GymLeader — Train. Track. Lead.">
+  <meta property="og:description" content="Planiraj trening, prati napredak i obori svoj sljedeći PR.">
+  <meta property="og:image" content="/assets/gymleader-icon.png">
+  <meta property="og:type" content="website">
   <!-- Fill with the Enterprise score-based web key registered in Firebase App Check. -->
   <meta name="firebase-app-check-site-key" content="6LdpQswtAAAAAEtpfSmId5SzAtCf1ZkvKn1X9dox">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com https://apis.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://www.gstatic.com data:; connect-src 'self' https://www.google.com/recaptcha/ https://your-gym-planner.vercel.app https://apis.google.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com https://accounts.google.com; frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/ https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-  <meta name="theme-color" content="#050811">
+  <meta name="theme-color" content="#0b0e14">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/gymleader-icon.png">
+  <link rel="apple-touch-icon" href="assets/gymleader-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="styles.css">
 
@@ -21,8 +31,9 @@
 <body>
 
 <header>
-    <button type="button" aria-label="Početna strana" data-action="go-home" style="background:none; border:0; color:inherit; padding:0; font:inherit; cursor:pointer;">
-      <h1 style="margin:0;">GYM TRACKER</h1>
+    <button type="button" class="gymleader-brand" aria-label="GymLeader početna strana" data-action="go-home">
+      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark.png" alt=""></span>
+      <span class="gymleader-brand-copy"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></span>
     </button>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
       <span id="user-email-display" class="user-pill" style="display:none;"></span>
@@ -35,7 +46,10 @@
     <section id="view-login" class="view active" style="align-items: center; justify-content: center; min-height: 80vh;">
       <div class="card auth-card">
         <div class="auth-welcome">
-          <span class="badge">GYMLEADER</span>
+          <div class="auth-brand-lockup" aria-label="GymLeader">
+            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark.png" alt=""></span>
+            <span>Gym<span>Leader</span></span>
+          </div>
           <h1>Uđi u svoj trening</h1>
           <p>Sačuvaj planove, prati kilaže i vidi svoj napredak iz treninga u trening.</p>
         </div>
@@ -129,14 +143,14 @@
 
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view">
-      <div id="active-draft-alert" class="card" style="display: none; background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.05)); border-color: rgba(245, 158, 11, 0.4);">
+      <div id="active-draft-alert" class="card" style="display: none; background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.05)); border-color: rgba(139, 92, 246, 0.42);">
         <span class="badge" style="color: var(--neon-gold);">⚠️ ZAPOČET TRENING PRONAĐEN</span>
         <h3 style="margin: 8px 0; font-size: 1.1rem; color: #fff;">Imate nesačuvan trening u toku!</h3>
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 14px;">Podaci su bezbjedno sačuvani u memoriji telefona.</p>
-        <button class="btn" style="background: linear-gradient(135deg, var(--neon-gold), #d97706); box-shadow: none;" data-action="resume-draft">Nastavi Trening →</button>
+        <button class="btn" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: none;" data-action="resume-draft">Nastavi Trening →</button>
       </div>
 
-      <div id="dashboard-ready" class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(59, 130, 246, 0.05)); border-color: rgba(16, 185, 129, 0.25);">
+      <div id="dashboard-ready" class="card" style="background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(139, 92, 246, 0.06)); border-color: rgba(59, 130, 246, 0.32);">
         <span class="badge" style="color: var(--primary);">SYSTEM ONLINE ⚡</span>
         <h2 style="margin: 10px 0 6px 0; font-size: 1.5rem; font-weight: 900;">Šta želiš trenirati danas?</h2>
         <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 10px;">GymLeader ti pomaže da sačuvaš svoje planove, upišeš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>
@@ -368,8 +382,10 @@
     <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Naziv plana:</label>
     <input type="text" id="newRoutineNameInput" class="custom-input" placeholder="npr. Gornji dio, Noge ili Street workout">
     
-    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin: 10px 0 6px 0;">Vježbe (svaka u svom redu):</label>
-    <textarea id="newRoutineExercisesInput" class="custom-input" rows="5" placeholder="Bench Press 4x10&#10;Kosi Potisak 3x12&#10;Propadanja 3x10"></textarea>
+    <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin: 10px 0 6px 0;">Vježbe</label>
+    <p class="routine-builder-help">Dodaj vježbe jednu po jednu i izaberi kako ih pratiš.</p>
+    <div id="new-routine-exercises-list" class="routine-exercise-builder"></div>
+    <button type="button" class="btn btn-secondary routine-add-exercise" data-action="add-routine-exercise">+ Dodaj vježbu</button>
 
     <div style="display: flex; gap: 10px; margin-top: 12px;">
       <button class="btn" data-action="submit-new-routine">Sačuvaj plan</button>
@@ -413,6 +429,6 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20260929-auth-security-1"></script>
+<script type="module" src="javascript.js?v=20260929-gymleader-brand-system-1"></script>
 </body>
 </html>

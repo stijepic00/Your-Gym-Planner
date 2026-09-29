@@ -1,0 +1,17 @@
+{
+  "name": "GymLeader",
+  "short_name": "GymLeader",
+  "description": "Train. Track. Lead.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0e14",
+  "theme_color": "#0b0e14",
+  "icons": [
+    {
+      "src": "/assets/gymleader-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

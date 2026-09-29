@@ -6,6 +6,7 @@
     signInWithEmailAndPassword, 
     sendPasswordResetEmail,
     EmailAuthProvider,
+    linkWithCredential,
     reauthenticateWithCredential,
     updatePassword,
     signInWithCustomToken,
@@ -606,7 +607,7 @@ window.handleAuthSubmit = async function(e) {
   function ensureInAppHistory() {
     if (navigationGuardReady) return;
 
-    const appState = { gymTracker: true };
+    const appState = { gymLeader: true };
     history.replaceState(appState, '', location.href);
     history.pushState(appState, '', location.href);
     navigationGuardReady = true;
@@ -615,7 +616,7 @@ window.handleAuthSubmit = async function(e) {
   window.addEventListener('popstate', () => {
     if (!currentUser) return;
     window.goHome();
-    history.pushState({ gymTracker: true }, '', location.href);
+    history.pushState({ gymLeader: true }, '', location.href);
   });
 
   window.renderWorkouts = function() {
@@ -765,7 +766,7 @@ window.handleAuthSubmit = async function(e) {
       .filter(Boolean);
 
     if (!name) {
-      ShowToast('Naziv dana je obavezan.', 'error');
+      ShowToast('Naziv plana je obavezan.', 'error');
       return;
     }
 
@@ -792,7 +793,7 @@ window.handleAuthSubmit = async function(e) {
       document.getElementById('editRoutineModal').style.display = 'none';
       editingRoutineId = null;
       routineEditMode = false;
-      ShowToast('Dan je obrisan.');
+      ShowToast('Plan je obrisan.');
     } catch (error) {
       ShowToast('Greška pri brisanju dana: ' + error.message, 'error');
     }
@@ -829,44 +830,94 @@ window.handleAuthSubmit = async function(e) {
     }
     document.getElementById('newRoutineEmojiInput').value = '';
     document.getElementById('newRoutineNameInput').value = '';
-    document.getElementById('newRoutineExercisesInput').value = '';
+    resetRoutineExerciseBuilder();
     document.getElementById('createRoutineModal').style.display = 'flex';
+  };
+
+  function resetRoutineExerciseBuilder() {
+    const list = document.getElementById('new-routine-exercises-list');
+    if (!list) return;
+    list.innerHTML = '';
+    addRoutineExerciseRow();
+  }
+
+  function addRoutineExerciseRow(name = '', measurementType = 'weight_reps') {
+    const list = document.getElementById('new-routine-exercises-list');
+    if (!list) return;
+    const row = document.createElement('div');
+    row.className = 'routine-exercise-row';
+    row.innerHTML = `
+      <input class="custom-input routine-exercise-name" type="text" maxlength="100" placeholder="npr. Čučanj ili Plank" value="${escapeHtml(name)}">
+      <select class="custom-input routine-exercise-type" aria-label="Tip praćenja vježbe">
+        <option value="weight_reps" ${measurementType === 'weight_reps' ? 'selected' : ''}>Kilaža + ponavljanja</option>
+        <option value="reps" ${measurementType === 'reps' ? 'selected' : ''}>Samo ponavljanja</option>
+        <option value="seconds" ${measurementType === 'seconds' ? 'selected' : ''}>Trajanje u sekundama</option>
+        <option value="cardio" ${measurementType === 'cardio' ? 'selected' : ''}>Kardio</option>
+      </select>
+      <button type="button" class="routine-remove-exercise" data-action="remove-routine-exercise" aria-label="Ukloni vježbu">×</button>
+    `;
+    list.appendChild(row);
+  }
+
+  window.addRoutineExercise = function() {
+    addRoutineExerciseRow();
+    document.querySelector('#new-routine-exercises-list .routine-exercise-row:last-child .routine-exercise-name')?.focus();
+  };
+
+  window.removeRoutineExercise = function(button) {
+    const list = document.getElementById('new-routine-exercises-list');
+    const row = button?.closest('.routine-exercise-row');
+    if (!list || !row) return;
+    if (list.querySelectorAll('.routine-exercise-row').length <= 1) {
+      row.querySelector('.routine-exercise-name').value = '';
+      row.querySelector('.routine-exercise-type').value = 'weight_reps';
+      return;
+    }
+    row.remove();
   };
 
   window.submitNewRoutine = async function() {
     const emojiInput = document.getElementById('newRoutineEmojiInput').value.trim();
     const nameInput = document.getElementById('newRoutineNameInput').value.trim();
-    const exercisesText = document.getElementById('newRoutineExercisesInput').value.trim();
 
     if (!nameInput) {
-      ShowToast("Unesite naziv kartice ili dana!", 'error');
+      ShowToast("Unesite naziv plana!", 'error');
       return;
     }
 
-    const exercises = exercisesText ? exercisesText.split('\n').map(e => e.trim()).filter(e => e.length > 0) : [];
+    const exercises = Array.from(document.querySelectorAll('#new-routine-exercises-list .routine-exercise-row'))
+      .map((row) => ({
+        name: row.querySelector('.routine-exercise-name')?.value.trim() || '',
+        measurementType: row.querySelector('.routine-exercise-type')?.value || 'weight_reps'
+      }))
+      .filter((exercise) => exercise.name.length > 0);
+    if (exercises.length === 0) {
+      ShowToast('Dodaj bar jednu vježbu u plan.', 'error');
+      return;
+    }
     const finalEmoji = emojiInput || getEmojiForRoutine(nameInput);
 
     const newRoutine = {
       userId: currentUser.uid,
       emoji: finalEmoji,
       name: nameInput,
-      exercises: exercises,
+      exercises,
       createdAt: new Date().toISOString()
     };
 
     try {
       await addDoc(collection(db, "routines"), newRoutine);
       document.getElementById('createRoutineModal').style.display = 'none';
-      ShowToast("Novi dan uspješno kreiran! 🔥");
+      ShowToast("Novi plan uspješno kreiran! 🔥");
     } catch (e) {
       ShowToast("Greška pri kreiranju: " + e.message, 'error');
     }
   };
 
   window.copyAIRules = function() {
-    const rulesText = `Pretvori moj trening plan u striktan format za Gym Tracker aplikaciju:
+    const rulesText = `Pretvori moj trening plan u striktan format za GymLeader aplikaciju:
 - Svaki dan mora početi sa nazivom npr. 'Gornji A', 'Donji B', 'Leg Day'
-- Ispod svake kartice/dana napiši vježbe u novom redu sa serijama i ponavljanjima (npr. Potisak sa klupe 4x10)
+- Ispod svakog plana/dana napiši vježbe u novom redu sa serijama i ponavljanjima (npr. Potisak sa klupe 4x10)
 - Između dana ostavi prazan red. Ne dodaj nikakve uvodne rečenice niti objasnjenja!`;
 
     navigator.clipboard.writeText(rulesText).then(() => {
@@ -948,6 +999,7 @@ window.handleAuthSubmit = async function(e) {
 
     draft.exercises.forEach((ex) => {
       const exName = typeof ex === 'string' ? ex : (ex.name || 'Vježba');
+      const measurementType = getExerciseMeasurementType(ex, exName);
       const maxW = getMaxWeightFromHistory(exName);
       const targetGoal = calculateTargetGoal(exName);
       let prevLogStr = 'Nema prošlog zapisa';
@@ -965,11 +1017,12 @@ window.handleAuthSubmit = async function(e) {
         }
       }
       
-      if (ex.isCardio) {
+      if (ex.isCardio || measurementType === 'cardio') {
         const card = document.createElement('div');
         card.className = 'card exercise-block custom-cardio-block';
         card.setAttribute('data-name', exName);
         card.setAttribute('data-is-cardio', 'true');
+        card.setAttribute('data-measurement-type', 'cardio');
         card.setAttribute('data-minutes', ex.minutes || '0');
         card.setAttribute('data-calories', ex.calories || '0');
 
@@ -990,7 +1043,8 @@ window.handleAuthSubmit = async function(e) {
         card.className = 'card exercise-block';
         card.setAttribute('data-name', exName);
         card.setAttribute('data-maxw', maxW);
-        const isDuration = isDurationExercise(exName);
+        const isDuration = measurementType === 'seconds';
+        card.setAttribute('data-measurement-type', measurementType);
 
         card.innerHTML = `
           <div class="flex-between">
@@ -1008,7 +1062,7 @@ window.handleAuthSubmit = async function(e) {
           <div class="sets-container">
             <div class="set-row">
               <span style="font-size: 0.7rem; color: var(--text-muted); font-weight:800;">SET</span>
-              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? 'SEC' : 'KG'}</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? 'SEC' : measurementType === 'reps' ? '' : 'KG'}</span>
               <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? '' : 'REPS'}</span>
               <span></span>
             </div>
@@ -1165,9 +1219,18 @@ window.handleAuthSubmit = async function(e) {
       || name.includes('držanje');
   }
 
+  function getExerciseMeasurementType(exercise, fallbackName = '') {
+    const type = typeof exercise === 'object' ? exercise?.measurementType : '';
+    if (['weight_reps', 'reps', 'seconds', 'cardio'].includes(type)) return type;
+    return isDurationExercise(typeof exercise === 'string' ? exercise : fallbackName) ? 'seconds' : 'weight_reps';
+  }
+
   function formatSetPerformance(set, exName) {
     if (isDurationExercise(exName)) {
       return `${set.seconds ?? set.weight ?? 0} sek`;
+    }
+    if (set.weight === undefined || set.weight === null || set.weight === '') {
+      return `${set.reps ?? 0} pon`;
     }
     return `${set.weight ?? 0}kg × ${set.reps ?? 0}`;
   }
@@ -1213,7 +1276,17 @@ window.handleAuthSubmit = async function(e) {
 
     container.innerHTML = workout.exercises.map((ex) => {
       const exName = typeof ex === 'string' ? ex : (ex.name || 'Vježba');
-      const isDuration = isDurationExercise(exName);
+      const measurementType = getExerciseMeasurementType(ex, exName);
+      const isDuration = measurementType === 'seconds';
+      if (measurementType === 'cardio') {
+        return `
+          <div class="card exercise-block custom-cardio-block" data-name="${escapeHtml(exName)}" data-is-cardio="true" data-measurement-type="cardio" data-minutes="${escapeHtml(ex.minutes || '')}" data-calories="${escapeHtml(ex.calories || '')}">
+            <div class="flex-between"><h3 style="font-size:1.15rem;font-weight:800;color:var(--accent-purple);">${escapeHtml(exName)} 🏃</h3><button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button></div>
+            <div class="cardio-input-grid"><label>Minute<input type="number" class="custom-input cardio-minutes" min="0" step="1" value="${escapeHtml(ex.minutes || '')}" placeholder="0"></label><label>Kalorije<input type="number" class="custom-input cardio-calories" min="0" step="1" value="${escapeHtml(ex.calories || '')}" placeholder="opcionalno"></label></div>
+            <input type="text" class="note-input ex-note" value="${escapeHtml(ex.notes || '')}" placeholder="📝 Napomena (opcionalno)...">
+          </div>
+        `;
+      }
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
       const maxW = getMaxWeightFromHistory(exName);
@@ -1233,7 +1306,7 @@ window.handleAuthSubmit = async function(e) {
       }
 
       return `
-        <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-maxw="${escapeHtml(maxW)}">
+          <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-maxw="${escapeHtml(maxW)}" data-measurement-type="${measurementType}">
           <div class="flex-between">
             <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(exName)}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
@@ -1249,7 +1322,7 @@ window.handleAuthSubmit = async function(e) {
           <div class="sets-container">
             <div class="set-row">
               <span style="font-size: 0.7rem; color: var(--text-muted); font-weight:800;">SET</span>
-              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? 'SEC' : 'KG'}</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? 'SEC' : measurementType === 'reps' ? '' : 'KG'}</span>
               <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center; font-weight:800;">${isDuration ? '' : 'REPS'}</span>
               <span></span>
             </div>
@@ -1274,7 +1347,9 @@ window.handleAuthSubmit = async function(e) {
     if (!container) return;
 
     const setNum = container.querySelectorAll('.set-row').length;
-    const isDuration = isDurationExercise(block.getAttribute('data-name'));
+    const measurementType = block.getAttribute('data-measurement-type') || getExerciseMeasurementType(block.getAttribute('data-name'), block.getAttribute('data-name'));
+    const isDuration = measurementType === 'seconds';
+    const repsOnly = measurementType === 'reps';
     
     const row = document.createElement('div');
     row.className = 'set-row';
@@ -1282,7 +1357,9 @@ window.handleAuthSubmit = async function(e) {
       <span style="font-weight: 900; color: var(--primary);">${setNum}</span>
       ${isDuration
         ? '<input type="number" class="set-seconds" placeholder="sek" min="1" step="1"><span></span>'
-        : '<input type="number" class="set-kg" placeholder="0" step="0.5"><input type="number" class="set-reps" placeholder="0">'}
+        : repsOnly
+          ? '<span></span><input type="number" class="set-reps" placeholder="0" min="1" step="1">'
+          : '<input type="number" class="set-kg" placeholder="0" step="0.5"><input type="number" class="set-reps" placeholder="0">'}
       <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" data-action="remove-set-row">×</button>
     `;
     container.appendChild(row);
@@ -1413,7 +1490,8 @@ window.handleAuthSubmit = async function(e) {
       const card = document.createElement('div');
       card.className = 'card exercise-block';
       card.setAttribute('data-name', name);
-      card.setAttribute('data-maxw', maxW);
+         card.setAttribute('data-maxw', maxW);
+         card.setAttribute('data-measurement-type', isDuration ? 'seconds' : 'weight_reps');
 
       card.innerHTML = `
         <div class="flex-between">
@@ -1681,20 +1759,24 @@ window.handleAuthSubmit = async function(e) {
       const noteText = b.querySelector('.ex-note')?.value.trim() || '';
 
       if (b.classList.contains('custom-cardio-block')) {
-        const min = parseFloat(b.getAttribute('data-minutes')) || 0;
-        const cal = parseFloat(b.getAttribute('data-calories')) || 0;
+        const min = parseFloat(b.querySelector('.cardio-minutes')?.value || b.getAttribute('data-minutes')) || 0;
+        const cal = parseFloat(b.querySelector('.cardio-calories')?.value || b.getAttribute('data-calories')) || 0;
         const exObj = { name: exName, minutes: min, calories: cal, sets: [] };
         if (noteText) exObj.notes = noteText;
         workoutData.exercises.push(exObj);
       } else {
         const sets = [];
-        const isDuration = isDurationExercise(exName);
+        const measurementType = b.getAttribute('data-measurement-type') || getExerciseMeasurementType(exName, exName);
+        const isDuration = measurementType === 'seconds';
         b.querySelectorAll('.set-row').forEach((row, idx) => {
           if (idx === 0) return;
           if (isDuration) {
             const seconds = row.querySelector('.set-seconds')?.value;
             if (seconds) sets.push({ seconds: parseInt(seconds, 10) });
-          } else {
+            } else if (measurementType === 'reps') {
+              const reps = row.querySelector('.set-reps')?.value;
+              if (reps) sets.push({ reps: parseInt(reps, 10) });
+            } else {
             const kg = row.querySelector('.set-kg')?.value;
             const reps = row.querySelector('.set-reps')?.value;
             if (kg && reps) sets.push({ weight: parseFloat(kg), reps: parseInt(reps, 10) });
@@ -2061,8 +2143,8 @@ function renderPendingSyncStatus() {
         datasets: [{
           label: `${getCurrentLanguage() === 'de' ? 'Max. kg' : getCurrentLanguage() === 'en' ? 'Max kg' : 'Maks. kg'} (${exName})`,
           data: dataPoints,
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.15)',
           borderWidth: 3,
           fill: true,
           tension: 0.3,
@@ -2194,6 +2276,38 @@ function renderPendingSyncStatus() {
     const hasPasswordProvider = !isGoogleOnly;
     if (form) form.style.display = hasPasswordProvider ? 'block' : 'none';
     if (googleNote) googleNote.style.display = hasPasswordProvider ? 'none' : 'block';
+    if (googleNote && !hasPasswordProvider) {
+      const googleHelp = googleNote.querySelector('p');
+      if (googleHelp) googleHelp.textContent = 'Ovaj nalog nema GymLeader lozinku. Možeš je sada postaviti ispod, bez mijenjanja Gmail lozinke.';
+    }
+    if (googleNote && !googleNote.querySelector('[data-action="set-google-password"]')) {
+      const googlePasswordForm = document.createElement('div');
+      googlePasswordForm.className = 'google-password-form';
+      googlePasswordForm.innerHTML = `
+        <label class="settings-label" for="google-new-password-input">Nova GymLeader lozinka</label>
+        <div class="settings-password-wrap">
+          <input id="google-new-password-input" class="custom-input" type="password" autocomplete="new-password" placeholder="Napravi posebnu lozinku">
+          <button type="button" class="settings-password-toggle" data-action="toggle-settings-password" data-password-target="google-new-password-input">Prikaži</button>
+        </div>
+        <label class="settings-label" for="google-confirm-password-input">Potvrdi novu lozinku</label>
+        <div class="settings-password-wrap">
+          <input id="google-confirm-password-input" class="custom-input" type="password" autocomplete="new-password" placeholder="Ponovi lozinku">
+          <button type="button" class="settings-password-toggle" data-action="toggle-settings-password" data-password-target="google-confirm-password-input">Prikaži</button>
+        </div>
+        <div class="settings-password-rules"><span>✓ Najmanje 8 karaktera</span><span>✓ Najmanje jedno slovo i jedan broj</span></div>
+        <button class="btn btn-purple settings-modal-save" data-action="set-google-password" type="button">Postavi GymLeader lozinku</button>
+        <p id="google-password-status" class="settings-status" role="status"></p>
+      `;
+      googleNote.appendChild(googlePasswordForm);
+    }
+    if (form && !form.querySelector('[data-action="open-forgot-password"]')) {
+      const resetLink = document.createElement('button');
+      resetLink.type = 'button';
+      resetLink.className = 'auth-inline-link';
+      resetLink.dataset.action = 'open-forgot-password';
+      resetLink.textContent = 'Zaboravio/la sam trenutnu lozinku';
+      form.appendChild(resetLink);
+    }
     if (status) { status.textContent = ''; status.style.color = ''; }
     ['current-password-input', 'new-password-input', 'confirm-new-password-input'].forEach((id) => {
       const input = document.getElementById(id);
@@ -2239,6 +2353,45 @@ function renderPendingSyncStatus() {
       showStatus(message, true);
     } finally {
       if (button) { button.disabled = false; button.textContent = 'Promijeni lozinku'; }
+    }
+  };
+
+  window.setGooglePassword = async function() {
+    if (!currentUser?.email) return;
+    const next = document.getElementById('google-new-password-input')?.value || '';
+    const confirmation = document.getElementById('google-confirm-password-input')?.value || '';
+    const status = document.getElementById('google-password-status');
+    const button = document.querySelector('[data-action="set-google-password"]');
+    const showStatus = (message, error = false) => {
+      if (!status) return;
+      status.textContent = message;
+      status.style.color = error ? 'var(--danger)' : 'var(--primary)';
+    };
+    if (!isValidRegistrationPassword(next)) return showStatus('Lozinka mora imati najmanje 8 karaktera, jedno slovo i jedan broj.', true);
+    if (next !== confirmation) return showStatus('Lozinke se ne podudaraju.', true);
+    if (button) { button.disabled = true; button.textContent = 'Postavljam…'; }
+    try {
+      const credential = EmailAuthProvider.credential(currentUser.email, next);
+      await linkWithCredential(currentUser, credential);
+      await currentUser.reload();
+      showStatus('GymLeader lozinka je postavljena. Sada se možeš prijaviti i emailom.', false);
+      ['google-new-password-input', 'google-confirm-password-input'].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
+      });
+      setTimeout(() => window.openSecurityPasswordEditor(), 700);
+    } catch (error) {
+      console.error('Google password linking diagnostic:', error?.code || error);
+      const message = error?.code === 'auth/email-already-in-use'
+        ? 'Ovaj email već ima GymLeader lozinku. Zatvori prozor i prijavi se emailom.'
+        : error?.code === 'auth/provider-already-linked'
+          ? 'GymLeader lozinka je već postavljena za ovaj nalog.'
+          : error?.code === 'auth/requires-recent-login'
+            ? 'Ponovo se prijavi preko Googlea pa pokušaj ponovo.'
+            : 'GymLeader lozinku trenutno nije moguće postaviti. Pokušaj ponovo.';
+      showStatus(message, true);
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Postavi GymLeader lozinku'; }
     }
   };
 
@@ -2805,6 +2958,9 @@ function renderPendingSyncStatus() {
         case 'change-password':
           window.changePassword();
           break;
+        case 'set-google-password':
+          window.setGooglePassword();
+          break;
         case 'toggle-auth-password':
           window.toggleAuthPassword(button);
           break;
@@ -2817,6 +2973,25 @@ function renderPendingSyncStatus() {
         case 'start-onboarding':
           document.getElementById('onboardingModal')?.style.setProperty('display', 'none');
           window.switchTab('workouts');
+          break;
+        case 'onboarding-next':
+          onboardingStep = Math.min(3, onboardingStep + 1);
+          renderOnboardingStep();
+          break;
+        case 'onboarding-back':
+          onboardingStep = Math.max(0, onboardingStep - 1);
+          renderOnboardingStep();
+          break;
+        case 'onboarding-context':
+          onboardingContext = button.dataset.context || 'other';
+          if (currentUser) localStorage.setItem('gym-onboarding-context-' + currentUser.uid, onboardingContext);
+          onboardingStep = Math.min(3, onboardingStep + 1);
+          renderOnboardingStep();
+          break;
+        case 'onboarding-create-plan':
+          document.getElementById('onboardingModal')?.style.setProperty('display', 'none');
+          window.switchTab('workouts');
+          setTimeout(() => window.openCreateRoutineModal(), 150);
           break;
         case 'resume-draft':
           window.resumeDraftWorkout();
@@ -2896,6 +3071,12 @@ function renderPendingSyncStatus() {
           break;
         case 'submit-new-routine':
           window.submitNewRoutine();
+          break;
+        case 'add-routine-exercise':
+          window.addRoutineExercise();
+          break;
+        case 'remove-routine-exercise':
+          window.removeRoutineExercise(button);
           break;
         case 'open-create-routine':
           window.openCreateRoutineModal();
@@ -3238,5 +3419,44 @@ window.openOnboardingModal = function() {
     `;
     document.body.appendChild(modal);
   }
+  modal.style.display = 'flex';
+};
+
+let onboardingStep = 0;
+let onboardingContext = '';
+
+function renderOnboardingStep() {
+  const modal = document.getElementById('onboardingModal');
+  const content = modal?.querySelector('.modal-content');
+  if (!content) return;
+  const contextOptions = [
+    ['gym', '🏋️', 'Treniram u teretani'],
+    ['home', '🏠', 'Treniram kod kuće'],
+    ['street', '🤸', 'Street workout'],
+    ['other', '✨', 'Nešto drugo']
+  ];
+  const steps = [
+    '<div class="onboarding-icon">🏋️</div><span class="onboarding-step-label">KORAK 1 OD 4</span><h3>Dobro došao/la u GymLeader!</h3><p>GymLeader ti pomaže da napraviš svoje planove, pratiš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>',
+    '<div class="onboarding-icon">📋</div><span class="onboarding-step-label">KORAK 2 OD 4</span><h3>Kako počinješ?</h3><div class="onboarding-mini-list"><div><b>1.</b><span><strong>Napravi plan</strong><small>Nazovi ga, na primjer, Noge ili Dan A.</small></span></div><div><b>2.</b><span><strong>Pokreni trening</strong><small>Upiši serije, kilaže, ponavljanja ili sekunde.</small></span></div><div><b>3.</b><span><strong>Sačuvaj rezultat</strong><small>Sljedeći put vidiš prošle podatke i PR.</small></span></div></div>',
+    '<div class="onboarding-icon">🎯</div><span class="onboarding-step-label">KORAK 3 OD 4</span><h3>Šta najčešće treniraš?</h3><p>Ovo samo pomaže da ti prvi plan bude smislenije pripremljen. Možeš ga kasnije promijeniti.</p><div class="onboarding-context-grid">' + contextOptions.map(([value, icon, label]) => `<button type="button" class="onboarding-context ${onboardingContext === value ? 'is-selected' : ''}" data-action="onboarding-context" data-context="${value}"><span>${icon}</span><strong>${label}</strong></button>`).join('') + '</div>',
+    '<div class="onboarding-icon">🚀</div><span class="onboarding-step-label">KORAK 4 OD 4</span><h3>Spreman/na si za prvi plan</h3><p>Jedan plan predstavlja jedan trening koji možeš ponavljati više puta. Dodaj vježbe jednu po jednu i izaberi način praćenja.</p>'
+  ];
+  const back = onboardingStep > 0 ? '<button class="btn btn-secondary" data-action="onboarding-back">Nazad</button>' : '';
+  const next = onboardingStep < 3 ? '<button class="btn" data-action="onboarding-next">Nastavi →</button>' : '<button class="btn" data-action="onboarding-create-plan">Napravi prvi plan →</button>';
+  content.innerHTML = steps[onboardingStep] + '<div class="onboarding-actions">' + back + next + '<button class="onboarding-skip" data-action="close-modal" data-modal-id="onboardingModal">Kasnije</button></div>';
+}
+
+window.openOnboardingModal = function() {
+  let modal = document.getElementById('onboardingModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'onboardingModal';
+    modal.className = 'modal';
+    modal.innerHTML = '<div class="modal-content text-center"></div>';
+    document.body.appendChild(modal);
+  }
+  onboardingStep = 0;
+  onboardingContext = localStorage.getItem('gym-onboarding-context-' + (currentUser?.uid || 'guest')) || '';
+  renderOnboardingStep();
   modal.style.display = 'flex';
 };

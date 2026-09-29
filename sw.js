@@ -1,10 +1,13 @@
-const CACHE_NAME = 'gym-tracker-app-v41';
+const CACHE_NAME = 'gymleader-app-v4';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
   '/javascript.js',
   '/translations.js',
+  '/manifest.webmanifest',
+  '/assets/gymleader-mark.png',
+  '/assets/gymleader-icon.png',
   '/assets/flag-sr.svg',
   '/assets/flag-en.svg',
   '/assets/flag-de.svg'
