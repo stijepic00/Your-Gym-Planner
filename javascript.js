@@ -104,6 +104,8 @@
   let profileEmailCodeTarget = '';
   const HISTORY_CACHE_VERSION = 1;
   const LEGAL_DOCUMENT_VERSION = '2026-09-29';
+  let deferredInstallPrompt = null;
+  const PWA_INSTALL_DISMISSED_KEY = 'gymleader-install-dismissed-v1';
 
   const defaultWorkouts = [
     { id: 'custom-extra', name: 'Poseban / Kardio Dan', emoji: '⚡', exercises: [] }
@@ -3026,6 +3028,12 @@ function renderPendingSyncStatus() {
         case 'logout':
           window.handleLogout();
           break;
+        case 'install-app':
+          window.installApp();
+          break;
+        case 'dismiss-install':
+          window.dismissInstallPrompt();
+          break;
         case 'google-login':
           window.handleGoogleLogin();
           break;
@@ -3279,9 +3287,41 @@ function renderPendingSyncStatus() {
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }
 
+  function setupPwaInstallPrompt() {
+    const banner = document.getElementById('pwa-install-banner');
+    if (!banner || window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) return;
+    if (localStorage.getItem(PWA_INSTALL_DISMISSED_KEY) === 'true') return;
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      banner.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      banner.hidden = true;
+      localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, 'true');
+    });
+  }
+
+  window.installApp = async function() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const result = await deferredInstallPrompt.userChoice;
+    if (result?.outcome === 'accepted') localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, 'true');
+    deferredInstallPrompt = null;
+    document.getElementById('pwa-install-banner')?.setAttribute('hidden', '');
+  };
+
+  window.dismissInstallPrompt = function() {
+    localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, 'true');
+    document.getElementById('pwa-install-banner')?.setAttribute('hidden', '');
+  };
+
   initializeAppearanceSettings();
   setupEventHandlers();
   registerOfflineWorker();
+  setupPwaInstallPrompt();
   renderRegistrationResume();
 
 
