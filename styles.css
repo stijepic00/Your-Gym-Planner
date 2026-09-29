@@ -163,7 +163,7 @@ header h1 {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 5px 16px rgba(0,0,0,.28), 0 0 16px rgba(56,189,248,.14);
 }
 .gymleader-brand-mark { width: 36px; height: 36px; border-radius: 10px; }
-.gymleader-brand-mark img { width: 43px; height: 38px; object-fit: contain; }
+.gymleader-brand-mark img { display: block; width: 43px; height: 38px; max-width: 100%; max-height: 100%; object-fit: contain; }
 .gymleader-brand-copy { display: grid; gap: 1px; text-align: left; line-height: 1; }
 .gymleader-brand-copy strong {
   color: var(--text-main);
@@ -185,7 +185,7 @@ header h1 {
   letter-spacing: -.055em;
 }
 .auth-brand-mark { width: 34px; height: 34px; border-radius: 10px; }
-.auth-brand-mark img { width: 41px; height: 35px; object-fit: contain; }
+.auth-brand-mark img { display: block; width: 41px; height: 35px; max-width: 100%; max-height: 100%; object-fit: contain; }
 
 @media (max-width: 390px) {
   header { padding: 0 13px; }
