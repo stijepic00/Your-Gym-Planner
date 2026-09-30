@@ -96,6 +96,10 @@
   let pendingWorkoutsLoaded = false;
   let pendingDbPromise = null;
   let currentProfileData = null;
+  let profileReadSucceeded = false;
+  let profileRequiredEditMode = false;
+  let bodyMeasurements = [];
+  let bodyChartInstance = null;
   let pendingProfilePhotoImage = null;
   let profilePhotoZoom = 1;
   let profilePhotoOffsetX = 0;
@@ -106,6 +110,77 @@
   const LEGAL_DOCUMENT_VERSION = '2026-09-29';
   let deferredInstallPrompt = null;
   const PWA_INSTALL_DISMISSED_KEY = 'gymleader-install-dismissed-v1';
+
+  const VALID_GENDER_VALUES = new Set(['male', 'female', 'unspecified']);
+  const REQUIRED_PROFILE_FIELDS = ['gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups'];
+
+  function getProfileGender() {
+    const gender = currentProfileData?.gender;
+    return VALID_GENDER_VALUES.has(gender) ? gender : 'unspecified';
+  }
+
+  function genderText(maleText, femaleText, neutralText) {
+    const gender = getProfileGender();
+    if (gender === 'male') return maleText;
+    if (gender === 'female') return femaleText;
+    return neutralText;
+  }
+
+  function getGenderLabel(gender = getProfileGender()) {
+    return ({ male: 'Muško', female: 'Žensko', unspecified: 'Ne želim odgovoriti' })[gender] || 'Nije izabrano';
+  }
+
+  function getDashboardGreeting() {
+    const name = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || 'korisniče';
+    return `${genderText('Dobrodošao', 'Dobrodošla', 'Dobro došao/la')}, ${name}!`;
+  }
+
+  function isProfileComplete(profile = currentProfileData) {
+    if (!profile || !VALID_GENDER_VALUES.has(profile.gender)) return false;
+    const numericRanges = {
+      age: [13, 100], heightCm: [100, 250], weightKg: [25, 400],
+      trainingFrequency: [0, 14], sessionMinutes: [10, 300]
+    };
+    for (const [field, [min, max]] of Object.entries(numericRanges)) {
+      const value = Number(profile[field]);
+      if (!Number.isFinite(value) || value < min || value > max) return false;
+    }
+    return ['lose_weight', 'maintain', 'gain_weight', 'gain_muscle', 'increase_strength', 'general_fitness'].includes(profile.goal)
+      && ['strength', 'muscle_progress', 'general_fitness'].includes(profile.trainingFocus)
+      && ['gym', 'home', 'street', 'other'].includes(profile.trainingLocation)
+      && ['beginner', 'intermediate', 'advanced'].includes(profile.experienceLevel)
+      && Array.isArray(profile.targetMuscleGroups)
+      && profile.targetMuscleGroups.length > 0;
+  }
+
+  function showGenderProfileGateIfRequired() {
+    const modal = document.getElementById('profile-required-modal');
+    if (!modal || !currentUser || !profileReadSucceeded) return;
+    const needsProfile = !isProfileComplete();
+    modal.style.display = needsProfile ? 'flex' : 'none';
+    if (needsProfile) {
+      profileRequiredEditMode = false;
+      const close = document.getElementById('profile-required-close');
+      const button = document.querySelector('[data-action="save-required-profile"], [data-action="save-profile-details"]');
+      if (close) close.style.display = 'none';
+      if (button) { button.dataset.action = 'save-required-profile'; button.textContent = 'Sačuvaj profil i nastavi'; }
+      populateRequiredProfileForm();
+    }
+  }
+
+  function updateGenderSaveButton(inputName, buttonAction) {
+    const selected = document.querySelector(`input[name="${inputName}"]:checked`);
+    const button = document.querySelector(`[data-action="${buttonAction}"]`);
+    if (button) button.disabled = !selected;
+  }
+
+  function hideAuthBootScreen() {
+    document.getElementById('auth-boot-screen')?.classList.add('is-hidden');
+  }
+
+  // Firebase normally resolves quickly; this fallback prevents a network issue
+  // from leaving the boot screen visible forever.
+  window.setTimeout(hideAuthBootScreen, 7000);
 
   const defaultWorkouts = [
     { id: 'custom-extra', name: 'Poseban / Kardio Dan', emoji: '⚡', exercises: [] }
@@ -586,6 +661,7 @@ window.handleAuthSubmit = async function(e) {
       if (mailDisplay) {
         try {
           const userDoc = await getDoc(doc(db, "users", user.uid));
+          profileReadSucceeded = true;
           currentProfileData = userDoc.exists() ? userDoc.data() : null;
           if (userDoc.exists() && userDoc.data().fullName) {
             mailDisplay.innerText = userDoc.data().fullName;
@@ -593,6 +669,7 @@ window.handleAuthSubmit = async function(e) {
             mailDisplay.innerText = user.email;
           }
         } catch {
+          profileReadSucceeded = false;
           currentProfileData = null;
           mailDisplay.innerText = user.email;
         }
@@ -600,6 +677,7 @@ window.handleAuthSubmit = async function(e) {
       }
 
       showLegalAcceptanceIfRequired();
+      showGenderProfileGateIfRequired();
 
       await loadPendingWorkouts(user.uid);
       await loadCloudData();
@@ -614,7 +692,10 @@ window.handleAuthSubmit = async function(e) {
       }
       currentUser = null;
       currentProfileData = null;
+      profileReadSucceeded = false;
       document.getElementById('legal-acceptance-modal')?.style.setProperty('display', 'none');
+      document.getElementById('gender-required-modal')?.style.setProperty('display', 'none');
+      document.getElementById('profile-required-modal')?.style.setProperty('display', 'none');
       document.getElementById('legal-documents-modal')?.style.setProperty('display', 'none');
       navigationGuardReady = false;
       userRoutines = [];
@@ -624,12 +705,14 @@ window.handleAuthSubmit = async function(e) {
       if (loginBtn) loginBtn.style.display = 'inline-block';
       switchTab('login');
     }
+    hideAuthBootScreen();
   });
 
   window.handleLogout = async function() {
+    const logoutMessage = genderText('Odjavio si se.', 'Odjavila si se.', 'Odjava je uspješna.');
     try {
       await signOut(auth);
-      ShowToast('Uspješno si se odjavio.');
+      ShowToast(logoutMessage);
     } catch (error) {
       ShowToast('Odjava nije uspjela. Pokušaj ponovo.', 'error');
       console.error('Odjava nije uspjela:', error);
@@ -666,7 +749,7 @@ window.handleAuthSubmit = async function(e) {
     if (targetView) targetView.classList.add('active');
 
     const navBtns = document.querySelectorAll('.nav-item');
-    const indexMap = { dashboard: 0, workouts: 1, analytics: 2, history: 3, settings: 4 };
+    const indexMap = { dashboard: 0, workouts: 1, analytics: 2, body: 2, history: 2, progress: 2, settings: 3 };
     if (indexMap[tabId] !== undefined && navBtns[indexMap[tabId]]) {
       navBtns[indexMap[tabId]].classList.add('active');
     }
@@ -675,6 +758,11 @@ window.handleAuthSubmit = async function(e) {
     if (tabId === 'dashboard') { checkDraftState(); renderDashboard(); }
     if (tabId === 'workouts') renderWorkouts();
     if (tabId === 'analytics') setupAnalyticsUI();
+    if (tabId === 'body') {
+      const toggle = document.getElementById('body-tracking-toggle');
+      if (toggle) toggle.checked = bodyTrackingEnabled();
+      loadBodyMeasurements();
+    }
     if (tabId === 'settings') renderProfileSettings();
 
     if (tabId === 'dashboard' || tabId === 'login') {
@@ -1986,6 +2074,8 @@ function renderPendingSyncStatus() {
 }
 
   function renderDashboard() {
+    const greeting = document.getElementById('dashboard-greeting');
+    if (greeting) greeting.textContent = getDashboardGreeting();
     renderPendingSyncStatus();
     const container = document.getElementById('last-workout-container');
     if (cachedHistory.length === 0) {
@@ -2172,6 +2262,7 @@ function renderPendingSyncStatus() {
 
   function setupAnalyticsUI() {
     const select = document.getElementById('analytics-ex-select');
+    if (!select) return;
     const exercisesSet = new Set();
 
     cachedHistory.forEach(h => {
@@ -2183,10 +2274,14 @@ function renderPendingSyncStatus() {
     const list = Array.from(exercisesSet);
     if (list.length === 0) {
       select.innerHTML = '<option>Nema sačuvanih vježbi</option>';
+      const empty = document.getElementById('analytics-empty-state');
+      if (empty) { empty.textContent = 'Nema dovoljno sačuvanih treninga za grafikon.'; empty.style.display = 'block'; }
       return;
     }
 
     select.innerHTML = list.map(ex => `<option value="${escapeHtml(ex)}">${escapeHtml(ex)}</option>`).join('');
+    const empty = document.getElementById('analytics-empty-state');
+    if (empty) empty.style.display = 'none';
     renderAnalyticsChart();
   }
 
@@ -2194,27 +2289,38 @@ function renderPendingSyncStatus() {
     const select = document.getElementById('analytics-ex-select');
     const exName = select.value;
     if (!exName) return;
+    const metric = document.getElementById('analytics-metric-select')?.value || 'maxWeight';
+    const period = document.getElementById('analytics-period-select')?.value || 'all';
+    const now = Date.now();
+    const periodMs = { week: 7 * 86400000, month: 30 * 86400000, threeMonths: 90 * 86400000 }[period];
 
     const labels = [];
     const dataPoints = [];
 
-    const reversedHistory = [...cachedHistory].reverse();
+    const reversedHistory = [...cachedHistory].reverse().filter((h) => !periodMs || (now - new Date(h.date).getTime()) <= periodMs);
 
     reversedHistory.forEach(h => {
       const pastEx = h.exercises?.find(e => e.name === exName);
       if (pastEx && pastEx.sets) {
         let maxW = 0;
+        let volume = 0;
         pastEx.sets.forEach(s => {
           const w = parseFloat(s.weight) || 0;
+          const reps = parseFloat(s.reps) || 0;
           if (w > maxW) maxW = w;
+          volume += w * reps;
         });
-        if (maxW > 0) {
+        const value = metric === 'volume' ? volume : metric === 'sets' ? pastEx.sets.length : metric === 'sessions' ? 1 : maxW;
+        if (value > 0) {
           const dateLabel = formatDateClean(h.date, false);
           labels.push(dateLabel);
-          dataPoints.push(maxW);
+          dataPoints.push(value);
         }
       }
     });
+
+    const empty = document.getElementById('analytics-empty-state');
+    if (empty) { empty.textContent = dataPoints.length < 1 ? 'Nema dovoljno podataka za izabrani period.' : ''; empty.style.display = dataPoints.length < 1 ? 'block' : 'none'; }
 
     const ctx = document.getElementById('progressChart').getContext('2d');
     if (chartInstance) chartInstance.destroy();
@@ -2224,7 +2330,7 @@ function renderPendingSyncStatus() {
       data: {
         labels: labels,
         datasets: [{
-          label: `${getCurrentLanguage() === 'de' ? 'Max. kg' : getCurrentLanguage() === 'en' ? 'Max kg' : 'Maks. kg'} (${exName})`,
+          label: `${metric === 'volume' ? 'Volumen (kg)' : metric === 'sets' ? 'Serije' : metric === 'sessions' ? 'Treninzi' : 'Najbolja kilaža (kg)'} (${exName})`,
           data: dataPoints,
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.15)',
@@ -2242,7 +2348,7 @@ function renderPendingSyncStatus() {
           y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
           x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } }
         },
-        plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'Plus Jakarta Sans' } } } }
+        plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'Plus Jakarta Sans' } } }, tooltip: { callbacks: { title: (items) => reversedHistory[items[0]?.dataIndex] ? formatDateClean(reversedHistory[items[0].dataIndex].date, true) : '' } } }
       }
     });
   };
@@ -2270,6 +2376,301 @@ function renderPendingSyncStatus() {
     return `gym_profile_photo_v1_${userId}`;
   }
 
+  function bodyTrackingEnabled() {
+    return currentProfileData?.bodyTrackingEnabled !== false;
+  }
+
+  async function loadBodyMeasurements() {
+    if (!currentUser) return;
+    if (!bodyTrackingEnabled()) {
+      bodyMeasurements = [];
+      renderBodyMeasurements();
+      return;
+    }
+    try {
+      const snapshot = await getDocs(query(collection(db, 'bodyMeasurements'), where('userId', '==', currentUser.uid)));
+      bodyMeasurements = snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data() }))
+        .sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)));
+      renderBodyMeasurements();
+    } catch (error) {
+      console.error('Body measurements load diagnostic:', error);
+      const status = document.getElementById('body-measurements-status');
+      if (status) status.textContent = 'Mjerenja trenutno nije moguće učitati.';
+    }
+  }
+
+  function renderBodyMeasurements() {
+    const status = document.getElementById('body-tracking-status');
+    if (status) status.textContent = bodyTrackingEnabled() ? 'Praćenje je uključeno.' : 'Praćenje je isključeno.';
+    const addButton = document.querySelector('[data-action="open-body-measurement-modal"]');
+    if (addButton) addButton.hidden = !bodyTrackingEnabled();
+    const root = document.getElementById('body-auto-progress');
+    if (!root) return;
+    if (!bodyTrackingEnabled()) { root.innerHTML = '<div class="card body-empty-state">Praćenje tijela je isključeno. Možeš ga uključiti u Podešavanjima.</div>'; }
+    else if (!bodyMeasurements.length) { root.innerHTML = '<div class="card body-empty-state">Dodaj prvo mjerenje da bi se ovdje prikazao tvoj napredak.</div>'; }
+    else {
+      const defs = [
+        { key:'chestCm', label:'Grudi', side:'left', pos:'chest' }, { key:'armCm', label:'Ruka', side:'right', pos:'arm' },
+        { key:'waistCm', label:'Struk', side:'left', pos:'waist' }, { key:'hipsCm', label:'Kukovi', side:'right', pos:'hips' },
+        { key:'legCm', label:'Noga', side:'left', pos:'legs' }
+      ];
+      const delta = (key, days=null) => {
+        const rows=bodyMeasurements.filter(x=>x[key]!=null&&x[key]!==''&&Number.isFinite(Number(x[key]))&&x.measuredAt).sort((a,b)=>String(b.measuredAt).localeCompare(String(a.measuredAt)));
+        if (!rows.length) return null;
+        const latest=rows[0], time=new Date(`${latest.measuredAt.slice(0,10)}T12:00:00`).getTime();
+        const base=(days==null?rows.slice(1):rows.filter(x=>new Date(`${x.measuredAt.slice(0,10)}T12:00:00`).getTime()<=time-days*86400000))[0];
+        return {value:Number(latest[key]),date:latest.measuredAt,delta:base?Number((Number(latest[key])-Number(base[key])).toFixed(1)):null};
+      };
+      const uid=currentUser.uid, mode=localStorage.getItem(`gym-body-progress-mode-v1-${uid}`)==='manual'?'manual':'silhouette';
+      const gender=getProfileGender(), female=gender==='female', selectedKey=localStorage.getItem(`gym-body-selected-metric-v1-${uid}`)||'waistCm';
+      const selected=defs.find(x=>x.key===selectedKey)||defs[0];
+      const svg = `<img class="body-silhouette-svg" src="${female?'/assets/gymleader-body-female.svg?v=20260930-20':'/assets/gymleader-body-male.svg?v=20260930-20'}" alt="${female?'\u017Denska':'Mu\u0161ka'} silueta">`;
+      const sign=x=>x==null?'Nema ranijeg zapisa':`${x>0?'+':''}${x.toFixed(1)}`;
+      const callouts=defs.map(x=>{const d=delta(x.key);if(!d)return '';const t=d.delta==null?'prvo mjerenje':`${d.delta>0?'+':''}${d.delta.toFixed(1)} cm od početka`;return `<div class="body-callout body-callout-${x.side} body-callout-${x.pos}"><i class="body-callout-line" aria-hidden="true"></i><small>${x.label}</small><strong>${d.value.toFixed(1)} cm</strong><em class="${d.delta==null?'is-neutral':d.delta>0?'is-positive':'is-negative'}">${escapeHtml(t)}</em></div>`}).join('');
+      const weight=delta('weightKg'), weightCard=weight?`<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v2m-7 2h14l2 14H3L5 7Zm7 3-2 4h4l-2-4Z"/></svg></span><div><small>Tvoja težina</small><strong>${weight.value.toFixed(1)} kg</strong><em class="${weight.delta==null?'is-neutral':weight.delta>0?'is-positive':'is-negative'}">${escapeHtml(weight.delta==null?'Dodaj još jedno mjerenje':`${weight.delta>0?'+':''}${weight.delta.toFixed(1)} kg od početka`)}</em><small>Posljednje mjerenje: ${escapeHtml(formatDateClean(weight.date))}</small></div></div>`:'<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true">⚖</span><div><small>Tvoja težina</small><strong>Nema zapisa</strong><em class="is-neutral">Dodaj prvo mjerenje.</em></div></div>';
+      const metric=delta(selected.key), week=delta(selected.key,7), month=delta(selected.key,30);
+      const select=`<label class="body-manual-select-label" for="body-manual-metric-select">Izaberi mjeru</label><select id="body-manual-metric-select" class="custom-input body-manual-select">${defs.map(x=>`<option value="${x.key}" ${x.key===selected.key?'selected':''}>${x.label}</option>`).join('')}</select>`;
+      const manual=metric?`<div class="body-manual-result"><span class="body-manual-icon" aria-hidden="true">↗</span><div><small>${selected.label}</small><strong>${metric.value.toFixed(1)} cm</strong><em class="${metric.delta==null?'is-neutral':metric.delta>0?'is-positive':'is-negative'}">${escapeHtml(metric.delta==null?'Prvo mjerenje':`${sign(metric.delta)} cm od početka`)}</em></div></div><div class="body-manual-periods"><div><small>Ove sedmice</small><strong>${escapeHtml(sign(week?.delta))} ${week?'cm':''}</strong></div><div><small>Ovaj mjesec</small><strong>${escapeHtml(sign(month?.delta))} ${month?'cm':''}</strong></div></div>`:`<p class="body-empty-state body-manual-empty">Još nema mjerenja za ${selected.label.toLowerCase()}. Dodaj mjeru da bi se napredak prikazao.</p>`;
+      root.innerHTML=`<div class="card body-silhouette-card ${female?'body-gender-female':'body-gender-male'}"><div class="body-auto-heading"><span class="settings-eyebrow">TVOJ PREGLED</span><h3>Šta se promijenilo</h3><p>Prikazujemo samo mjere koje si unio/la. Izaberi kako želiš pregledati napredak.</p></div><div class="body-view-switch" role="group" aria-label="Način prikaza"><button type="button" data-action="set-body-progress-mode" data-mode="silhouette" aria-pressed="${mode==='silhouette'}">Silueta</button><button type="button" data-action="set-body-progress-mode" data-mode="manual" aria-pressed="${mode==='manual'}">Izaberi mjeru</button></div><div class="body-progress-views ${mode==='manual'?'is-manual':''}"><section class="body-silhouette-view" aria-label="Napredak na silueti"><div class="body-silhouette-stage">${svg}<div class="body-callouts">${callouts||'<p class="body-empty-state">Dodaj mjerenje obima da vidiš napredak uz siluetu.</p>'}</div></div>${weightCard}</section><section class="body-manual-view" aria-label="Ručno izabrana mjera">${select}${manual}</section></div></div>`;
+    }
+    const list=document.getElementById('body-measurements-list');
+    if(list) list.innerHTML=bodyMeasurements.slice(0,12).map(x=>`<li><strong>${escapeHtml(formatDateClean(x.measuredAt))}</strong><span>${x.weightKg!=null?`${x.weightKg} kg`:''}${x.waistCm!=null?` · struk ${x.waistCm} cm`:''}</span></li>`).join('')||'<li class="body-empty-state">Nema sačuvanih mjerenja.</li>';
+    renderBodyChart();
+  }
+
+  function renderBodyChart() {
+    const canvas = document.getElementById('body-weight-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (bodyChartInstance) bodyChartInstance.destroy();
+    const metric = document.getElementById('body-metric-select')?.value || 'weightKg';
+    const labels = { weightKg: 'Težina (kg)', waistCm: 'Struk (cm)', chestCm: 'Grudi (cm)', armCm: 'Ruka (cm)', legCm: 'Noga (cm)', hipsCm: 'Kukovi (cm)' };
+    const entries = [...bodyMeasurements].reverse().filter((item) => item[metric] != null);
+    const values = entries.map((item) => Number(item[metric]));
+    const changeSummary = document.getElementById('body-change-summary');
+    if (changeSummary) {
+      const first = values[0];
+      const last = values[values.length - 1];
+      const delta = values.length > 1 ? last - first : 0;
+      changeSummary.textContent = values.length > 1 ? `${labels[metric]}: ${delta > 0 ? '+' : ''}${delta.toFixed(1)} ${metric === 'weightKg' ? 'kg' : 'cm'} od prvog mjerenja.` : 'Dodaj još jedno mjerenje da vidiš promjenu.';
+    }
+    bodyChartInstance = new Chart(canvas, { type: 'line', data: { labels: entries.map((item) => formatDateClean(item.measuredAt, false)), datasets: [{ label: labels[metric], data: values, borderColor: '#38BDF8', backgroundColor: 'rgba(56,189,248,.16)', fill: true, tension: .35, pointRadius: 3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94A3B8' } }, tooltip: { callbacks: { title: (items) => entries[items[0]?.dataIndex] ? formatDateClean(entries[items[0].dataIndex].measuredAt, true) : '' } } }, scales: { x: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } }, y: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } } } } });
+  }
+
+  window.openBodyMeasurementModal = function() {
+    if (!bodyTrackingEnabled()) { ShowToast('Praćenje tijela je isključeno u Podešavanjima.'); return; }
+    const date = document.getElementById('body-measured-at');
+    if (date && !date.value) date.value = new Date().toISOString().slice(0, 10);
+    document.getElementById('body-measurement-modal')?.style.setProperty('display', 'flex');
+  };
+
+  window.saveBodyMeasurement = async function() {
+    if (!currentUser || !bodyTrackingEnabled()) return;
+    const fields = { weightKg: 'body-weight', waistCm: 'body-waist', chestCm: 'body-chest', armCm: 'body-arm', legCm: 'body-leg', hipsCm: 'body-hips' };
+    const data = { userId: currentUser.uid, measuredAt: document.getElementById('body-measured-at')?.value || new Date().toISOString().slice(0, 10), note: document.getElementById('body-note')?.value.trim() || '' };
+    Object.entries(fields).forEach(([key, id]) => { const value = Number(document.getElementById(id)?.value); if (Number.isFinite(value) && value > 0) data[key] = value; });
+    if (Object.keys(data).filter((key) => ['weightKg', 'waistCm', 'chestCm', 'armCm', 'legCm', 'hipsCm'].includes(key)).length === 0) { ShowToast('Unesi barem jednu vrijednost.', 'error'); return; }
+    const button = document.querySelector('[data-action="save-body-measurement"]');
+    if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
+    try {
+      await addDoc(collection(db, 'bodyMeasurements'), data);
+      bodyMeasurements.unshift({ id: `local-${Date.now()}`, ...data });
+      document.getElementById('body-measurement-modal').style.display = 'none';
+      document.querySelectorAll('#body-measurement-modal input, #body-measurement-modal textarea').forEach((input) => { if (input.type !== 'date') input.value = ''; });
+      renderBodyMeasurements();
+      ShowToast('Mjerenje je sačuvano.');
+    } catch (error) {
+      console.error('Body measurement save diagnostic:', error);
+      ShowToast('Mjerenje nije moguće sačuvati. Provjeri internet i pokušaj ponovo.', 'error');
+    } finally { if (button) { button.disabled = false; button.textContent = 'Sačuvaj mjerenje'; } }
+  };
+
+  async function setBodyTrackingEnabled(enabled) {
+    if (!currentUser) return;
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), { bodyTrackingEnabled: enabled });
+      currentProfileData = { ...(currentProfileData || {}), bodyTrackingEnabled: enabled };
+      const bodyToggle = document.getElementById('body-tracking-toggle');
+      const settingsToggle = document.getElementById('settings-body-tracking-toggle');
+      if (bodyToggle) bodyToggle.checked = enabled;
+      if (settingsToggle) settingsToggle.checked = enabled;
+      renderBodyMeasurements();
+      ShowToast(enabled ? 'Praćenje tijela je uključeno.' : 'Praćenje tijela je isključeno.');
+    } catch (error) {
+      console.error('Body tracking setting diagnostic:', error);
+      ShowToast('Podešavanje nije moguće sačuvati.', 'error');
+    }
+  }
+
+  window.toggleBodyTracking = function() {
+    return setBodyTrackingEnabled(document.getElementById('body-tracking-toggle')?.checked === true);
+  };
+
+  window.openBodySettings = function() {
+    const toggle = document.getElementById('settings-body-tracking-toggle');
+    if (toggle) toggle.checked = bodyTrackingEnabled();
+    document.getElementById('body-settings-modal')?.style.setProperty('display', 'flex');
+  };
+
+  window.toggleBodyTrackingFromSettings = function() {
+    return setBodyTrackingEnabled(document.getElementById('settings-body-tracking-toggle')?.checked === true);
+  };
+
+  function populateRequiredProfileForm() {
+    const profile = currentProfileData || {};
+    const values = {
+      'required-profile-name': profile.fullName || currentUser?.displayName || '',
+      'required-profile-age': profile.age ?? '',
+      'required-profile-height': profile.heightCm ?? '',
+      'required-profile-weight': profile.weightKg ?? '',
+      'required-profile-frequency': profile.trainingFrequency ?? '',
+      'required-profile-minutes': profile.sessionMinutes ?? ''
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input && document.activeElement !== input) input.value = value;
+    });
+    document.querySelectorAll('input[name="required-profile-gender"]').forEach((input) => { input.checked = input.value === profile.gender; });
+    document.querySelectorAll('input[name="required-profile-location"]').forEach((input) => { input.checked = input.value === profile.trainingLocation; });
+    const goal = document.getElementById('required-profile-goal');
+    const experience = document.getElementById('required-profile-experience');
+    if (goal) {
+      const legacyGoal = profile.goal;
+      goal.value = legacyGoal === 'gain_muscle' || legacyGoal === 'increase_strength' || legacyGoal === 'general_fitness' ? 'maintain' : (legacyGoal || '');
+    }
+    const focus = document.getElementById('required-profile-focus');
+    if (focus) focus.value = profile.trainingFocus || (profile.goal === 'increase_strength' ? 'strength' : profile.goal === 'general_fitness' ? 'general_fitness' : profile.goal === 'gain_muscle' ? 'muscle_progress' : '');
+    if (experience) experience.value = profile.experienceLevel || '';
+    const muscleGroups = new Set(Array.isArray(profile.targetMuscleGroups) ? profile.targetMuscleGroups : []);
+    document.querySelectorAll('input[name="required-profile-muscles"]').forEach((input) => { input.checked = muscleGroups.has(input.value); });
+  }
+
+  window.openProfileDetailsEditor = function() {
+    if (!currentUser) return;
+    profileRequiredEditMode = true;
+    populateRequiredProfileForm();
+    const modal = document.getElementById('profile-required-modal');
+    const close = document.getElementById('profile-required-close');
+    const button = document.querySelector('[data-action="save-required-profile"], [data-action="save-profile-details"]');
+    if (close) close.style.display = 'block';
+    if (button) { button.dataset.action = 'save-profile-details'; button.textContent = 'Sačuvaj promjene'; }
+    const status = document.getElementById('profile-required-status');
+    if (status) { status.textContent = ''; status.style.color = ''; }
+    if (modal) modal.style.display = 'flex';
+  };
+
+  function readRequiredProfileForm() {
+    const selectedMuscles = [...document.querySelectorAll('input[name="required-profile-muscles"]:checked')].map((input) => input.value);
+    const normalizedMuscles = selectedMuscles.includes('full_body') ? ['full_body'] : selectedMuscles;
+    return {
+      fullName: document.getElementById('required-profile-name')?.value.trim() || '',
+      gender: document.querySelector('input[name="required-profile-gender"]:checked')?.value || '',
+      age: Number(document.getElementById('required-profile-age')?.value),
+      heightCm: Number(document.getElementById('required-profile-height')?.value),
+      weightKg: Number(document.getElementById('required-profile-weight')?.value),
+      goal: document.getElementById('required-profile-goal')?.value || '',
+      trainingFocus: document.getElementById('required-profile-focus')?.value || '',
+      trainingFrequency: Number(document.getElementById('required-profile-frequency')?.value),
+      trainingLocation: document.querySelector('input[name="required-profile-location"]:checked')?.value || '',
+      experienceLevel: document.getElementById('required-profile-experience')?.value || '',
+      sessionMinutes: Number(document.getElementById('required-profile-minutes')?.value),
+      targetMuscleGroups: normalizedMuscles
+    };
+  }
+
+  window.saveRequiredProfile = async function() {
+    if (!currentUser) return;
+    const status = document.getElementById('profile-required-status');
+    const button = document.querySelector('[data-action="save-required-profile"]');
+    const profileValues = readRequiredProfileForm();
+    const errors = [];
+    if (!profileValues.fullName || profileValues.fullName.length > 100) errors.push('ime ili nadimak');
+    if (!VALID_GENDER_VALUES.has(profileValues.gender)) errors.push('pol');
+    if (!Number.isInteger(profileValues.age) || profileValues.age < 13 || profileValues.age > 100) errors.push('godine (13–100)');
+    if (!Number.isFinite(profileValues.heightCm) || profileValues.heightCm < 100 || profileValues.heightCm > 250) errors.push('visinu (100–250 cm)');
+    if (!Number.isFinite(profileValues.weightKg) || profileValues.weightKg < 25 || profileValues.weightKg > 400) errors.push('težinu (25–400 kg)');
+    if (!['lose_weight', 'maintain', 'gain_weight'].includes(profileValues.goal)) errors.push('cilj tjelesne težine');
+    if (!['strength', 'muscle_progress', 'general_fitness'].includes(profileValues.trainingFocus)) errors.push('fokus treninga');
+    if (!Number.isInteger(profileValues.trainingFrequency) || profileValues.trainingFrequency < 0 || profileValues.trainingFrequency > 14) errors.push('broj treninga sedmično');
+    if (!['gym', 'home', 'street', 'other'].includes(profileValues.trainingLocation)) errors.push('mjesto treninga');
+    if (!['beginner', 'intermediate', 'advanced'].includes(profileValues.experienceLevel)) errors.push('iskustvo');
+    if (!Number.isInteger(profileValues.sessionMinutes) || profileValues.sessionMinutes < 10 || profileValues.sessionMinutes > 300) errors.push('trajanje treninga');
+    if (!profileValues.targetMuscleGroups.length) errors.push('barem jednu mišićnu grupu');
+    if (errors.length) {
+      if (status) { status.textContent = `Nedostaje: ${errors.join(', ')}.`; status.style.color = 'var(--danger)'; }
+      return;
+    }
+    if (button) { button.disabled = true; button.textContent = 'Čuvam profil…'; }
+    if (status) { status.textContent = ''; status.style.color = ''; }
+    try {
+      const profile = {
+        ...profileValues,
+        email: currentUser.email || currentProfileData?.email || '',
+        createdAt: currentProfileData?.createdAt || new Date().toISOString()
+      };
+      await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
+      currentProfileData = { ...(currentProfileData || {}), ...profile };
+      document.getElementById('profile-required-modal').style.display = 'none';
+      profileRequiredEditMode = false;
+      renderProfileSettings();
+      renderDashboard();
+      ShowToast('Profil je sačuvan. GymLeader je spreman.');
+    } catch (error) {
+      console.error('Required profile save diagnostic:', error);
+      if (status) { status.textContent = 'Profil trenutno nije moguće sačuvati. Provjeri internet i pokušaj ponovo.'; status.style.color = 'var(--danger)'; }
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Sačuvaj profil i nastavi'; }
+    }
+  };
+
+  window.saveProfileDetails = async function() {
+    await window.saveRequiredProfile();
+  };
+
+  async function persistGender(gender, statusElementId = '', button = null) {
+    if (!currentUser || !VALID_GENDER_VALUES.has(gender)) return false;
+    const status = statusElementId ? document.getElementById(statusElementId) : null;
+    if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
+    if (status) { status.textContent = ''; status.style.color = ''; }
+    try {
+      const profile = {
+        fullName: currentProfileData?.fullName || currentUser.displayName || currentUser.email?.split('@')[0] || 'Korisnik',
+        email: currentUser.email || currentProfileData?.email || '',
+        createdAt: currentProfileData?.createdAt || new Date().toISOString(),
+        gender
+      };
+      await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
+      currentProfileData = { ...(currentProfileData || {}), ...profile };
+      if (status) status.textContent = 'Podatak je sačuvan.';
+      renderProfileSettings();
+      renderDashboard();
+      showGenderProfileGateIfRequired();
+      if (statusElementId === 'gender-required-status') ShowToast('Profil je spreman.');
+      return true;
+    } catch (error) {
+      console.error('Gender save diagnostic:', error);
+      if (status) {
+        status.textContent = 'Pol trenutno nije moguće sačuvati. Provjeri internet i pokušaj ponovo.';
+        status.style.color = 'var(--danger)';
+      }
+      return false;
+    } finally {
+      if (button) { button.disabled = false; button.textContent = statusElementId === 'gender-required-status' ? 'Sačuvaj i nastavi' : 'Sačuvaj pol'; }
+    }
+  }
+
+  window.saveRequiredGender = async function() {
+    const selected = document.querySelector('input[name="required-gender-option"]:checked')?.value;
+    if (selected) await persistGender(selected, 'gender-required-status', document.querySelector('[data-action="save-required-gender"]'));
+  };
+
+  window.saveProfileGender = async function() {
+    const selected = document.querySelector('input[name="profile-gender-option"]:checked');
+    if (!selected) return;
+    const saved = await persistGender(selected.value, 'profile-gender-status', document.querySelector('[data-action="save-profile-gender"]'));
+    if (saved) document.getElementById('settings-gender-modal')?.style.setProperty('display', 'none');
+  };
+
   function renderProfileSettings() {
     if (!currentUser) return;
     const nameInput = document.getElementById('profile-name-input');
@@ -2287,6 +2688,7 @@ function renderPendingSyncStatus() {
     const themeIcon = document.getElementById('settings-theme-icon');
     const nameInitial = document.getElementById('settings-name-initial');
     const photoSummary = document.getElementById('settings-photo-summary');
+    const genderSummary = document.getElementById('settings-gender-summary');
     const selectedLanguage = getCurrentLanguage();
     const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch' };
     const themeNames = {
@@ -2299,6 +2701,10 @@ function renderPendingSyncStatus() {
     if (emailSummary) emailSummary.textContent = email || '—';
     if (languageSummary) languageSummary.textContent = languageNames[selectedLanguage] || languageNames.sr;
     if (themeSummary) themeSummary.textContent = (themeNames[selectedLanguage] || themeNames.sr)(isLight);
+    if (genderSummary) genderSummary.textContent = getGenderLabel();
+    document.querySelectorAll('input[name="profile-gender-option"]').forEach((input) => {
+      input.checked = input.value === getProfileGender();
+    });
     if (themeIcon) themeIcon.textContent = isLight ? '☀' : '☾';
     const photo = localStorage.getItem(getProfilePhotoKey(currentUser.uid)) || '';
     const initial = name.trim().charAt(0).toUpperCase() || 'K';
@@ -2323,13 +2729,22 @@ function renderPendingSyncStatus() {
       security: 'settings-security-modal',
       language: 'settings-language-modal',
       appearance: 'settings-appearance-modal',
-      photo: 'settings-photo-modal'
+      photo: 'settings-photo-modal',
+      gender: 'settings-gender-modal'
     };
     const modal = document.getElementById(modalIds[editor]);
     if (!modal) return;
     if (editor === 'name') {
       const input = document.getElementById('profile-name-input');
       if (input) input.value = currentProfileData?.fullName || currentUser.displayName || '';
+    }
+    if (editor === 'gender') {
+      document.querySelectorAll('input[name="profile-gender-option"]').forEach((input) => {
+        input.checked = input.value === getProfileGender();
+      });
+      const status = document.getElementById('profile-gender-status');
+      if (status) { status.textContent = ''; status.style.color = ''; }
+      updateGenderSaveButton('profile-gender-option', 'save-profile-gender');
     }
     if (editor === 'email') window.openProfileEmailModal();
     else if (editor === 'security') window.openSecurityPasswordEditor();
@@ -2991,11 +3406,30 @@ function renderPendingSyncStatus() {
     document.getElementById('delete-account-modal')?.addEventListener('change', updateDeleteAccountButton);
     document.getElementById('accept-terms-checkbox')?.addEventListener('change', updateLegalAcceptanceButton);
     document.getElementById('accept-privacy-checkbox')?.addEventListener('change', updateLegalAcceptanceButton);
+    document.getElementById('gender-required-modal')?.addEventListener('change', () => updateGenderSaveButton('required-gender-option', 'save-required-gender'));
+    document.getElementById('settings-gender-modal')?.addEventListener('change', () => updateGenderSaveButton('profile-gender-option', 'save-profile-gender'));
+    document.getElementById('profile-required-modal')?.addEventListener('change', (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || input.name !== 'required-profile-muscles') return;
+      const all = document.querySelector('input[name="required-profile-muscles"][value="full_body"]');
+      const individual = [...document.querySelectorAll('input[name="required-profile-muscles"]')].filter((item) => item.value !== 'full_body');
+      if (input.value === 'full_body' && input.checked) individual.forEach((item) => { item.checked = true; });
+      if (input.value === 'full_body' && !input.checked) individual.forEach((item) => { item.checked = false; });
+      if (input.value !== 'full_body' && !input.checked && all) all.checked = false;
+    });
 
     setupTouchReorder();
 
     const analyticsSelect = document.getElementById('analytics-ex-select');
     if (analyticsSelect) analyticsSelect.addEventListener('change', window.renderAnalyticsChart);
+    document.getElementById('analytics-metric-select')?.addEventListener('change', window.renderAnalyticsChart);
+    document.getElementById('analytics-period-select')?.addEventListener('change', window.renderAnalyticsChart);
+    document.getElementById('body-metric-select')?.addEventListener('change', renderBodyMeasurements);
+    document.getElementById('body-auto-progress')?.addEventListener('change', (event) => {
+      if (event.target?.id !== 'body-manual-metric-select' || !currentUser) return;
+      localStorage.setItem(`gym-body-selected-metric-v1-${currentUser.uid}`, event.target.value);
+      renderBodyMeasurements();
+    });
 
     document.addEventListener('click', (event) => {
       const button = event.target instanceof Element ? event.target.closest('[data-action]') : null;
@@ -3030,6 +3464,12 @@ function renderPendingSyncStatus() {
           break;
         case 'install-app':
           window.installApp();
+          break;
+        case 'set-body-progress-mode':
+          if (currentUser && ['manual', 'silhouette'].includes(button.dataset.mode)) {
+            localStorage.setItem(`gym-body-progress-mode-v1-${currentUser.uid}`, button.dataset.mode);
+            renderBodyMeasurements();
+          }
           break;
         case 'dismiss-install':
           window.dismissInstallPrompt();
@@ -3131,6 +3571,36 @@ function renderPendingSyncStatus() {
           break;
         case 'accept-legal-documents':
           window.acceptLegalDocuments();
+          break;
+        case 'save-required-gender':
+          window.saveRequiredGender();
+          break;
+        case 'save-required-profile':
+          window.saveRequiredProfile();
+          break;
+        case 'save-profile-details':
+          window.saveProfileDetails();
+          break;
+        case 'open-profile-details-editor':
+          window.openProfileDetailsEditor();
+          break;
+        case 'open-body-measurement-modal':
+          window.openBodyMeasurementModal();
+          break;
+        case 'save-body-measurement':
+          window.saveBodyMeasurement();
+          break;
+        case 'toggle-body-tracking':
+          window.toggleBodyTracking();
+          break;
+        case 'open-body-settings':
+          window.openBodySettings();
+          break;
+        case 'toggle-body-tracking-settings':
+          window.toggleBodyTrackingFromSettings();
+          break;
+        case 'save-profile-gender':
+          window.saveProfileGender();
           break;
         case 'save-profile-name':
           window.saveProfileName();
@@ -3281,7 +3751,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    navigator.serviceWorker.register('/sw.js?v=20260929-cache-fix-1', { scope: '/' })
+    navigator.serviceWorker.register('/sw.js?v=20260930-body-anatomy-22', { scope: '/' })
       .then((registration) => registration.update())
       .catch((error) => console.warn('Offline worker nije registrovan:', error));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
@@ -3440,7 +3910,7 @@ window.confirmVerificationCode = async function() {
     await auth.currentUser?.getIdToken(true);
     pendingVerification = { email: '', name: '', password: '' };
     document.getElementById('verificationModal').style.display = 'none';
-    ShowToast('Registracija uspješna! Dobrodošli 🔥');
+    ShowToast('Registracija uspješna! Dovršimo tvoj profil. 🔥');
 
     const form = document.getElementById('auth-form');
     if (form) form.reset();
@@ -3526,7 +3996,7 @@ window.confirmVerificationCode = async function() {
     pendingVerification = { email: '', name: '', password: '' };
     document.getElementById('verificationModal').style.display = 'none';
     document.getElementById('auth-form')?.reset();
-    ShowToast('Registracija uspješna! Dobrodošao u GymLeader. 🔥');
+    ShowToast('Registracija uspješna! Dovršimo tvoj profil. 🔥');
     setTimeout(() => window.openOnboardingModal(), 250);
   } catch (error) {
     if (verifyError) { verifyError.textContent = error.message; verifyError.style.display = 'block'; }
@@ -3542,7 +4012,7 @@ window.openOnboardingModal = function() {
     modal.innerHTML = `
       <div class="modal-content text-center">
         <div style="font-size:2rem;margin-bottom:8px;">🏋️</div>
-        <h3 style="font-size:1.25rem;font-weight:900;margin:0 0 8px;">Dobrodošao u GymLeader!</h3>
+        <h3 style="font-size:1.25rem;font-weight:900;margin:0 0 8px;">${escapeHtml(getDashboardGreeting())}</h3>
         <p style="color:var(--text-muted);font-size:.88rem;line-height:1.5;margin:0 auto 16px;max-width:340px;">
           Napravi svoj prvi plan treninga, izaberi vježbe i prati svaku kilažu i ponavljanje.
         </p>
@@ -3571,10 +4041,10 @@ function renderOnboardingStep() {
     ['other', '✨', 'Nešto drugo']
   ];
   const steps = [
-    '<div class="onboarding-icon">🏋️</div><span class="onboarding-step-label">KORAK 1 OD 4</span><h3>Dobro došao/la u GymLeader!</h3><p>GymLeader ti pomaže da napraviš svoje planove, pratiš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>',
+    `<div class="onboarding-icon">🏋️</div><span class="onboarding-step-label">KORAK 1 OD 4</span><h3>${escapeHtml(getDashboardGreeting())}</h3><p>GymLeader ti pomaže da napraviš svoje planove, pratiš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>`,
     '<div class="onboarding-icon">📋</div><span class="onboarding-step-label">KORAK 2 OD 4</span><h3>Kako počinješ?</h3><div class="onboarding-mini-list"><div><b>1.</b><span><strong>Napravi plan</strong><small>Nazovi ga, na primjer, Noge ili Dan A.</small></span></div><div><b>2.</b><span><strong>Pokreni trening</strong><small>Upiši serije, kilaže, ponavljanja ili sekunde.</small></span></div><div><b>3.</b><span><strong>Sačuvaj rezultat</strong><small>Sljedeći put vidiš prošle podatke i PR.</small></span></div></div>',
     '<div class="onboarding-icon">🎯</div><span class="onboarding-step-label">KORAK 3 OD 4</span><h3>Šta najčešće treniraš?</h3><p>Ovo samo pomaže da ti prvi plan bude smislenije pripremljen. Možeš ga kasnije promijeniti.</p><div class="onboarding-context-grid">' + contextOptions.map(([value, icon, label]) => `<button type="button" class="onboarding-context ${onboardingContext === value ? 'is-selected' : ''}" data-action="onboarding-context" data-context="${value}"><span>${icon}</span><strong>${label}</strong></button>`).join('') + '</div>',
-    '<div class="onboarding-icon">🚀</div><span class="onboarding-step-label">KORAK 4 OD 4</span><h3>Spreman/na si za prvi plan</h3><p>Jedan plan predstavlja jedan trening koji možeš ponavljati više puta. Dodaj vježbe jednu po jednu i izaberi način praćenja.</p>'
+    `<div class="onboarding-icon">🚀</div><span class="onboarding-step-label">KORAK 4 OD 4</span><h3>${genderText('Spreman si za prvi plan', 'Spremna si za prvi plan', 'Spreman/na si za prvi plan')}</h3><p>Jedan plan predstavlja jedan trening koji možeš ponavljati više puta. Dodaj vježbe jednu po jednu i izaberi način praćenja.</p>`
   ];
   const back = onboardingStep > 0 ? '<button class="btn btn-secondary" data-action="onboarding-back">Nazad</button>' : '';
   const next = onboardingStep < 3 ? '<button class="btn" data-action="onboarding-next">Nastavi →</button>' : '<button class="btn" data-action="onboarding-create-plan">Napravi prvi plan →</button>';

@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verifiedUser() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function ownsUserId(data) {
+      return verifiedUser() && data.userId == request.auth.uid;
+    }
+
+    function validUserProfile(data) {
+      return data.keys().hasOnly(['fullName', 'email', 'createdAt', 'gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFocus', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups', 'bodyTrackingEnabled', 'termsVersion', 'termsAcceptedAt', 'privacyVersion', 'privacyAcceptedAt'])
+        && data.keys().hasAll(['fullName', 'email', 'createdAt'])
+        && data.fullName is string
+        && data.fullName.size() > 0
+        && data.fullName.size() <= 100
+        && data.email is string
+        && data.email.size() <= 254
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && (!('gender' in data) || (data.gender is string && data.gender in ['male', 'female', 'unspecified']))
+        && (!('age' in data) || (data.age is int && data.age >= 13 && data.age <= 100))
+        && (!('heightCm' in data) || (data.heightCm is number && data.heightCm >= 100 && data.heightCm <= 250))
+        && (!('weightKg' in data) || (data.weightKg is number && data.weightKg >= 25 && data.weightKg <= 400))
+        && (!('goal' in data) || (data.goal is string && data.goal in ['lose_weight', 'maintain', 'gain_weight', 'gain_muscle', 'increase_strength', 'general_fitness']))
+        && (!('trainingFocus' in data) || (data.trainingFocus is string && data.trainingFocus in ['strength', 'muscle_progress', 'general_fitness']))
+        && (!('trainingFrequency' in data) || (data.trainingFrequency is int && data.trainingFrequency >= 0 && data.trainingFrequency <= 14))
+        && (!('trainingLocation' in data) || (data.trainingLocation is string && data.trainingLocation in ['gym', 'home', 'street', 'other']))
+        && (!('experienceLevel' in data) || (data.experienceLevel is string && data.experienceLevel in ['beginner', 'intermediate', 'advanced']))
+        && (!('sessionMinutes' in data) || (data.sessionMinutes is int && data.sessionMinutes >= 10 && data.sessionMinutes <= 300))
+        && (!('targetMuscleGroups' in data) || (data.targetMuscleGroups is list && data.targetMuscleGroups.size() >= 1 && data.targetMuscleGroups.size() <= 12))
+        && (!('bodyTrackingEnabled' in data) || data.bodyTrackingEnabled is bool)
+        && (!('termsVersion' in data) || (data.termsVersion is string && data.termsVersion.size() > 0 && data.termsVersion.size() <= 32))
+        && (!('termsAcceptedAt' in data) || (data.termsAcceptedAt is string && data.termsAcceptedAt.size() <= 40))
+        && (!('privacyVersion' in data) || (data.privacyVersion is string && data.privacyVersion.size() > 0 && data.privacyVersion.size() <= 32))
+        && (!('privacyAcceptedAt' in data) || (data.privacyAcceptedAt is string && data.privacyAcceptedAt.size() <= 40));
+    }
+
+    function validRoutine(data) {
+      return data.keys().hasOnly(['userId', 'emoji', 'name', 'exercises', 'createdAt'])
+        && data.keys().hasAll(['userId', 'name', 'exercises', 'createdAt'])
+        && data.userId is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.exercises is list
+        && data.exercises.size() <= 100
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && (!('emoji' in data) || (data.emoji is string && data.emoji.size() <= 16));
+    }
+
+    function validWorkout(data) {
+      return data.keys().hasOnly(['userId', 'userEmail', 'name', 'date', 'exercises'])
+        && data.keys().hasAll(['userId', 'name', 'date', 'exercises'])
+        && data.userId is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.date is string
+        && data.date.size() <= 40
+        && data.exercises is list
+        && data.exercises.size() > 0
+        && data.exercises.size() <= 50
+        && (!('userEmail' in data)
+          || data.userEmail == null
+          || (data.userEmail is string && data.userEmail.size() <= 254));
+    }
+
+    match /users/{userId} {
+      allow read: if verifiedUser() && request.auth.uid == userId;
+      allow create: if verifiedUser()
+        && request.auth.uid == userId
+        && validUserProfile(request.resource.data);
+      allow update: if verifiedUser()
+        && request.auth.uid == userId
+        && validUserProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if verifiedUser() && request.auth.uid == userId;
+    }
+
+    match /routines/{routineId} {
+      allow read, delete: if ownsUserId(resource.data);
+      allow create: if ownsUserId(request.resource.data)
+        && validRoutine(request.resource.data);
+      allow update: if ownsUserId(resource.data)
+        && ownsUserId(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && validRoutine(request.resource.data);
+    }
+
+    match /workouts/{workoutId} {
+      allow read, delete: if ownsUserId(resource.data);
+      allow create: if ownsUserId(request.resource.data)
+        && validWorkout(request.resource.data);
+      allow update: if ownsUserId(resource.data)
+        && ownsUserId(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && validWorkout(request.resource.data);
+    }
+
+    match /bodyMeasurements/{measurementId} {
+      allow read, delete: if verifiedUser()
+        && resource.data.userId == request.auth.uid;
+      allow create: if verifiedUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['userId', 'measuredAt', 'weightKg', 'waistCm', 'chestCm', 'armCm', 'legCm', 'hipsCm', 'note'])
+        && request.resource.data.keys().hasAll(['userId', 'measuredAt'])
+        && request.resource.data.measuredAt is string
+        && request.resource.data.measuredAt.size() > 0
+        && request.resource.data.measuredAt.size() <= 40
+        && (!('weightKg' in request.resource.data) || (request.resource.data.weightKg is number && request.resource.data.weightKg >= 25 && request.resource.data.weightKg <= 400))
+        && (!('waistCm' in request.resource.data) || (request.resource.data.waistCm is number && request.resource.data.waistCm >= 30 && request.resource.data.waistCm <= 250))
+        && (!('chestCm' in request.resource.data) || (request.resource.data.chestCm is number && request.resource.data.chestCm >= 30 && request.resource.data.chestCm <= 250))
+        && (!('armCm' in request.resource.data) || (request.resource.data.armCm is number && request.resource.data.armCm >= 10 && request.resource.data.armCm <= 100))
+        && (!('legCm' in request.resource.data) || (request.resource.data.legCm is number && request.resource.data.legCm >= 20 && request.resource.data.legCm <= 150))
+        && (!('hipsCm' in request.resource.data) || (request.resource.data.hipsCm is number && request.resource.data.hipsCm >= 30 && request.resource.data.hipsCm <= 250))
+        && (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 500));
+      allow update: if false;
+    }
+
+    // Sve kolekcije koje nisu eksplicitno dozvoljene ostaju zatvorene.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

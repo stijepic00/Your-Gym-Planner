@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gymleader-app-v8';
+const CACHE_NAME = 'gymleader-app-v31-stage-centered-silhouette';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -10,7 +10,9 @@ const APP_SHELL = [
   '/assets/gymleader-icon.png',
   '/assets/flag-sr.svg',
   '/assets/flag-en.svg',
-  '/assets/flag-de.svg'
+  '/assets/flag-de.svg',
+  '/assets/gymleader-body-male.svg?v=20260930-20',
+  '/assets/gymleader-body-female.svg?v=20260930-20'
 ];
 
 self.addEventListener('install', (event) => {
