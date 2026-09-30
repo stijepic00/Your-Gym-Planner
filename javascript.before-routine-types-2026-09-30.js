@@ -1,6 +1,5 @@
 /*-- FIREBASE ENGINE & AUTH */
   import { TRANSLATIONS } from './translations.js';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -48,14 +47,12 @@
   const app = initializeApp(firebaseConfig);
   const appCheckSiteKey = document.querySelector('meta[name="firebase-app-check-site-key"]')?.content.trim();
   let appCheck = null;
-  const isLocalDevelopment = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-  // Firebase App Check is enforced for this project.  reCAPTCHA Enterprise cannot
-  // validate a local Live Server origin, so Firebase's documented debug provider is
-  // used only on the developer machine.  It never runs on gymleader.app.
-  if (appCheckSiteKey && isLocalDevelopment) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  }
   if (appCheckSiteKey) {
+    // Local development only: opt in from this browser's DevTools.
+    if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
+        && localStorage.getItem('gym-app-check-debug') === 'true') {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
     appCheck = initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true
@@ -94,9 +91,6 @@
   let routinesUnsubscribe = null;
   let navigationGuardReady = false;
   let routineEditMode = false;
-  let generatedPlanSuggestions = [];
-  let pendingGeneratedPlanId = null;
-  const routineWeekdayLabels = ['Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota'];
   let editingRoutineId = null;
   let pendingWorkoutsMemory = [];
   let pendingWorkoutsLoaded = false;
@@ -105,9 +99,6 @@
   let profileReadSucceeded = false;
   let profileRequiredEditMode = false;
   let bodyMeasurements = [];
-  let editingBodyMeasurementId = null;
-  let pendingBodyMeasurementDeleteId = null;
-  let bodyMeasurementsEditMode = false;
   let bodyChartInstance = null;
   let pendingProfilePhotoImage = null;
   let profilePhotoZoom = 1;
@@ -116,14 +107,12 @@
   let profilePhotoDrag = null;
   let profileEmailCodeTarget = '';
   const HISTORY_CACHE_VERSION = 1;
-  const BODY_MEASUREMENTS_CACHE_VERSION = 1;
-  const BODY_MEASUREMENTS_CACHE_TTL_MS = 15 * 60 * 1000;
   const LEGAL_DOCUMENT_VERSION = '2026-09-29';
   let deferredInstallPrompt = null;
   const PWA_INSTALL_DISMISSED_KEY = 'gymleader-install-dismissed-v1';
 
   const VALID_GENDER_VALUES = new Set(['male', 'female', 'unspecified']);
-  const REQUIRED_PROFILE_FIELDS = ['gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups', 'preferredExercises', 'avoidedExercises', 'foodAllergies'];
+  const REQUIRED_PROFILE_FIELDS = ['gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups'];
 
   function getProfileGender() {
     const gender = currentProfileData?.gender;
@@ -161,10 +150,7 @@
       && ['gym', 'home', 'street', 'other'].includes(profile.trainingLocation)
       && ['beginner', 'intermediate', 'advanced'].includes(profile.experienceLevel)
       && Array.isArray(profile.targetMuscleGroups)
-      && profile.targetMuscleGroups.length > 0
-      && typeof profile.preferredExercises === 'string' && profile.preferredExercises.trim().length > 0
-      && typeof profile.avoidedExercises === 'string' && profile.avoidedExercises.trim().length > 0
-      && typeof profile.foodAllergies === 'string' && profile.foodAllergies.trim().length > 0;
+      && profile.targetMuscleGroups.length > 0;
   }
 
   function showGenderProfileGateIfRequired() {
@@ -201,7 +187,15 @@
   ];
 
   function getEmojiForRoutine(name) {
-    return '';
+    if (!name) return '⚡';
+    const n = name.toLowerCase();
+    if (n.includes('gornji') || n.includes('upper') || n.includes('grudi') || n.includes('prsa')) return '🏋️‍♂️';
+    if (n.includes('donji') || n.includes('lower') || n.includes('noge') || n.includes('leg')) return '🦵';
+    if (n.includes('kardio') || n.includes('cardio') || n.includes('trcanje')) return '🏃‍♂️';
+    if (n.includes('ruke') || n.includes('biceps') || n.includes('triceps')) return '💪';
+    if (n.includes('leda') || n.includes('back')) return '🥊';
+    if (n.includes('ramena') || n.includes('shoulder')) return '🦾';
+    return '⚡';
   }
 
   window.setRoutineEmoji = function(emoji) {
@@ -800,15 +794,9 @@ window.handleAuthSubmit = async function(e) {
     const container = document.getElementById('workout-list');
     if (!container) return;
     if (currentUser && userRoutines.length > 0) writeRoutineCache(currentUser.uid, userRoutines);
-    const activeRoutines = userRoutines.filter((routine) => routine.isArchived !== true);
-    const archivedRoutines = userRoutines.filter((routine) => routine.isArchived === true);
-    const visibleRoutines = sortRoutinesForDisplay(routineEditMode ? userRoutines : activeRoutines);
 
     let html = `
       <div class="routine-toolbar">
-        <button class="btn btn-secondary routine-generator-button" data-action="open-plan-generator" type="button">
-          ✦ Predloži plan za mene
-        </button>
         <button class="btn btn-purple routine-create-button" data-action="open-create-routine">
           ➕ Napravi plan treninga
         </button>
@@ -820,7 +808,7 @@ window.handleAuthSubmit = async function(e) {
       </div>
     `;
 
-    if (visibleRoutines.length === 0) {
+    if (userRoutines.length === 0) {
       html += `
         <div class="card routine-empty-state">
           <p class="routine-empty-title">Još nemaš plan treninga.</p>
@@ -828,17 +816,16 @@ window.handleAuthSubmit = async function(e) {
         </div>
       `;
     } else {
-      html += visibleRoutines.map(w => {
+      html += userRoutines.map(w => {
         const emoji = w.emoji || getEmojiForRoutine(w.name);
         const exCount = w.exercises ? w.exercises.length : 0;
         return `
           <div class="card flex-between">
             <div>
-              <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px;">${w.emoji ? `${escapeHtml(emoji)} ` : ''}${escapeHtml(w.name)} ${w.isFavorite ? '<span class="routine-favorite-mark" title="Omiljeni plan">★</span>' : ''}</h3>
+              <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px;">${escapeHtml(emoji)} ${escapeHtml(w.name)}</h3>
               <p style="color: var(--text-muted); font-size: 0.85rem;">
                 ${exCount > 0 ? exCount + ' vježbi' : 'Prazan trening - sam dodaj vježbe'}
               </p>
-              ${w.isArchived ? '<span class="routine-archived-badge">Arhiviran</span>' : ''}${Array.isArray(w.scheduleDays) && w.scheduleDays.length ? `<span class="routine-schedule-hint">Raspored: ${w.scheduleDays.map((day) => routineWeekdayLabels[Number(day)]).filter(Boolean).join(' · ')}</span>` : ''}
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
               ${routineEditMode
@@ -851,52 +838,7 @@ window.handleAuthSubmit = async function(e) {
     }
 
     container.innerHTML = html;
-    renderNextScheduledRoutine();
-    if (routineEditMode) {
-      container.querySelectorAll('[data-action="open-edit-routine"]').forEach((editButton) => {
-        editButton.hidden = true;
-        const routine = userRoutines.find((item) => item.id === editButton.dataset.routineId);
-        if (!routine || editButton.parentElement.querySelector('.routine-card-actions')) return;
-        editButton.parentElement.insertAdjacentHTML('beforeend', `<div class="routine-card-actions"><button class="btn btn-secondary" data-action="open-edit-routine" data-routine-id="${escapeHtml(routine.id)}">✎ Uredi</button><button class="btn btn-secondary" data-action="duplicate-routine" data-routine-id="${escapeHtml(routine.id)}">Kopiraj</button><button class="btn btn-secondary" data-action="toggle-routine-favorite" data-routine-id="${escapeHtml(routine.id)}">${routine.isFavorite ? '★ Omiljeni' : '☆ Omiljeni'}</button><button class="btn btn-secondary" data-action="toggle-routine-archive" data-routine-id="${escapeHtml(routine.id)}">${routine.isArchived ? 'Vrati' : 'Arhiviraj'}</button></div>`);
-      });
-    }
   };
-
-  function getRoutineScheduleSortValue(routine) {
-    const firstDay = Array.isArray(routine?.scheduleDays) ? Number(routine.scheduleDays[0]) : NaN;
-    if (!Number.isInteger(firstDay) || firstDay < 0 || firstDay > 6) return null;
-    return firstDay === 0 ? 7 : firstDay;
-  }
-
-  function sortRoutinesForDisplay(routines) {
-    return [...routines].sort((a, b) => {
-      const aDay = getRoutineScheduleSortValue(a);
-      const bDay = getRoutineScheduleSortValue(b);
-      if (aDay === null && bDay === null) return 0;
-      if (aDay === null) return 1;
-      if (bDay === null) return -1;
-      return aDay - bDay;
-    });
-  }
-
-  function renderNextScheduledRoutine() {
-    const container = document.getElementById('next-scheduled-routine');
-    if (!container) return;
-    const scheduled = userRoutines.filter((routine) => routine.isArchived !== true && Array.isArray(routine.scheduleDays) && routine.scheduleDays.length);
-    if (!scheduled.length) { container.hidden = true; container.innerHTML = ''; return; }
-    const today = new Date().getDay();
-    let chosen = null;
-    let offset = 0;
-    for (let dayOffset = 0; dayOffset < 7 && !chosen; dayOffset += 1) {
-      const day = (today + dayOffset) % 7;
-      const candidates = scheduled.filter((routine) => routine.scheduleDays.map(String).includes(String(day))).sort((a, b) => Number(b.isFavorite === true) - Number(a.isFavorite === true));
-      if (candidates.length) { chosen = candidates[0]; offset = dayOffset; }
-    }
-    if (!chosen) { container.hidden = true; container.innerHTML = ''; return; }
-    const dayLabel = offset === 0 ? 'Danas' : offset === 1 ? 'Sutra' : routineWeekdayLabels[(today + offset) % 7];
-    container.hidden = false;
-    container.innerHTML = `<div class="next-scheduled-copy"><span class="settings-eyebrow">SLJEDEĆI PLAN</span><h3>${escapeHtml(dayLabel)}: ${chosen.emoji ? `${escapeHtml(chosen.emoji)} ` : ''}${escapeHtml(chosen.name)}</h3><p>Plan iz tvog opcionalnog sedmičnog rasporeda.</p></div><button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(chosen.id)}">Započni ovaj trening →</button>`;
-  }
 
   // UČITAVANJE UŽIVO (StreamBuilder / onSnapshot) - Odgovara novim pravilima
   function getRoutineCacheKey(userId) {
@@ -965,70 +907,17 @@ window.handleAuthSubmit = async function(e) {
     window.renderWorkouts();
   };
 
-  function updateRoutineInMemory(routineId, changes) {
-    userRoutines = userRoutines.map((routine) => routine.id === routineId ? { ...routine, ...changes } : routine);
-    if (currentUser) writeRoutineCache(currentUser.uid, userRoutines);
-    window.renderWorkouts();
-    renderNextScheduledRoutine();
-  }
-
-  window.duplicateRoutine = async function(routineId) {
-    const source = userRoutines.find((routine) => routine.id === routineId);
-    if (!source || !currentUser) return;
-    const copy = {
-      userId: currentUser.uid,
-      emoji: source.emoji || '',
-      name: `${source.name} (kopija)`.slice(0, 120),
-      exercises: Array.isArray(source.exercises) ? source.exercises : [],
-      createdAt: new Date().toISOString(),
-      isArchived: false,
-      isFavorite: false,
-      scheduleDays: []
-    };
-    try {
-      await addDoc(collection(db, 'routines'), copy);
-      ShowToast('Plan je kopiran.');
-    } catch (error) {
-      console.error('Routine duplicate diagnostic:', error);
-      ShowToast('Plan nije moguće kopirati. Provjeri internet i pokušaj ponovo.', 'error');
-    }
-  };
-
-  window.toggleRoutineFavorite = async function(routineId) {
-    const routine = userRoutines.find((item) => item.id === routineId);
-    if (!routine) return;
-    const changes = { isFavorite: routine.isFavorite !== true };
-    try {
-      await updateDoc(doc(db, 'routines', routineId), changes);
-      updateRoutineInMemory(routineId, changes);
-    } catch (error) {
-      ShowToast('Omiljeni plan nije moguće sačuvati.', 'error');
-    }
-  };
-
-  window.toggleRoutineArchive = async function(routineId) {
-    const routine = userRoutines.find((item) => item.id === routineId);
-    if (!routine) return;
-    const archived = routine.isArchived !== true;
-    const changes = { isArchived: archived, archivedAt: archived ? new Date().toISOString() : '' };
-    try {
-      await updateDoc(doc(db, 'routines', routineId), changes);
-      updateRoutineInMemory(routineId, changes);
-      ShowToast(archived ? 'Plan je arhiviran.' : 'Plan je vraćen među aktivne planove.');
-    } catch (error) {
-      ShowToast('Arhiviranje plana nije moguće sačuvati.', 'error');
-    }
-  };
-
   window.openEditRoutineModal = function(routineId) {
     const routine = userRoutines.find((item) => item.id === routineId);
     if (!routine) return;
 
     editingRoutineId = routine.id;
-    document.getElementById('editRoutineEmojiInput').value = routine.emoji || '';
+    document.getElementById('editRoutineEmojiInput').value = routine.emoji || getEmojiForRoutine(routine.name);
     document.getElementById('editRoutineNameInput').value = routine.name || '';
-    document.querySelectorAll('input[name="edit-routine-schedule"]').forEach((input) => { input.checked = Array.isArray(routine.scheduleDays) && routine.scheduleDays.includes(input.value); });
-    resetEditRoutineExerciseBuilder(routine.exercises || []);
+    document.getElementById('editRoutineExercisesInput').value = (routine.exercises || [])
+      .map((exercise) => typeof exercise === 'string' ? exercise : (exercise?.name || ''))
+      .filter(Boolean)
+      .join('\n');
     document.getElementById('editRoutineModal').style.display = 'flex';
   };
 
@@ -1042,33 +931,22 @@ window.handleAuthSubmit = async function(e) {
 
     const emoji = document.getElementById('editRoutineEmojiInput').value.trim();
     const name = document.getElementById('editRoutineNameInput').value.trim();
-    const exercises = getRoutineExercisesFromList('edit-routine-exercises-list');
-    const scheduleDays = [...document.querySelectorAll('input[name="edit-routine-schedule"]:checked')].map((input) => input.value);
+    const exercises = document.getElementById('editRoutineExercisesInput').value
+      .split('\n')
+      .map((exercise) => exercise.trim())
+      .filter(Boolean);
 
     if (!name) {
       ShowToast('Naziv plana je obavezan.', 'error');
       return;
     }
 
-    if (exercises.length === 0) {
-      ShowToast('Dodaj bar jednu vježbu u plan.', 'error');
-      return;
-    }
-
-    const exerciseValidationMessage = getRoutineExerciseValidationMessage(exercises);
-    if (exerciseValidationMessage) {
-      ShowToast(exerciseValidationMessage, 'error');
-      return;
-    }
-
     try {
       await updateDoc(doc(db, 'routines', editingRoutineId), {
-        emoji: emoji || '',
+        emoji: emoji || getEmojiForRoutine(name),
         name,
-        exercises,
-        scheduleDays
+        exercises
       });
-      updateRoutineInMemory(editingRoutineId, { emoji: emoji || '', name, exercises, scheduleDays });
       document.getElementById('editRoutineModal').style.display = 'none';
       editingRoutineId = null;
       ShowToast('Izmjene su sačuvane.');
@@ -1123,559 +1001,43 @@ window.handleAuthSubmit = async function(e) {
     }
     document.getElementById('newRoutineEmojiInput').value = '';
     document.getElementById('newRoutineNameInput').value = '';
-    pendingGeneratedPlanId = null;
-    document.getElementById('return-to-generated-plans-button')?.setAttribute('hidden', '');
-    document.querySelectorAll('input[name="new-routine-schedule"]').forEach((input) => { input.checked = false; });
     resetRoutineExerciseBuilder();
     document.getElementById('createRoutineModal').style.display = 'flex';
-    const picker = document.querySelector('[data-library-picker-for="new-routine-exercises-list"]');
-    if (picker) {
-      picker.hidden = false;
-      const place = picker.querySelector('.exercise-library-place');
-      if (place && ['gym', 'home', 'street'].includes(currentProfileData?.trainingLocation)) {
-        place.value = currentProfileData.trainingLocation;
-      }
-      renderExerciseLibraryPicker(picker);
-      requestAnimationFrame(() => picker.querySelector('.exercise-library-search')?.focus());
-    }
   };
 
   function resetRoutineExerciseBuilder() {
     const list = document.getElementById('new-routine-exercises-list');
     if (!list) return;
     list.innerHTML = '';
+    addRoutineExerciseRow();
   }
 
-  function normalizeRoutineExercise(exercise) {
-    const name = typeof exercise === 'string' ? exercise.trim() : String(exercise?.name || '').trim();
-    const savedMeasurementType = typeof exercise === 'object' ? exercise?.measurementType : '';
-    const libraryExercise = resolveLibraryExercise(exercise) || resolveLibraryExercise(name);
-    const validTypes = ['weight_reps', 'reps', 'seconds', 'cardio'];
-    const measurementType = validTypes.includes(savedMeasurementType)
-      ? savedMeasurementType
-      : libraryExercise?.measurementType || getExerciseMeasurementType(exercise, name);
-    const defaults = getExerciseProgressionDefaults(measurementType, name, libraryExercise);
-    const source = typeof exercise === 'object' && exercise ? exercise : {};
-
-    return {
-      name,
-      measurementType,
-      setCount: readExerciseSetting(source.setCount, measurementType === 'cardio' ? 1 : 3, 1, 10),
-      repRangeMin: readExerciseSetting(source.repRangeMin, defaults.repRangeMin, 1, 100),
-      repRangeMax: readExerciseSetting(source.repRangeMax, defaults.repRangeMax, 1, 100),
-      weightIncrement: readExerciseSetting(source.weightIncrement, defaults.weightIncrement, 0.25, 100),
-      timeIncrement: readExerciseSetting(source.timeIncrement, defaults.timeIncrement, 1, 60),
-      restSeconds: readExerciseSetting(source.restSeconds, defaults.restSeconds, 0, 1800)
-    };
-  }
-
-  function readExerciseSetting(value, fallback, minimum, maximum) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
-  }
-
-  function inferRepRangeFromName(name) {
-    const rangeMatch = String(name || '').match(/(?:\d+\s*[x×]\s*)?(\d+)\s*[-–]\s*(\d+)/i);
-    if (rangeMatch) return { min: Number(rangeMatch[1]), max: Number(rangeMatch[2]) };
-    const fixedMatch = String(name || '').match(/(?:\d+\s*[x×]\s*)(\d+)/i);
-    if (fixedMatch) return { min: Number(fixedMatch[1]), max: Number(fixedMatch[1]) };
-    return null;
-  }
-
-  function getExerciseProgressionDefaults(measurementType, name = '', libraryExercise = null) {
-    if (libraryExercise?.measurementType === measurementType && libraryExercise.defaults) {
-      return libraryExercise.defaults;
-    }
-    const inferredRange = inferRepRangeFromName(name);
-    const exerciseName = String(name || '').toLocaleLowerCase();
-    const isLegPress = exerciseName.includes('leg press') || exerciseName.includes('legpress') || exerciseName.includes('potisak nogama');
-    if (measurementType === 'weight_reps') {
-      return { repRangeMin: inferredRange?.min || 8, repRangeMax: inferredRange?.max || 12, weightIncrement: isLegPress ? 5 : 2.5, timeIncrement: 5, restSeconds: 120 };
-    }
-    if (measurementType === 'reps') {
-      return { repRangeMin: inferredRange?.min || 8, repRangeMax: inferredRange?.max || 15, weightIncrement: 2.5, timeIncrement: 5, restSeconds: 90 };
-    }
-    if (measurementType === 'seconds') {
-      return { repRangeMin: 0, repRangeMax: 0, weightIncrement: 2.5, timeIncrement: 5, restSeconds: 60 };
-    }
-    return { repRangeMin: 0, repRangeMax: 0, weightIncrement: 2.5, timeIncrement: 1, restSeconds: 60 };
-  }
-
-  const exerciseLibraryLabels = {
-    chest: 'Grudi', upper_chest: 'Gornje grudi', back: 'Leđa', lats: 'Latovi', upper_back: 'Gornja leđa', middle_back: 'Srednja leđa', lower_back: 'Donja leđa',
-    shoulders: 'Ramena', front_delts: 'Prednje rame', side_delts: 'Bočno rame', rear_delts: 'Zadnje rame', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Podlaktice',
-    quadriceps: 'Kvadriceps', hamstrings: 'Zadnja loža', glutes: 'Gluteus', calves: 'Listovi', adductors: 'Aduktori', abductors: 'Abduktori',
-    abs: 'Stomak', core: 'Trup', obliques: 'Kosi stomak', hip_flexors: 'Pregibači kuka', full_body: 'Cijelo tijelo', cardio: 'Kardio',
-    barbell: 'Šipka', dumbbells: 'Bučice', kettlebell: 'Kettlebell', machine: 'Mašina', cable_machine: 'Sajla', bench: 'Klupa', incline_bench: 'Kosa klupa',
-    bodyweight: 'Vlastita težina', pull_up_bar: 'Šipka za zgibove', dip_bars: 'Razboj', resistance_band: 'Guma', leg_press_machine: 'Leg press',
-    assisted_machine: 'Potpomognuta mašina', rack: 'Rack', plate: 'Ploča', ab_wheel: 'Ab wheel', treadmill: 'Traka', stationary_bike: 'Sobni bicikl',
-    rowing_machine: 'Veslač', elliptical: 'Eliptik', stair_climber: 'Steper', jump_rope: 'Vijača', outdoors: 'Vani', pool: 'Bazen', bicycle: 'Bicikl',
-    box: 'Kutija', rings: 'Karike', wall: 'Zid', bar: 'Šipka'
-  };
-
-  function exerciseLibraryLabel(value) {
-    return exerciseLibraryLabels[value] || String(value || '').replace(/_/g, ' ');
-  }
-
-  function normalizeLibrarySearch(value) {
-    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim();
-  }
-
-  function fillExerciseLibraryFilters(picker) {
-    if (!picker || picker.dataset.filtersReady === 'true') return;
-    const fill = (selector, values, firstLabel) => {
-      const select = picker.querySelector(selector);
-      if (!select) return;
-      select.innerHTML = `<option value="">${firstLabel}</option>${[...values].sort().map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(exerciseLibraryLabel(value))}</option>`).join('')}`;
-    };
-    fill('.exercise-library-muscle', new Set(EXERCISE_LIBRARY.flatMap((item) => item.muscles)), 'Svi mišići');
-    fill('.exercise-library-equipment', new Set(EXERCISE_LIBRARY.flatMap((item) => item.equipment)), 'Sva oprema');
-    picker.dataset.filtersReady = 'true';
-  }
-
-  function getExerciseLibraryTypeLabel(type) {
-    return { weight_reps: 'Kilaža + ponavljanja', reps: 'Samo ponavljanja', seconds: 'Trajanje', cardio: 'Kardio' }[type] || type;
-  }
-
-  function renderExerciseLibraryPicker(picker) {
-    if (!picker) return;
-    fillExerciseLibraryFilters(picker);
-    const queryText = normalizeLibrarySearch(picker.querySelector('.exercise-library-search')?.value);
-    const muscle = picker.querySelector('.exercise-library-muscle')?.value || '';
-    const equipment = picker.querySelector('.exercise-library-equipment')?.value || '';
-    const place = picker.querySelector('.exercise-library-place')?.value || '';
-    const language = getCurrentLanguage();
-    const matches = EXERCISE_LIBRARY.filter((item) => {
-      const text = normalizeLibrarySearch([...Object.values(item.names), item.instruction, ...item.muscles, ...item.equipment].join(' '));
-      return (!queryText || text.includes(queryText))
-        && (!muscle || item.muscles.includes(muscle))
-        && (!equipment || item.equipment.includes(equipment))
-        && (!place || getLibraryExerciseTrainingPlaces(item).includes(place));
-    });
-    const count = picker.querySelector('.exercise-library-count');
-    const results = picker.querySelector('.exercise-library-results');
-    if (count) count.textContent = matches.length ? `${matches.length} ${matches.length === 1 ? 'vježba' : 'vježbi'} pronađeno` : 'Nema vježbi za ovaj izbor.';
-    if (!results) return;
-    if (!matches.length) {
-      results.innerHTML = '<p class="exercise-library-empty">Nema rezultata. Promijeni pretragu ili filtere, ili ručno upiši svoju vježbu ispod.</p>';
-      return;
-    }
-    const targetList = picker.dataset.libraryPickerFor;
-    results.innerHTML = matches.map((item) => {
-      const defaults = item.defaults;
-      const tracking = item.measurementType === 'weight_reps' || item.measurementType === 'reps'
-        ? `${defaults.repRangeMin}–${defaults.repRangeMax} ponavljanja`
-        : item.measurementType === 'seconds' ? `Korak vremena ${defaults.timeIncrement} sek` : `Korak vremena ${defaults.timeIncrement} min`;
-      return `<article class="exercise-library-result"><div><h4>${escapeHtml(getLibraryExerciseName(item, language))}</h4><p class="exercise-library-tags"><span>${escapeHtml(getExerciseLibraryTypeLabel(item.measurementType))}</span><span>${escapeHtml(item.muscles.map(exerciseLibraryLabel).join(' · '))}</span><span>${escapeHtml(item.equipment.map(exerciseLibraryLabel).join(' · '))}</span></p><p>${escapeHtml(item.instruction)}</p><small>${escapeHtml(tracking)} · odmor ${defaults.restSeconds} sek</small></div><button class="btn btn-secondary" type="button" data-action="add-library-exercise" data-exercise-id="${escapeHtml(item.id)}" data-target-list="${escapeHtml(targetList)}">Dodaj</button></article>`;
-    }).join('');
-  }
-
-  window.toggleExerciseLibrary = function(targetList) {
-    const picker = [...document.querySelectorAll('[data-library-picker-for]')]
-      .find((item) => item.dataset.libraryPickerFor === targetList);
-    if (!picker) return;
-    picker.hidden = !picker.hidden;
-    if (!picker.hidden) {
-      renderExerciseLibraryPicker(picker);
-      picker.querySelector('.exercise-library-search')?.focus();
-    }
-  };
-
-  window.addLibraryExerciseToRoutine = function(exerciseId, targetList) {
-    const item = getLibraryExerciseById(exerciseId);
-    if (!item || !document.getElementById(targetList)) return;
-    addRoutineExerciseRow(targetList, {
-      name: getLibraryExerciseName(item, getCurrentLanguage()),
-      measurementType: item.measurementType,
-      ...item.defaults
-    });
-    ShowToast(`${getLibraryExerciseName(item, getCurrentLanguage())} je dodana u plan.`);
-  };
-
-  const generatorMuscleMap = {
-    chest: ['chest', 'upper_chest'],
-    back: ['back', 'lats', 'upper_back', 'middle_back'],
-    legs: ['quadriceps', 'hamstrings', 'calves'],
-    shoulders: ['shoulders', 'front_delts', 'side_delts', 'rear_delts'],
-    arms: ['biceps', 'triceps', 'forearms'],
-    glutes: ['glutes', 'abductors', 'adductors'],
-    core: ['core', 'abs', 'obliques'],
-    cardio: ['cardio']
-  };
-
-  const generatorGroupLabels = {
-    chest: 'grudi', back: 'leđa', legs: 'noge', shoulders: 'ramena',
-    arms: 'ruke', glutes: 'gluteus', core: 'stomak', cardio: 'kardio'
-  };
-
-  function getGeneratorSetCount(profile) {
-    if (profile?.trainingFocus === 'strength') return profile?.experienceLevel === 'beginner' ? 3 : 4;
-    if (profile?.experienceLevel === 'beginner') return 2;
-    return 3;
-  }
-
-  function getGeneratorExerciseCount(profile) {
-    const minutes = Number(profile?.sessionMinutes) || 60;
-    let count = minutes <= 35 ? 4 : minutes <= 60 ? 5 : minutes <= 80 ? 6 : 7;
-    if (profile?.experienceLevel === 'beginner') count = Math.min(count, 5);
-    return count;
-  }
-
-  function getGeneratorGroups(mode, profile) {
-    if (mode === 'full_body') {
-      return profile?.goal === 'lose_weight'
-        ? ['legs', 'chest', 'back', 'core', 'cardio', 'shoulders', 'arms']
-        : ['legs', 'chest', 'back', 'shoulders', 'arms', 'core'];
-    }
-    const selected = Array.isArray(profile?.targetMuscleGroups) ? profile.targetMuscleGroups : [];
-    const groups = selected.filter((group) => generatorMuscleMap[group]);
-    return groups.length ? groups : ['legs', 'chest', 'back', 'shoulders', 'arms', 'core'];
-  }
-
-  function isExerciseAvailableForProfile(item, profile) {
-    const location = profile?.trainingLocation;
-    if (!['gym', 'home', 'street'].includes(location)) return true;
-    return getLibraryExerciseTrainingPlaces(item).includes(location);
-  }
-
-  function getAvoidedExerciseTokens(profile) {
-    const value = normalizeLibrarySearch(profile?.avoidedExercises);
-    if (!value || value.includes('nemam vjezbi') || value.includes('nema vjezbi')) return [];
-    return value.split(/[\n,;]+/).map((item) => item.trim()).filter((item) => item.length >= 3);
-  }
-
-  function isExerciseAvoidedForProfile(item, profile) {
-    return profileMentionsExercise(profile?.avoidedExercises, item, getAvoidedExerciseTokens(profile));
-  }
-
-  function getPreferredExerciseTokens(profile) {
-    const value = normalizeLibrarySearch(profile?.preferredExercises);
-    if (!value || value.includes('nemam posebnu zelju') || value.includes('nemam posebne vjezbe')) return [];
-    return value.split(/[\n,;]+/).map((item) => item.trim()).filter((item) => item.length >= 3);
-  }
-
-  function profileMentionsExercise(value, item, tokens = []) {
-    const profileText = normalizeLibrarySearch(value);
-    if (!profileText || !item) return false;
-    const names = [item.id.replace(/-/g, ' '), ...Object.values(item.names || {})]
-      .map(normalizeLibrarySearch)
-      .filter((name) => name.length >= 3);
-    const itemText = names.join(' ');
-    return names.some((name) => profileText.includes(name))
-      || tokens.some((term) => itemText.includes(term) || names.some((name) => term.includes(name)));
-  }
-
-  function isExercisePreferredForProfile(item, profile) {
-    return profileMentionsExercise(profile?.preferredExercises, item, getPreferredExerciseTokens(profile));
-  }
-
-  function pickGeneratorExercises(groups, profile, count, usedIds = new Set()) {
-    const selected = [];
-    const selectedIds = new Set();
-    const setCount = getGeneratorSetCount(profile);
-    const candidates = EXERCISE_LIBRARY
-      .filter((item) => isExerciseAvailableForProfile(item, profile) && !isExerciseAvoidedForProfile(item, profile))
-      .sort((first, second) => Number(isExercisePreferredForProfile(second, profile)) - Number(isExercisePreferredForProfile(first, profile)));
-    const addFirstMatch = (group, allowWeekReuse = false) => {
-      const desiredMuscles = generatorMuscleMap[group] || [];
-      const item = candidates.find((candidate) => !selectedIds.has(candidate.id)
-        && (allowWeekReuse || !usedIds.has(candidate.id))
-        && candidate.muscles.some((muscle) => desiredMuscles.includes(muscle)));
-      if (!item) return false;
-      usedIds.add(item.id);
-      selectedIds.add(item.id);
-      selected.push(normalizeRoutineExercise({
-        name: getLibraryExerciseName(item, getCurrentLanguage()),
-        measurementType: item.measurementType,
-        setCount,
-        ...item.defaults
-      }));
-      return true;
-    };
-
-    groups.forEach((group) => {
-      if (selected.length < count) addFirstMatch(group);
-    });
-    for (const group of groups) {
-      while (selected.length < count && addFirstMatch(group)) { /* fill from selected focus safely */ }
-    }
-    for (const group of groups) {
-      while (selected.length < count && addFirstMatch(group, true)) { /* reuse across days only when needed */ }
-    }
-    if (selected.length < count) {
-      candidates.some((item) => {
-        if (selectedIds.has(item.id)) return false;
-        usedIds.add(item.id);
-        selectedIds.add(item.id);
-        selected.push(normalizeRoutineExercise({
-          name: getLibraryExerciseName(item, getCurrentLanguage()),
-          measurementType: item.measurementType,
-          setCount,
-          ...item.defaults
-        }));
-        return selected.length >= count;
-      });
-    }
-    return selected;
-  }
-
-  function getSuggestedTrainingDays(frequency) {
-    const patterns = {
-      1: [1], 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 6],
-      5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6]
-    };
-    return patterns[Math.max(1, Math.min(7, Number(frequency) || 1))] || [1];
-  }
-
-  function getGeneratorDayGroups(groups, mode, dayIndex) {
-    if (mode === 'full_body') {
-      const variants = [
-        ['legs', 'chest', 'back', 'core', 'shoulders'],
-        ['legs', 'back', 'chest', 'arms', 'core'],
-        ['glutes', 'chest', 'back', 'shoulders', 'arms'],
-        ['legs', 'back', 'chest', 'core', 'arms'],
-        ['legs', 'chest', 'back', 'shoulders', 'core'],
-        ['glutes', 'back', 'chest', 'arms', 'core'],
-        ['legs', 'back', 'chest', 'shoulders', 'arms']
-      ];
-      return variants[dayIndex % variants.length];
-    }
-    const offset = dayIndex % groups.length;
-    return [...groups.slice(offset), ...groups.slice(0, offset)];
-  }
-
-  function buildPersonalizedPlanSuggestions(profile, mode) {
-    if (Number(profile?.trainingFrequency) < 1) return [];
-    const groups = getGeneratorGroups(mode, profile);
-    const exerciseCount = getGeneratorExerciseCount(profile);
-    const suggestedDays = getSuggestedTrainingDays(profile.trainingFrequency);
-    const usedIds = new Set();
-
-    return suggestedDays.map((day, index) => {
-      const planGroups = getGeneratorDayGroups(groups, mode, index);
-      const exercises = pickGeneratorExercises(planGroups, profile, exerciseCount, usedIds);
-      const groupTitle = mode === 'full_body'
-        ? `Full body ${String.fromCharCode(65 + index)}`
-        : planGroups.map((group) => generatorGroupLabels[group]).join(' + ');
-      return {
-        id: `generated-${Date.now()}-${index}`,
-        emoji: profile.trainingLocation === 'street' ? '🏃' : profile.trainingLocation === 'home' ? '🏠' : '🏋️',
-        name: `Moj plan ${String.fromCharCode(65 + index)} — ${groupTitle}`,
-        exercises,
-        groupTitle,
-        scheduleDays: [String(day)]
-      };
-    }).filter((plan) => plan.exercises.length > 0);
-  }
-
-  function describeGeneratorProfile(profile, mode) {
-    const location = { gym: 'teretanu', home: 'kuću', street: 'street workout', other: 'drugo mjesto' }[profile?.trainingLocation] || 'svoje mjesto treninga';
-    const duration = Number(profile?.sessionMinutes) || 60;
-    const focus = { strength: 'snagu', muscle_progress: 'mišićni napredak', general_fitness: 'opštu kondiciju' }[profile?.trainingFocus] || 'tvoj fokus';
-    const goal = { lose_weight: 'mršanje', maintain: 'održavanje težine', gain_weight: 'povećanje težine' }[profile?.goal] || 'tvoj cilj težine';
-    return `Prijedlog za ${location} · oko ${duration} min · cilj: ${goal} · fokus: ${focus}${mode === 'selected_muscles' ? ' · koristi tvoje odabrane mišićne grupe' : ' · cijelo tijelo'}.`;
-  }
-
-  function renderGeneratedPlanSuggestions() {
-    const results = document.getElementById('plan-generator-results');
-    if (!results) return;
-    results.hidden = false;
-    if (!generatedPlanSuggestions.length) {
-      results.innerHTML = '<p class="plan-generator-empty">Za ovaj izbor nema dovoljno vježbi u biblioteci. Pokušaj sa cijelim tijelom ili promijeni mjesto treninga u svom profilu.</p>';
-      return;
-    }
-    const saveAllButton = generatedPlanSuggestions.length > 1
-      ? `<button class="btn plan-generator-save-all" type="button" data-action="save-all-generated-plans">Dodaj svih ${generatedPlanSuggestions.length} planova</button>`
-      : '';
-    results.innerHTML = `${saveAllButton}${generatedPlanSuggestions.map((plan) => `
-      <article class="plan-generator-suggestion">
-        <div class="plan-generator-suggestion-heading"><div><span class="settings-eyebrow">${escapeHtml(routineWeekdayLabels[Number(plan.scheduleDays?.[0])] || 'PRIJEDLOG')}</span><h4>${escapeHtml(plan.emoji)} ${escapeHtml(plan.name)}</h4><p>${escapeHtml(plan.exercises.length)} vježbi · ${escapeHtml(plan.groupTitle)}</p></div></div>
-        <ol>${plan.exercises.map((exercise) => {
-          const reps = ['weight_reps', 'reps'].includes(exercise.measurementType) ? `${exercise.setCount} serije × ${exercise.repRangeMin}–${exercise.repRangeMax}` : exercise.measurementType === 'seconds' ? `${exercise.setCount} serije · trajanje` : 'kardio';
-          return `<li><strong>${escapeHtml(exercise.name)}</strong><small>${escapeHtml(reps)} · odmor ${escapeHtml(exercise.restSeconds)} sek</small></li>`;
-        }).join('')}</ol>
-        <button class="btn btn-secondary" type="button" data-action="use-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}">Uredi prije čuvanja →</button>
-      </article>
-    `).join('')}`;
-  }
-
-  window.openPlanGenerator = function() {
-    if (!currentUser) return;
-    if (!isProfileComplete()) {
-      ShowToast('Prvo dovrši Profil i ciljeve da napravimo smislen prijedlog.', 'error');
-      window.openProfileDetailsEditor();
-      return;
-    }
-    const modal = document.getElementById('plan-generator-modal');
-    const results = document.getElementById('plan-generator-results');
-    const summary = document.getElementById('plan-generator-mode-help');
-    if (results) { results.hidden = true; results.innerHTML = ''; }
-    if (summary) summary.textContent = describeGeneratorProfile(currentProfileData, 'full_body');
-    generatedPlanSuggestions = [];
-    modal?.style.setProperty('display', 'flex');
-  };
-
-  window.generatePersonalizedPlans = function() {
-    if (Number(currentProfileData?.trainingFrequency) < 1) {
-      ShowToast('U Profilu i ciljevima postavi barem jedan trening sedmično da napravimo raspored.', 'error');
-      return;
-    }
-    const mode = document.querySelector('input[name="plan-generator-mode"]:checked')?.value || 'full_body';
-    generatedPlanSuggestions = buildPersonalizedPlanSuggestions(currentProfileData || {}, mode);
-    renderGeneratedPlanSuggestions();
-  };
-
-  window.useGeneratedPlan = function(planId) {
-    const plan = generatedPlanSuggestions.find((item) => item.id === planId);
-    if (!plan) return;
-    pendingGeneratedPlanId = plan.id;
-    document.getElementById('plan-generator-modal')?.style.setProperty('display', 'none');
-    document.getElementById('return-to-generated-plans-button')?.removeAttribute('hidden');
-    document.getElementById('newRoutineEmojiInput').value = plan.emoji;
-    document.getElementById('newRoutineNameInput').value = plan.name;
-    document.querySelectorAll('input[name="new-routine-schedule"]').forEach((input) => { input.checked = plan.scheduleDays?.includes(input.value) === true; });
+  function addRoutineExerciseRow(name = '', measurementType = 'weight_reps') {
     const list = document.getElementById('new-routine-exercises-list');
-    if (list) {
-      list.innerHTML = '';
-      plan.exercises.forEach((exercise) => addRoutineExerciseRow('new-routine-exercises-list', exercise));
-    }
-    document.getElementById('createRoutineModal')?.style.setProperty('display', 'flex');
-    ShowToast('Pregledaj i prilagodi plan prije čuvanja.');
-  };
-
-  window.returnToGeneratedPlans = function() {
-    if (!generatedPlanSuggestions.length) return;
-    document.getElementById('createRoutineModal')?.style.setProperty('display', 'none');
-    document.getElementById('return-to-generated-plans-button')?.setAttribute('hidden', '');
-    pendingGeneratedPlanId = null;
-    renderGeneratedPlanSuggestions();
-    document.getElementById('plan-generator-modal')?.style.setProperty('display', 'flex');
-  };
-
-  window.saveAllGeneratedPlans = async function() {
-    if (!currentUser || !generatedPlanSuggestions.length) return;
-    const plans = generatedPlanSuggestions.map((plan) => ({
-      userId: currentUser.uid,
-      emoji: plan.emoji || '',
-      name: plan.name,
-      exercises: plan.exercises,
-      createdAt: new Date().toISOString(),
-      isArchived: false,
-      isFavorite: false,
-      scheduleDays: Array.isArray(plan.scheduleDays) ? plan.scheduleDays : []
-    }));
-    try {
-      for (const plan of plans) await addDoc(collection(db, 'routines'), plan);
-      generatedPlanSuggestions = [];
-      pendingGeneratedPlanId = null;
-      document.getElementById('plan-generator-modal')?.style.setProperty('display', 'none');
-      ShowToast(`Dodano je ${plans.length} planova u tvoje planove treninga.`);
-    } catch (error) {
-      console.error('Generated plans save diagnostic:', error);
-      ShowToast('Planove trenutno nije moguće sačuvati. Pokušaj ponovo.', 'error');
-    }
-  };
-
-  function addRoutineExerciseRow(listId, exercise = { name: '', measurementType: 'weight_reps' }) {
-    const list = document.getElementById(listId);
     if (!list) return;
-    const normalizedExercise = normalizeRoutineExercise(exercise);
-    const { name, measurementType } = normalizedExercise;
     const row = document.createElement('div');
     row.className = 'routine-exercise-row';
     row.innerHTML = `
-      <input class="custom-input routine-exercise-name" type="text" maxlength="100" placeholder="Upiši naziv vježbe" value="${escapeHtml(name)}">
+      <input class="custom-input routine-exercise-name" type="text" maxlength="100" placeholder="npr. Čučanj ili Plank" value="${escapeHtml(name)}">
+      <select class="custom-input routine-exercise-type" aria-label="Tip praćenja vježbe">
+        <option value="weight_reps" ${measurementType === 'weight_reps' ? 'selected' : ''}>Kilaža + ponavljanja</option>
+        <option value="reps" ${measurementType === 'reps' ? 'selected' : ''}>Samo ponavljanja</option>
+        <option value="seconds" ${measurementType === 'seconds' ? 'selected' : ''}>Trajanje u sekundama</option>
+        <option value="cardio" ${measurementType === 'cardio' ? 'selected' : ''}>Kardio</option>
+      </select>
       <button type="button" class="routine-remove-exercise" data-action="remove-routine-exercise" aria-label="Ukloni vježbu">×</button>
-      <details class="routine-exercise-settings">
-        <summary>Način praćenja i podešavanja</summary>
-        <label class="routine-exercise-type-label">Kako pratiš ovu vježbu?
-          <select class="custom-input routine-exercise-type" aria-label="Tip praćenja vježbe">
-            <option value="weight_reps" ${measurementType === 'weight_reps' ? 'selected' : ''}>Kilaža i ponavljanja</option>
-            <option value="reps" ${measurementType === 'reps' ? 'selected' : ''}>Samo ponavljanja</option>
-            <option value="seconds" ${measurementType === 'seconds' ? 'selected' : ''}>Trajanje u sekundama</option>
-            <option value="cardio" ${measurementType === 'cardio' ? 'selected' : ''}>Kardio</option>
-          </select>
-        </label>
-        <div class="routine-exercise-settings-grid">
-          <label class="routine-setting-reps">Raspon ponavljanja
-            <span><input class="custom-input routine-exercise-rep-min" type="number" min="1" max="100" step="1" value="${escapeHtml(normalizedExercise.repRangeMin)}"><b>–</b><input class="custom-input routine-exercise-rep-max" type="number" min="1" max="100" step="1" value="${escapeHtml(normalizedExercise.repRangeMax)}"></span>
-          </label>
-          <label class="routine-setting-sets">Broj serija<input class="custom-input routine-exercise-set-count" type="number" min="1" max="10" step="1" value="${escapeHtml(normalizedExercise.setCount)}"></label>
-          <label class="routine-setting-weight">Korak opterećenja (kg)<input class="custom-input routine-exercise-weight-increment" type="number" min="0.25" max="100" step="0.25" value="${escapeHtml(normalizedExercise.weightIncrement)}"></label>
-          <label class="routine-setting-time">Korak vremena <span class="routine-time-unit">${measurementType === 'cardio' ? '(min)' : '(sek)'}</span><input class="custom-input routine-exercise-time-increment" type="number" min="1" max="60" step="1" value="${escapeHtml(normalizedExercise.timeIncrement)}"></label>
-          <label>Odmor između serija (sek)<input class="custom-input routine-exercise-rest-seconds" type="number" min="0" max="1800" step="5" value="${escapeHtml(normalizedExercise.restSeconds)}"></label>
-        </div>
-      </details>
     `;
     list.appendChild(row);
-    syncRoutineExerciseSettingsVisibility(row);
-    row.querySelector('.routine-exercise-type')?.addEventListener('change', () => syncRoutineExerciseSettingsVisibility(row));
-  }
-
-  function syncRoutineExerciseSettingsVisibility(row) {
-    const type = row.querySelector('.routine-exercise-type')?.value || 'weight_reps';
-    row.querySelector('.routine-setting-reps')?.classList.toggle('is-hidden', !['weight_reps', 'reps'].includes(type));
-    row.querySelector('.routine-setting-weight')?.classList.toggle('is-hidden', type !== 'weight_reps');
-    row.querySelector('.routine-setting-time')?.classList.toggle('is-hidden', !['seconds', 'cardio'].includes(type));
-    const timeUnit = row.querySelector('.routine-time-unit');
-    if (timeUnit) timeUnit.textContent = type === 'cardio' ? '(min)' : '(sek)';
   }
 
   window.addRoutineExercise = function() {
-    addRoutineExerciseRow('new-routine-exercises-list');
+    addRoutineExerciseRow();
     document.querySelector('#new-routine-exercises-list .routine-exercise-row:last-child .routine-exercise-name')?.focus();
   };
 
-  function resetEditRoutineExerciseBuilder(exercises) {
-    const list = document.getElementById('edit-routine-exercises-list');
-    if (!list) return;
-
-    list.innerHTML = '';
-    const existingExercises = Array.isArray(exercises) ? exercises : [];
-    if (existingExercises.length === 0) {
-      addRoutineExerciseRow('edit-routine-exercises-list');
-      return;
-    }
-
-    existingExercises.forEach((exercise) => addRoutineExerciseRow('edit-routine-exercises-list', exercise));
-  }
-
-  window.addEditRoutineExercise = function() {
-    addRoutineExerciseRow('edit-routine-exercises-list');
-    document.querySelector('#edit-routine-exercises-list .routine-exercise-row:last-child .routine-exercise-name')?.focus();
-  };
-
-  function getRoutineExercisesFromList(listId) {
-    return Array.from(document.querySelectorAll(`#${listId} .routine-exercise-row`))
-      .map((row) => normalizeRoutineExercise({
-        name: row.querySelector('.routine-exercise-name')?.value || '',
-        measurementType: row.querySelector('.routine-exercise-type')?.value || '',
-        setCount: row.querySelector('.routine-exercise-set-count')?.value,
-        repRangeMin: row.querySelector('.routine-exercise-rep-min')?.value,
-        repRangeMax: row.querySelector('.routine-exercise-rep-max')?.value,
-        weightIncrement: row.querySelector('.routine-exercise-weight-increment')?.value,
-        timeIncrement: row.querySelector('.routine-exercise-time-increment')?.value,
-        restSeconds: row.querySelector('.routine-exercise-rest-seconds')?.value
-      }))
-      .filter((exercise) => exercise.name.length > 0);
-  }
-
-  function getRoutineExerciseValidationMessage(exercises) {
-    if (!Array.isArray(exercises) || exercises.length === 0) return 'Dodaj bar jednu vježbu u plan.';
-    if (exercises.length > 100) return 'Jedan plan može imati najviše 100 vježbi.';
-    if (exercises.some((exercise) => exercise.name.length > 100)) return 'Naziv vježbe može imati najviše 100 znakova.';
-    if (exercises.some((exercise) => !['weight_reps', 'reps', 'seconds', 'cardio'].includes(exercise.measurementType))) {
-      return 'Izaberi validan način praćenja za svaku vježbu.';
-    }
-    if (exercises.some((exercise) => ['weight_reps', 'reps'].includes(exercise.measurementType) && exercise.repRangeMin > exercise.repRangeMax)) {
-      return 'Prvi broj u rasponu ponavljanja ne može biti veći od drugog.';
-    }
-    return '';
-  }
-
   window.removeRoutineExercise = function(button) {
+    const list = document.getElementById('new-routine-exercises-list');
     const row = button?.closest('.routine-exercise-row');
-    const list = row?.parentElement;
     if (!list || !row) return;
     if (list.querySelectorAll('.routine-exercise-row').length <= 1) {
       row.querySelector('.routine-exercise-name').value = '';
@@ -1694,44 +1056,29 @@ window.handleAuthSubmit = async function(e) {
       return;
     }
 
-    const exercises = getRoutineExercisesFromList('new-routine-exercises-list');
-    const scheduleDays = [...document.querySelectorAll('input[name="new-routine-schedule"]:checked')].map((input) => input.value);
+    const exercises = Array.from(document.querySelectorAll('#new-routine-exercises-list .routine-exercise-row'))
+      .map((row) => ({
+        name: row.querySelector('.routine-exercise-name')?.value.trim() || '',
+        measurementType: row.querySelector('.routine-exercise-type')?.value || 'weight_reps'
+      }))
+      .filter((exercise) => exercise.name.length > 0);
     if (exercises.length === 0) {
       ShowToast('Dodaj bar jednu vježbu u plan.', 'error');
       return;
     }
-    const exerciseValidationMessage = getRoutineExerciseValidationMessage(exercises);
-    if (exerciseValidationMessage) {
-      ShowToast(exerciseValidationMessage, 'error');
-      return;
-    }
-    const finalEmoji = emojiInput || '';
+    const finalEmoji = emojiInput || getEmojiForRoutine(nameInput);
 
     const newRoutine = {
       userId: currentUser.uid,
       emoji: finalEmoji,
       name: nameInput,
       exercises,
-      createdAt: new Date().toISOString(),
-      isArchived: false,
-      isFavorite: false,
-      scheduleDays
+      createdAt: new Date().toISOString()
     };
 
     try {
       await addDoc(collection(db, "routines"), newRoutine);
       document.getElementById('createRoutineModal').style.display = 'none';
-      if (pendingGeneratedPlanId) {
-        generatedPlanSuggestions = generatedPlanSuggestions.filter((plan) => plan.id !== pendingGeneratedPlanId);
-        pendingGeneratedPlanId = null;
-        document.getElementById('return-to-generated-plans-button')?.setAttribute('hidden', '');
-        if (generatedPlanSuggestions.length) {
-          renderGeneratedPlanSuggestions();
-          document.getElementById('plan-generator-modal')?.style.setProperty('display', 'flex');
-          ShowToast('Plan je sačuvan. Sada pregledaj preostale prijedloge.');
-          return;
-        }
-      }
       ShowToast("Novi plan uspješno kreiran! 🔥");
     } catch (e) {
       ShowToast("Greška pri kreiranju: " + e.message, 'error');
@@ -1765,20 +1112,10 @@ window.handleAuthSubmit = async function(e) {
       const name = b.getAttribute('data-name');
       const notes = b.querySelector('.ex-note')?.value || '';
       const isCardio = b.getAttribute('data-is-cardio') === 'true';
-      const exerciseConfig = normalizeRoutineExercise({
-        name,
-        measurementType: b.getAttribute('data-measurement-type') || '',
-        setCount: b.getAttribute('data-set-count'),
-        repRangeMin: b.getAttribute('data-rep-range-min'),
-        repRangeMax: b.getAttribute('data-rep-range-max'),
-        weightIncrement: b.getAttribute('data-weight-increment'),
-        timeIncrement: b.getAttribute('data-time-increment'),
-        restSeconds: b.getAttribute('data-rest-seconds')
-      });
 
       if (isCardio) {
         draft.exercises.push({
-          ...exerciseConfig,
+          name,
           isCardio: true,
           minutes: b.getAttribute('data-minutes'),
           calories: b.getAttribute('data-calories'),
@@ -1786,14 +1123,11 @@ window.handleAuthSubmit = async function(e) {
         });
       } else {
         const sets = [];
-        const isDuration = exerciseConfig.measurementType === 'seconds';
-        const repsOnly = exerciseConfig.measurementType === 'reps';
+        const isDuration = isDurationExercise(name);
         b.querySelectorAll('.set-row').forEach((row, idx) => {
           if (idx === 0) return;
           if (isDuration) {
             sets.push({ seconds: row.querySelector('.set-seconds')?.value || '' });
-          } else if (repsOnly) {
-            sets.push({ reps: row.querySelector('.set-reps')?.value || '' });
           } else {
             sets.push({
               weight: row.querySelector('.set-kg')?.value || '',
@@ -1801,7 +1135,7 @@ window.handleAuthSubmit = async function(e) {
             });
           }
         });
-        draft.exercises.push({ ...exerciseConfig, sets, notes });
+        draft.exercises.push({ name, sets, notes });
       }
     });
 
@@ -1836,18 +1170,16 @@ window.handleAuthSubmit = async function(e) {
 
     draft.exercises.forEach((ex) => {
       const exName = typeof ex === 'string' ? ex : (ex.name || 'Vježba');
-      const exerciseConfig = normalizeRoutineExercise(ex);
-      const measurementType = exerciseConfig.measurementType;
+      const measurementType = getExerciseMeasurementType(ex, exName);
       const maxW = getMaxWeightFromHistory(exName);
-      const targetGoal = calculateTargetGoal(exerciseConfig);
-      const restTime = formatRestTime(exerciseConfig.restSeconds);
+      const targetGoal = calculateTargetGoal(exName);
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
       for (let i = 0; i < cachedHistory.length; i++) {
         const pastEx = cachedHistory[i].exercises?.find((item) => item.name === exName);
         if (pastEx) {
           if (pastEx.sets && pastEx.sets.length > 0) {
-            prevLogStr = pastEx.sets.map((set) => formatSetPerformance(set, exerciseConfig)).join(' | ');
+            prevLogStr = pastEx.sets.map((set) => formatSetPerformance(set, exName)).join(' | ');
           } else if (pastEx.minutes) {
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
@@ -1862,12 +1194,6 @@ window.handleAuthSubmit = async function(e) {
         card.setAttribute('data-name', exName);
         card.setAttribute('data-is-cardio', 'true');
         card.setAttribute('data-measurement-type', 'cardio');
-        card.setAttribute('data-set-count', exerciseConfig.setCount);
-        card.setAttribute('data-rest-seconds', exerciseConfig.restSeconds);
-        card.setAttribute('data-rep-range-min', exerciseConfig.repRangeMin);
-        card.setAttribute('data-rep-range-max', exerciseConfig.repRangeMax);
-        card.setAttribute('data-weight-increment', exerciseConfig.weightIncrement);
-        card.setAttribute('data-time-increment', exerciseConfig.timeIncrement);
         card.setAttribute('data-minutes', ex.minutes || '0');
         card.setAttribute('data-calories', ex.calories || '0');
 
@@ -1876,8 +1202,6 @@ window.handleAuthSubmit = async function(e) {
             <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(exName)} 🏃‍♂️</h3>
             <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
           </div>
-          ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
-          ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor: ${escapeHtml(restTime)}</small>` : ''}
           <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
             ${ex.minutes ? `⏱️ <strong>${escapeHtml(ex.minutes)} min</strong>` : ''} ${ex.calories ? ` · 🔥 <strong>${escapeHtml(ex.calories)} kcal</strong>` : ''}
           </div>
@@ -1892,12 +1216,6 @@ window.handleAuthSubmit = async function(e) {
         card.setAttribute('data-maxw', maxW);
         const isDuration = measurementType === 'seconds';
         card.setAttribute('data-measurement-type', measurementType);
-        card.setAttribute('data-set-count', exerciseConfig.setCount);
-        card.setAttribute('data-rest-seconds', exerciseConfig.restSeconds);
-        card.setAttribute('data-rep-range-min', exerciseConfig.repRangeMin);
-        card.setAttribute('data-rep-range-max', exerciseConfig.repRangeMax);
-        card.setAttribute('data-weight-increment', exerciseConfig.weightIncrement);
-        card.setAttribute('data-time-increment', exerciseConfig.timeIncrement);
 
         card.innerHTML = `
           <div class="flex-between">
@@ -1908,7 +1226,6 @@ window.handleAuthSubmit = async function(e) {
             </div>
           </div>
           ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
-          ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor između serija: ${escapeHtml(restTime)}</small>` : ''}
           <div class="prev-perf">
             Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
             ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
@@ -1934,10 +1251,8 @@ window.handleAuthSubmit = async function(e) {
             <span style="font-weight: 900; color: var(--primary);">${sIdx + 1}</span>
             ${isDuration
               ? `<input type="number" class="set-seconds" placeholder="sek" min="1" step="1" value="${escapeHtml(s.seconds ?? '')}"><span></span>`
-              : measurementType === 'reps'
-                ? `<span></span><input type="number" class="set-reps" placeholder="0" min="1" step="1" value="${escapeHtml(s.reps ?? '')}">`
-                : `<input type="number" class="set-kg" placeholder="0" step="0.5" value="${escapeHtml(s.weight ?? '')}">
-                   <input type="number" class="set-reps" placeholder="0" value="${escapeHtml(s.reps ?? '')}">`}
+              : `<input type="number" class="set-kg" placeholder="0" step="0.5" value="${escapeHtml(s.weight ?? '')}">
+                 <input type="number" class="set-reps" placeholder="0" value="${escapeHtml(s.reps ?? '')}">`}
             <button style="background:none; border:none; color: var(--danger); font-size: 1.3rem; cursor:pointer;" data-action="remove-set-row">×</button>
           `;
           setsContainer.appendChild(row);
@@ -2078,19 +1393,12 @@ window.handleAuthSubmit = async function(e) {
   function getExerciseMeasurementType(exercise, fallbackName = '') {
     const type = typeof exercise === 'object' ? exercise?.measurementType : '';
     if (['weight_reps', 'reps', 'seconds', 'cardio'].includes(type)) return type;
-    const libraryExercise = resolveLibraryExercise(exercise) || resolveLibraryExercise(fallbackName);
-    if (libraryExercise?.measurementType) return libraryExercise.measurementType;
     return isDurationExercise(typeof exercise === 'string' ? exercise : fallbackName) ? 'seconds' : 'weight_reps';
   }
 
-  function formatSetPerformance(set, exercise) {
-    const fallbackName = typeof exercise === 'string' ? exercise : (exercise?.name || '');
-    const measurementType = getExerciseMeasurementType(exercise, fallbackName);
-    if (measurementType === 'seconds' || (set.seconds !== undefined && set.seconds !== null)) {
+  function formatSetPerformance(set, exName) {
+    if (isDurationExercise(exName)) {
       return `${set.seconds ?? set.weight ?? 0} sek`;
-    }
-    if (measurementType === 'reps') {
-      return `${set.reps ?? 0} pon`;
     }
     if (set.weight === undefined || set.weight === null || set.weight === '') {
       return `${set.reps ?? 0} pon`;
@@ -2098,97 +1406,34 @@ window.handleAuthSubmit = async function(e) {
     return `${set.weight ?? 0}kg × ${set.reps ?? 0}`;
   }
 
-  function getLatestExerciseLog(exerciseName) {
+  function calculateTargetGoal(exName) {
     for (let i = 0; i < cachedHistory.length; i++) {
-      const match = cachedHistory[i].exercises?.find((item) => item.name === exerciseName);
-      if (match) return match;
+      const pastEx = cachedHistory[i].exercises?.find(e => e.name === exName);
+      if (pastEx && pastEx.sets && pastEx.sets.length >= 3) {
+        const s1 = pastEx.sets[0];
+        const s2 = pastEx.sets[1];
+        const s3 = pastEx.sets[2];
+
+        if (isDurationExercise(exName)) {
+          const previousSeconds = [s1, s2, s3].map((set) => parseInt(set.seconds ?? set.weight, 10) || 0);
+          const nextSeconds = previousSeconds[0] + 5;
+          if (getCurrentLanguage() === 'en') return `🎯 Today's goal: Try ${nextSeconds} seconds (Last time: ${previousSeconds.join('/')} sec)`;
+          if (getCurrentLanguage() === 'de') return `🎯 Heutiges Ziel: Versuche ${nextSeconds} Sekunden (Letztes Mal: ${previousSeconds.join('/')} Sek.)`;
+          return `🎯 Cilj danas: Pokušaj ${nextSeconds} sekundi (Prošli put: ${previousSeconds.join('/')} sek)`;
+        }
+        
+        if (s1.reps >= 12 && s2.reps >= 12 && s3.reps >= 12) {
+          if (getCurrentLanguage() === 'en') return `🎯 Today's goal: INCREASE WEIGHT to ${s1.weight + 2.5}kg! (Completed ${s1.weight}kg × 12/12/12)`;
+          if (getCurrentLanguage() === 'de') return `🎯 Heutiges Ziel: GEWICHT auf ${s1.weight + 2.5}kg ERHÖHEN! (Geschafft: ${s1.weight}kg × 12/12/12)`;
+          return `🎯 Cilj danas: POVEĆAJ KILAŽU na ${s1.weight + 2.5}kg! (Ispunjeno ${s1.weight}kg × 12/12/12)`;
+        } else {
+          if (getCurrentLanguage() === 'en') return `🎯 Today's goal: Try 12/12/12 at ${s1.weight}kg (Last time: ${s1.reps}/${s2.reps}/${s3.reps})`;
+          if (getCurrentLanguage() === 'de') return `🎯 Heutiges Ziel: Versuche 12/12/12 mit ${s1.weight}kg (Letztes Mal: ${s1.reps}/${s2.reps}/${s3.reps})`;
+          return `🎯 Cilj danas: Pokušaj 12/12/12 sa ${s1.weight}kg (Prošli put: ${s1.reps}/${s2.reps}/${s3.reps})`;
+        }
+      }
     }
     return null;
-  }
-
-  function formatRestTime(seconds) {
-    const safeSeconds = Math.max(0, Math.round(Number(seconds) || 0));
-    if (!safeSeconds) return '';
-    const minutes = Math.floor(safeSeconds / 60);
-    const remainder = safeSeconds % 60;
-    if (!minutes) return `${safeSeconds} sek`;
-    return remainder ? `${minutes} min ${remainder} sek` : `${minutes} min`;
-  }
-
-  function formatNextReps(reps, maximum) {
-    return reps.map((value) => Math.min(maximum, value + 1)).join('/');
-  }
-
-  function formatGoalText(kind, payload) {
-    const language = getCurrentLanguage();
-    if (kind === 'weight-increase') {
-      if (language === 'en') return `🎯 Goal: increase by ${payload.increment} kg to ${payload.nextWeight} kg. You reached ${payload.reps} reps in every set.`;
-      if (language === 'de') return `🎯 Ziel: Erhöhe um ${payload.increment} kg auf ${payload.nextWeight} kg. Du hast in jeder Serie ${payload.reps} Wiederholungen geschafft.`;
-      return `🎯 Cilj: povećaj za ${payload.increment} kg na ${payload.nextWeight} kg. U svakoj seriji si dostigao/la ${payload.reps} ponavljanja.`;
-    }
-    if (kind === 'weight-reps') {
-      if (language === 'en') return `🎯 Goal: stay at ${payload.weight} kg and aim for ${payload.nextReps} reps. Range: ${payload.minimum}–${payload.maximum}.`;
-      if (language === 'de') return `🎯 Ziel: Bleib bei ${payload.weight} kg und versuche ${payload.nextReps} Wiederholungen. Bereich: ${payload.minimum}–${payload.maximum}.`;
-      return `🎯 Cilj: ostani na ${payload.weight} kg i ciljaj ${payload.nextReps} ponavljanja. Raspon: ${payload.minimum}–${payload.maximum}.`;
-    }
-    if (kind === 'reps') {
-      if (language === 'en') return `🎯 Goal: aim for ${payload.nextReps} reps. Range: ${payload.minimum}–${payload.maximum}.`;
-      if (language === 'de') return `🎯 Ziel: Versuche ${payload.nextReps} Wiederholungen. Bereich: ${payload.minimum}–${payload.maximum}.`;
-      return `🎯 Cilj: ciljaj ${payload.nextReps} ponavljanja. Raspon: ${payload.minimum}–${payload.maximum}.`;
-    }
-    if (kind === 'seconds') {
-      if (language === 'en') return `🎯 Goal: try ${payload.target} seconds per set. Last time: ${payload.previous} sec.`;
-      if (language === 'de') return `🎯 Ziel: Versuche ${payload.target} Sekunden pro Serie. Letztes Mal: ${payload.previous} Sek.`;
-      return `🎯 Cilj: pokušaj ${payload.target} sekundi po seriji. Prošli put: ${payload.previous} sek.`;
-    }
-    if (kind === 'cardio') {
-      if (language === 'en') return `🎯 Goal: try ${payload.target} minutes. Last time: ${payload.previous} min.`;
-      if (language === 'de') return `🎯 Ziel: Versuche ${payload.target} Minuten. Letztes Mal: ${payload.previous} Min.`;
-      return `🎯 Cilj: pokušaj ${payload.target} minuta. Prošli put: ${payload.previous} min.`;
-    }
-    return null;
-  }
-
-  function calculateTargetGoal(exercise) {
-    const config = normalizeRoutineExercise(exercise);
-    const previous = getLatestExerciseLog(config.name);
-    if (!previous) return null;
-
-    if (config.measurementType === 'cardio') {
-      const minutes = Number(previous.minutes);
-      if (!Number.isFinite(minutes) || minutes <= 0) return null;
-      return formatGoalText('cardio', { previous: minutes, target: minutes + config.timeIncrement });
-    }
-
-    const sets = Array.isArray(previous.sets) ? previous.sets : [];
-    if (config.measurementType === 'seconds') {
-      const seconds = sets.map((set) => Number(set.seconds)).filter((value) => Number.isFinite(value) && value > 0);
-      if (!seconds.length) return null;
-      return formatGoalText('seconds', { previous: seconds.join('/'), target: Math.max(...seconds) + config.timeIncrement });
-    }
-
-    const reps = sets.map((set) => Number(set.reps)).filter((value) => Number.isFinite(value) && value > 0);
-    if (!reps.length) return null;
-    if (config.measurementType === 'reps') {
-      return formatGoalText('reps', { nextReps: formatNextReps(reps, config.repRangeMax), minimum: config.repRangeMin, maximum: config.repRangeMax });
-    }
-
-    const weightedSets = sets.filter((set) => Number.isFinite(Number(set.weight)) && Number(set.weight) > 0 && Number.isFinite(Number(set.reps)) && Number(set.reps) > 0);
-    if (!weightedSets.length) return null;
-    const weights = weightedSets.map((set) => Number(set.weight));
-    const highestWeight = Math.max(...weights);
-    const workingSets = weightedSets.filter((set) => Number(set.weight) === highestWeight);
-    const weightedReps = workingSets.map((set) => Number(set.reps));
-    if (weightedReps.every((value) => value >= config.repRangeMax)) {
-      const nextWeight = Math.round((highestWeight + config.weightIncrement) * 100) / 100;
-      return formatGoalText('weight-increase', { increment: config.weightIncrement, nextWeight, reps: config.repRangeMax });
-    }
-    return formatGoalText('weight-reps', {
-      weight: highestWeight,
-      nextReps: formatNextReps(weightedReps, config.repRangeMax),
-      minimum: config.repRangeMin,
-      maximum: config.repRangeMax
-    });
   }
 
   function renderActiveWorkoutUI(workout) {
@@ -2202,18 +1447,12 @@ window.handleAuthSubmit = async function(e) {
 
     container.innerHTML = workout.exercises.map((ex) => {
       const exName = typeof ex === 'string' ? ex : (ex.name || 'Vježba');
-      const exerciseConfig = normalizeRoutineExercise(ex);
-      const measurementType = exerciseConfig.measurementType;
+      const measurementType = getExerciseMeasurementType(ex, exName);
       const isDuration = measurementType === 'seconds';
-      const targetGoal = calculateTargetGoal(exerciseConfig);
-      const restTime = formatRestTime(exerciseConfig.restSeconds);
-      const plannedSetCount = exerciseConfig.measurementType === 'cardio' ? 1 : exerciseConfig.setCount;
       if (measurementType === 'cardio') {
         return `
-          <div class="card exercise-block custom-cardio-block" data-name="${escapeHtml(exName)}" data-is-cardio="true" data-measurement-type="cardio" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}" data-minutes="${escapeHtml(ex.minutes || '')}" data-calories="${escapeHtml(ex.calories || '')}">
+          <div class="card exercise-block custom-cardio-block" data-name="${escapeHtml(exName)}" data-is-cardio="true" data-measurement-type="cardio" data-minutes="${escapeHtml(ex.minutes || '')}" data-calories="${escapeHtml(ex.calories || '')}">
             <div class="flex-between"><h3 style="font-size:1.15rem;font-weight:800;color:var(--accent-purple);">${escapeHtml(exName)} 🏃</h3><button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button></div>
-            ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
-            ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor: ${escapeHtml(restTime)}</small>` : ''}
             <div class="cardio-input-grid"><label>Minute<input type="number" class="custom-input cardio-minutes" min="0" step="1" value="${escapeHtml(ex.minutes || '')}" placeholder="0"></label><label>Kalorije<input type="number" class="custom-input cardio-calories" min="0" step="1" value="${escapeHtml(ex.calories || '')}" placeholder="opcionalno"></label></div>
             <input type="text" class="note-input ex-note" value="${escapeHtml(ex.notes || '')}" placeholder="📝 Napomena (opcionalno)...">
           </div>
@@ -2222,12 +1461,13 @@ window.handleAuthSubmit = async function(e) {
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
       const maxW = getMaxWeightFromHistory(exName);
+      const targetGoal = calculateTargetGoal(exName);
       
       for (let i = 0; i < cachedHistory.length; i++) {
         const pastEx = cachedHistory[i].exercises?.find(e => e.name === exName);
         if (pastEx) {
           if (pastEx.sets && pastEx.sets.length > 0) {
-            prevLogStr = pastEx.sets.map(s => formatSetPerformance(s, exerciseConfig)).join(' | ');
+            prevLogStr = pastEx.sets.map(s => formatSetPerformance(s, exName)).join(' | ');
           } else if (pastEx.minutes) {
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
@@ -2237,7 +1477,7 @@ window.handleAuthSubmit = async function(e) {
       }
 
       return `
-          <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-maxw="${escapeHtml(maxW)}" data-measurement-type="${measurementType}" data-set-count="${escapeHtml(plannedSetCount)}" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}">
+          <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-maxw="${escapeHtml(maxW)}" data-measurement-type="${measurementType}">
           <div class="flex-between">
             <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(exName)}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
@@ -2246,7 +1486,6 @@ window.handleAuthSubmit = async function(e) {
             </div>
           </div>
           ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
-          ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor između serija: ${escapeHtml(restTime)}</small>` : ''}
           <div class="prev-perf">
             Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
             ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
@@ -2266,10 +1505,9 @@ window.handleAuthSubmit = async function(e) {
     }).join('');
 
     container.querySelectorAll('.exercise-block').forEach((block) => {
-      const plannedSetCount = Math.max(1, Math.min(10, Number(block.getAttribute('data-set-count')) || 3));
-      for (let index = 0; index < plannedSetCount; index += 1) {
-        addSetRowToBlock(block.querySelector('.btn-secondary'));
-      }
+      addSetRowToBlock(block.querySelector('.btn-secondary'));
+      addSetRowToBlock(block.querySelector('.btn-secondary'));
+      addSetRowToBlock(block.querySelector('.btn-secondary'));
     });
   }
 
@@ -2679,14 +1917,11 @@ window.handleAuthSubmit = async function(e) {
 
     const blocks = document.querySelectorAll('.exercise-block');
     const workoutId = createWorkoutId();
-    const startedAt = currentWorkout?.date ? new Date(currentWorkout.date).getTime() : Date.now();
-    const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
     const workoutData = { 
       userId: currentUser.uid,
       userEmail: currentUser.email,
       name: currentWorkout ? currentWorkout.name : "Trening", 
       date: new Date().toISOString(), 
-      durationSeconds,
       exercises: [] 
     };
 
@@ -2854,7 +2089,7 @@ function renderPendingSyncStatus() {
     const exercisesHtml = last.exercises.map(ex => {
       let contentHtml = '';
       if (ex.sets && ex.sets.length > 0) {
-        contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(formatSetPerformance(s, ex))}</span>`).join(' ');
+        contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(formatSetPerformance(s, ex.name))}</span>`).join(' ');
       } else if (ex.minutes || ex.calories) {
         contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? escapeHtml(ex.minutes) + ' min' : ''} ${ex.calories ? '· ' + escapeHtml(ex.calories) + ' kcal' : ''}</span>`;
       }
@@ -2895,7 +2130,7 @@ function renderPendingSyncStatus() {
           routines.push({
             name: currentRoutineName,
             emoji: getEmojiForRoutine(currentRoutineName),
-            exercises: currentExercises.map((exercise) => normalizeRoutineExercise(exercise))
+            exercises: [...currentExercises]
           });
         }
       }
@@ -2960,16 +2195,6 @@ function renderPendingSyncStatus() {
       return;
     }
 
-    const invalidRoutine = parsedRoutines.find((routine) =>
-      String(routine.name || '').trim().length === 0
-      || String(routine.name || '').trim().length > 120
-      || getRoutineExerciseValidationMessage(routine.exercises)
-    );
-    if (invalidRoutine) {
-      ShowToast('Jedan od uvezenih planova ima predug naziv, nevažeću vježbu ili više od 100 vježbi.', 'error');
-      return;
-    }
-
     let importedCount = 0;
 
     try {
@@ -3009,7 +2234,7 @@ function renderPendingSyncStatus() {
       const exercisesHtml = h.exercises.map(ex => {
         let contentHtml = '';
         if (ex.sets && ex.sets.length > 0) {
-          contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(formatSetPerformance(s, ex))}</span>`).join(' ');
+          contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(formatSetPerformance(s, ex.name))}</span>`).join(' ');
         } else if (ex.minutes || ex.calories) {
           contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? escapeHtml(ex.minutes) + ' min' : ''} ${ex.calories ? '· ' + escapeHtml(ex.calories) + ' kcal' : ''}</span>`;
         }
@@ -3035,144 +2260,9 @@ function renderPendingSyncStatus() {
     }).join('');
   }
 
-  function getWorkoutTime(workout) {
-    const timestamp = new Date(workout?.date || '').getTime();
-    return Number.isFinite(timestamp) ? timestamp : null;
-  }
-
-  function getWeekStart(timestamp = Date.now()) {
-    const date = new Date(timestamp);
-    const day = date.getDay() || 7;
-    date.setDate(date.getDate() - day + 1);
-    date.setHours(0, 0, 0, 0);
-    return date.getTime();
-  }
-
-  function getMonthStart(timestamp = Date.now(), offset = 0) {
-    const date = new Date(timestamp);
-    return new Date(date.getFullYear(), date.getMonth() + offset, 1).getTime();
-  }
-
-  function workoutsInRange(start, end) {
-    return cachedHistory.filter((workout) => {
-      const time = getWorkoutTime(workout);
-      return time !== null && time >= start && time < end;
-    });
-  }
-
-  function summarizeWorkouts(workouts) {
-    const summary = { workouts: workouts.length, sets: 0, volume: 0, durationSeconds: 0, durationCount: 0 };
-    workouts.forEach((workout) => {
-      const duration = Number(workout.durationSeconds);
-      if (Number.isFinite(duration) && duration >= 0) {
-        summary.durationSeconds += duration;
-        summary.durationCount += 1;
-      }
-      workout.exercises?.forEach((exercise) => {
-        const sets = Array.isArray(exercise.sets) ? exercise.sets : [];
-        summary.sets += sets.length;
-        sets.forEach((set) => {
-          const weight = Number(set.weight);
-          const reps = Number(set.reps);
-          if (Number.isFinite(weight) && weight > 0 && Number.isFinite(reps) && reps > 0) summary.volume += weight * reps;
-        });
-      });
-    });
-    return summary;
-  }
-
-  function formatAnalyticsNumber(value) {
-    return new Intl.NumberFormat(getCurrentLanguage?.() === 'de' ? 'de-DE' : 'sr-Latn-RS', { maximumFractionDigits: 0 }).format(Math.round(value || 0));
-  }
-
-  function formatWorkoutDuration(seconds) {
-    const safe = Math.max(0, Math.round(Number(seconds) || 0));
-    if (!safe) return 'Nema podatka';
-    const hours = Math.floor(safe / 3600);
-    const minutes = Math.floor((safe % 3600) / 60);
-    if (hours) return `${hours} h ${minutes} min`;
-    return `${Math.max(1, minutes)} min`;
-  }
-
-  function comparisonItem(label, currentValue, previousValue, formatter = formatAnalyticsNumber) {
-    const hasPrevious = previousValue > 0;
-    const difference = currentValue - previousValue;
-    const state = !hasPrevious || difference === 0 ? 'analytics-delta-neutral' : difference > 0 ? 'analytics-delta-positive' : 'analytics-delta-negative';
-    const differenceText = formatter(Math.abs(difference));
-    const detail = !hasPrevious
-      ? 'Nema ranijeg perioda'
-      : difference === 0
-        ? 'Isto kao prethodni period'
-        : `${difference > 0 ? '+' : '−'}${differenceText} u odnosu na prethodni period`;
-    return `<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(formatter(currentValue))}</strong><small class="${state}">${escapeHtml(detail)}</small></div>`;
-  }
-
-  function getExerciseRecordValue(exercise) {
-    const sets = Array.isArray(exercise?.sets) ? exercise.sets : [];
-    const weights = sets.map((set) => Number(set.weight)).filter((value) => Number.isFinite(value) && value > 0);
-    if (weights.length) return { value: Math.max(...weights), unit: 'kg' };
-    const seconds = sets.map((set) => Number(set.seconds)).filter((value) => Number.isFinite(value) && value > 0);
-    if (seconds.length) return { value: Math.max(...seconds), unit: 'sek' };
-    const reps = sets.map((set) => Number(set.reps)).filter((value) => Number.isFinite(value) && value > 0);
-    return reps.length ? { value: Math.max(...reps), unit: 'pon' } : null;
-  }
-
-  function getPersonalRecords() {
-    const records = new Map();
-    [...cachedHistory].sort((a, b) => (getWorkoutTime(a) || 0) - (getWorkoutTime(b) || 0)).forEach((workout) => {
-      workout.exercises?.forEach((exercise) => {
-        const result = getExerciseRecordValue(exercise);
-        if (!result || !exercise?.name) return;
-        const current = records.get(exercise.name);
-        if (!current || current.unit !== result.unit || result.value > current.value) {
-          records.set(exercise.name, { name: exercise.name, ...result, date: workout.date, wasImprovement: Boolean(current) });
-        }
-      });
-    });
-    return Array.from(records.values());
-  }
-
-  function renderAnalyticsOverview() {
-    const root = document.getElementById('analytics-overview');
-    if (!root) return;
-    if (!cachedHistory.length) {
-      root.innerHTML = '<div class="card body-empty-state">Sačuvaj prvi trening da bi se ovdje prikazali poređenja perioda, lični rekordi i mjesečni sažetak.</div>';
-      return;
-    }
-
-    const now = Date.now();
-    const thisWeekStart = getWeekStart(now);
-    const lastWeekStart = thisWeekStart - (7 * 86400000);
-    const thisMonthStart = getMonthStart(now);
-    const lastMonthStart = getMonthStart(now, -1);
-    const thisWeek = summarizeWorkouts(workoutsInRange(thisWeekStart, now + 1));
-    const lastWeek = summarizeWorkouts(workoutsInRange(lastWeekStart, thisWeekStart));
-    const thisMonth = summarizeWorkouts(workoutsInRange(thisMonthStart, now + 1));
-    const lastMonth = summarizeWorkouts(workoutsInRange(lastMonthStart, thisMonthStart));
-    const exerciseNames = new Set();
-    cachedHistory.forEach((workout) => workout.exercises?.forEach((exercise) => { if (exercise?.name) exerciseNames.add(exercise.name); }));
-    const records = getPersonalRecords();
-    const recordsThisMonth = records.filter((record) => record.wasImprovement && (getWorkoutTime({ date: record.date }) || 0) >= thisMonthStart).length;
-    const recentRecords = [...records].sort((a, b) => (getWorkoutTime({ date: b.date }) || 0) - (getWorkoutTime({ date: a.date }) || 0)).slice(0, 5);
-    const coverageNote = cachedHistory.length >= 30
-      ? 'Pregled koristi posljednjih 30 sačuvanih treninga.'
-      : 'Pregled koristi sve trenutno učitane treninge.';
-
-    root.innerHTML = `
-      <div class="analytics-period-grid">
-        <article class="analytics-summary-card"><span class="settings-eyebrow">POREĐENJE SEDMICE</span><h3>Ova i prošla sedmica</h3><div class="analytics-comparison-grid">${comparisonItem('Treninzi', thisWeek.workouts, lastWeek.workouts)}${comparisonItem('Serije', thisWeek.sets, lastWeek.sets)}${comparisonItem('Volumen (kg)', thisWeek.volume, lastWeek.volume)}${comparisonItem('Vrijeme', thisWeek.durationSeconds, lastWeek.durationSeconds, formatWorkoutDuration)}</div></article>
-        <article class="analytics-summary-card"><span class="settings-eyebrow">POREĐENJE MJESECA</span><h3>Ovaj i prošli mjesec</h3><div class="analytics-comparison-grid">${comparisonItem('Treninzi', thisMonth.workouts, lastMonth.workouts)}${comparisonItem('Serije', thisMonth.sets, lastMonth.sets)}${comparisonItem('Volumen (kg)', thisMonth.volume, lastMonth.volume)}${comparisonItem('Vrijeme', thisMonth.durationSeconds, lastMonth.durationSeconds, formatWorkoutDuration)}</div></article>
-      </div>
-      <article class="analytics-summary-card"><span class="settings-eyebrow">UKUPAN PREGLED</span><h3>Tvoji učitani treninzi</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Različite vježbe</small><strong>${exerciseNames.size}</strong></div><div class="analytics-highlight"><small>Sačuvani treninzi</small><strong>${cachedHistory.length}</strong></div><div class="analytics-highlight"><small>Ukupan volumen</small><strong>${formatAnalyticsNumber(summarizeWorkouts(cachedHistory).volume)} kg</strong></div></div><p>${coverageNote}</p></article>
-      <article class="analytics-summary-card"><span class="settings-eyebrow">MJESEČNI SAŽETAK</span><h3>${escapeHtml(new Intl.DateTimeFormat('sr-Latn-RS', { month: 'long', year: 'numeric' }).format(new Date(now)))}</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Završeni treninzi</small><strong>${thisMonth.workouts}</strong></div><div class="analytics-highlight"><small>Ukupne serije</small><strong>${thisMonth.sets}</strong></div><div class="analytics-highlight"><small>Novi lični rekordi</small><strong>${recordsThisMonth}</strong></div></div><p>${thisMonth.durationCount ? `Zabilježeno vrijeme treninga: ${formatWorkoutDuration(thisMonth.durationSeconds)}.` : 'Vrijeme treninga će se početi prikazivati nakon narednog sačuvanog treninga.'}</p></article>
-      <article class="analytics-summary-card"><span class="settings-eyebrow">LIČNI REKORDI</span><h3>Najbolji zabilježeni rezultati</h3>${recentRecords.length ? `<ul class="analytics-pr-list">${recentRecords.map((record) => `<li><strong>${escapeHtml(record.name)}</strong><span>${escapeHtml(formatAnalyticsNumber(record.value))} ${record.unit}</span></li>`).join('')}</ul>` : '<p>Nema dovoljno podataka za lične rekorde.</p>'}</article>
-    `;
-  }
-
   function setupAnalyticsUI() {
     const select = document.getElementById('analytics-ex-select');
     if (!select) return;
-    renderAnalyticsOverview();
     const exercisesSet = new Set();
 
     cachedHistory.forEach(h => {
@@ -3206,7 +2296,6 @@ function renderPendingSyncStatus() {
 
     const labels = [];
     const dataPoints = [];
-    const dataEntries = [];
 
     const reversedHistory = [...cachedHistory].reverse().filter((h) => !periodMs || (now - new Date(h.date).getTime()) <= periodMs);
 
@@ -3226,7 +2315,6 @@ function renderPendingSyncStatus() {
           const dateLabel = formatDateClean(h.date, false);
           labels.push(dateLabel);
           dataPoints.push(value);
-          dataEntries.push(h);
         }
       }
     });
@@ -3260,48 +2348,9 @@ function renderPendingSyncStatus() {
           y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
           x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } }
         },
-        plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'Plus Jakarta Sans' } } }, tooltip: { callbacks: { title: (items) => dataEntries[items[0]?.dataIndex] ? formatDateClean(dataEntries[items[0].dataIndex].date, true) : '' } } }
+        plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'Plus Jakarta Sans' } } }, tooltip: { callbacks: { title: (items) => reversedHistory[items[0]?.dataIndex] ? formatDateClean(reversedHistory[items[0].dataIndex].date, true) : '' } } }
       }
     });
-  };
-
-  window.exportUserData = async function() {
-    if (!currentUser) return;
-    const button = document.querySelector('[data-action="export-user-data"]');
-    if (button) { button.disabled = true; button.textContent = 'Pripremam…'; }
-
-    try {
-      const userId = currentUser.uid;
-      const [profileSnapshot, routinesSnapshot, workoutsSnapshot, measurementsSnapshot] = await Promise.all([
-        getDoc(doc(db, 'users', userId)),
-        getDocs(query(collection(db, 'routines'), where('userId', '==', userId))),
-        getDocs(query(collection(db, 'workouts'), where('userId', '==', userId))),
-        getDocs(query(collection(db, 'bodyMeasurements'), where('userId', '==', userId)))
-      ]);
-      const payload = {
-        app: 'GymLeader',
-        exportedAt: new Date().toISOString(),
-        profile: profileSnapshot.exists() ? profileSnapshot.data() : null,
-        routines: routinesSnapshot.docs.map((item) => item.data()),
-        workouts: workoutsSnapshot.docs.map((item) => item.data()),
-        bodyMeasurements: measurementsSnapshot.docs.map((item) => item.data())
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
-      const downloadUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `gymleader-podaci-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(downloadUrl);
-      ShowToast('Podaci su preuzeti na tvoj uređaj.');
-    } catch (error) {
-      console.error('User data export diagnostic:', error);
-      ShowToast('Izvoz trenutno nije moguće pripremiti. Provjeri internet i pokušaj ponovo.', 'error');
-    } finally {
-      if (button) { button.disabled = false; button.textContent = 'Preuzmi moje podatke'; }
-    }
   };
 
   window.ShowToast = function(message, type = 'success') {
@@ -3331,94 +2380,24 @@ function renderPendingSyncStatus() {
     return currentProfileData?.bodyTrackingEnabled !== false;
   }
 
-  function getBodyMeasurementsCacheKey(userId) {
-    return `gym_body_measurements_cache_v${BODY_MEASUREMENTS_CACHE_VERSION}_${userId}`;
-  }
-
-  function readBodyMeasurementsCache(userId) {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(getBodyMeasurementsCacheKey(userId)) || 'null');
-      if (!parsed || !Array.isArray(parsed.items)) return null;
-      return { savedAt: Number(parsed.savedAt) || 0, items: parsed.items };
-    } catch {
-      return null;
-    }
-  }
-
-  function writeBodyMeasurementsCache(userId, items) {
-    try {
-      localStorage.setItem(getBodyMeasurementsCacheKey(userId), JSON.stringify({ savedAt: Date.now(), items }));
-    } catch (error) {
-      console.warn('Lokalni cache mjerenja nije mogao biti sačuvan:', error);
-    }
-  }
-
-  async function loadBodyMeasurements({ force = false } = {}) {
+  async function loadBodyMeasurements() {
     if (!currentUser) return;
     if (!bodyTrackingEnabled()) {
       bodyMeasurements = [];
       renderBodyMeasurements();
       return;
     }
-
-    const cached = readBodyMeasurementsCache(currentUser.uid);
-    if (cached) {
-      bodyMeasurements = [...cached.items].sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)));
-      renderBodyMeasurements();
-      if (!force && Date.now() - cached.savedAt < BODY_MEASUREMENTS_CACHE_TTL_MS) return;
-    }
-
     try {
       const snapshot = await getDocs(query(collection(db, 'bodyMeasurements'), where('userId', '==', currentUser.uid)));
       bodyMeasurements = snapshot.docs
         .map((item) => ({ id: item.id, ...item.data() }))
         .sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)));
-      writeBodyMeasurementsCache(currentUser.uid, bodyMeasurements);
       renderBodyMeasurements();
     } catch (error) {
       console.error('Body measurements load diagnostic:', error);
       const status = document.getElementById('body-measurements-status');
       if (status) status.textContent = 'Mjerenja trenutno nije moguće učitati.';
     }
-  }
-
-  function getBodyMetricChange(key, days = null) {
-    const rows = bodyMeasurements
-      .filter((item) => item[key] != null && item[key] !== '' && Number.isFinite(Number(item[key])) && item.measuredAt)
-      .sort((first, second) => String(second.measuredAt).localeCompare(String(first.measuredAt)));
-    if (!rows.length) return null;
-    const latest = rows[0];
-    const latestTime = new Date(`${latest.measuredAt.slice(0, 10)}T12:00:00`).getTime();
-    const baseline = days == null
-      ? rows.slice(1)[0]
-      : rows.filter((item) => new Date(`${item.measuredAt.slice(0, 10)}T12:00:00`).getTime() <= latestTime - days * 86400000)[0];
-    return {
-      value: Number(latest[key]),
-      delta: baseline ? Number((Number(latest[key]) - Number(baseline[key])).toFixed(1)) : null
-    };
-  }
-
-  function renderBodyMeasurementsSummary(root) {
-    if (!root) return;
-    const metrics = [
-      { key: 'weightKg', label: 'Težina', unit: 'kg' },
-      { key: 'waistCm', label: 'Struk', unit: 'cm' },
-      { key: 'chestCm', label: 'Grudi', unit: 'cm' },
-      { key: 'armCm', label: 'Ruka', unit: 'cm' },
-      { key: 'legCm', label: 'Noga', unit: 'cm' },
-      { key: 'hipsCm', label: 'Kukovi', unit: 'cm' }
-    ];
-    const formatDelta = (record, unit) => record?.delta == null ? '—' : `${record.delta > 0 ? '+' : ''}${record.delta.toFixed(1)} ${unit}`;
-    const cards = metrics.map((metric) => {
-      const overall = getBodyMetricChange(metric.key);
-      if (!overall) return '';
-      const week = getBodyMetricChange(metric.key, 7);
-      const month = getBodyMetricChange(metric.key, 30);
-      const state = overall.delta == null ? 'is-neutral' : overall.delta > 0 ? 'is-positive' : 'is-negative';
-      return `<article class="body-measurement-summary-card"><div><small>${escapeHtml(metric.label)}</small><strong>${overall.value.toFixed(1)} ${metric.unit}</strong><em class="${state}">${escapeHtml(formatDelta(overall, metric.unit))} od početka</em></div><dl><div><dt>Sedmica</dt><dd>${escapeHtml(formatDelta(week, metric.unit))}</dd></div><div><dt>Mjesec</dt><dd>${escapeHtml(formatDelta(month, metric.unit))}</dd></div></dl></article>`;
-    }).filter(Boolean).join('');
-    if (!cards) return;
-    root.querySelector('.body-silhouette-card')?.insertAdjacentHTML('beforeend', `<section class="body-measurements-summary" aria-label="Pregled svih mjera"><div class="body-measurements-summary-heading"><div><span class="settings-eyebrow">SVE MJERE</span><h4>Pregled promjena</h4></div><p>Uporedi svaku unesenu mjeru za sedmicu, mjesec i od početka.</p></div><div class="body-measurements-summary-grid">${cards}</div></section>`);
   }
 
   function renderBodyMeasurements() {
@@ -3455,25 +2434,8 @@ function renderPendingSyncStatus() {
       const manual=metric?`<div class="body-manual-result"><span class="body-manual-icon" aria-hidden="true">↗</span><div><small>${selected.label}</small><strong>${metric.value.toFixed(1)} cm</strong><em class="${metric.delta==null?'is-neutral':metric.delta>0?'is-positive':'is-negative'}">${escapeHtml(metric.delta==null?'Prvo mjerenje':`${sign(metric.delta)} cm od početka`)}</em></div></div><div class="body-manual-periods"><div><small>Ove sedmice</small><strong>${escapeHtml(sign(week?.delta))} ${week?'cm':''}</strong></div><div><small>Ovaj mjesec</small><strong>${escapeHtml(sign(month?.delta))} ${month?'cm':''}</strong></div></div>`:`<p class="body-empty-state body-manual-empty">Još nema mjerenja za ${selected.label.toLowerCase()}. Dodaj mjeru da bi se napredak prikazao.</p>`;
       root.innerHTML=`<div class="card body-silhouette-card ${female?'body-gender-female':'body-gender-male'}"><div class="body-auto-heading"><span class="settings-eyebrow">TVOJ PREGLED</span><h3>Šta se promijenilo</h3><p>Prikazujemo samo mjere koje si unio/la. Izaberi kako želiš pregledati napredak.</p></div><div class="body-view-switch" role="group" aria-label="Način prikaza"><button type="button" data-action="set-body-progress-mode" data-mode="silhouette" aria-pressed="${mode==='silhouette'}">Silueta</button><button type="button" data-action="set-body-progress-mode" data-mode="manual" aria-pressed="${mode==='manual'}">Izaberi mjeru</button></div><div class="body-progress-views ${mode==='manual'?'is-manual':''}"><section class="body-silhouette-view" aria-label="Napredak na silueti"><div class="body-silhouette-stage">${svg}<div class="body-callouts">${callouts||'<p class="body-empty-state">Dodaj mjerenje obima da vidiš napredak uz siluetu.</p>'}</div></div>${weightCard}</section><section class="body-manual-view" aria-label="Ručno izabrana mjera">${select}${manual}</section></div></div>`;
     }
-    if (bodyTrackingEnabled() && bodyMeasurements.length) renderBodyMeasurementsSummary(root);
     const list=document.getElementById('body-measurements-list');
-    const editToggle = document.getElementById('body-measurements-edit-toggle');
-    if (editToggle) {
-      editToggle.textContent = bodyMeasurementsEditMode ? '✓ Gotovo' : '✎ Uredi';
-      editToggle.setAttribute('aria-pressed', String(bodyMeasurementsEditMode));
-      editToggle.setAttribute('aria-label', bodyMeasurementsEditMode ? 'Završi uređivanje mjerenja' : 'Uredi sačuvana mjerenja');
-      editToggle.title = bodyMeasurementsEditMode ? 'Gotovo' : 'Uredi sačuvana mjerenja';
-    }
-    if (list) list.innerHTML = bodyMeasurements.length
-      ? bodyMeasurements.map((item) => {
-        const values = [
-          item.weightKg != null && `Težina ${item.weightKg} kg`, item.waistCm != null && `struk ${item.waistCm} cm`,
-          item.chestCm != null && `grudi ${item.chestCm} cm`, item.armCm != null && `ruka ${item.armCm} cm`,
-          item.legCm != null && `noga ${item.legCm} cm`, item.hipsCm != null && `kukovi ${item.hipsCm} cm`
-        ].filter(Boolean).join(' · ');
-        return `<li class="body-measurement-item"><div class="body-measurement-item-copy"><strong>${escapeHtml(formatDateClean(item.measuredAt))}</strong><span>${escapeHtml(values || 'Bez unesenih vrijednosti')}${item.note ? `<small>${escapeHtml(item.note)}</small>` : ''}</span></div><div class="body-measurement-actions" ${bodyMeasurementsEditMode ? '' : 'hidden'}><button class="btn btn-secondary" type="button" data-action="edit-body-measurement" data-measurement-id="${escapeHtml(item.id)}">Uredi</button><button class="btn btn-danger" type="button" data-action="delete-body-measurement" data-measurement-id="${escapeHtml(item.id)}">Obriši</button></div></li>`;
-      }).join('')
-      : '<li class="body-empty-state">Nema sačuvanih mjerenja. Dodaj prvo mjerenje da pratiš promjene kroz vrijeme.</li>';
+    if(list) list.innerHTML=bodyMeasurements.slice(0,12).map(x=>`<li><strong>${escapeHtml(formatDateClean(x.measuredAt))}</strong><span>${x.weightKg!=null?`${x.weightKg} kg`:''}${x.waistCm!=null?` · struk ${x.waistCm} cm`:''}</span></li>`).join('')||'<li class="body-empty-state">Nema sačuvanih mjerenja.</li>';
     renderBodyChart();
   }
 
@@ -3497,123 +2459,30 @@ function renderPendingSyncStatus() {
 
   window.openBodyMeasurementModal = function() {
     if (!bodyTrackingEnabled()) { ShowToast('Praćenje tijela je isključeno u Podešavanjima.'); return; }
-    editingBodyMeasurementId = null;
-    document.querySelectorAll('#body-measurement-modal input, #body-measurement-modal textarea').forEach((input) => { input.value = ''; });
     const date = document.getElementById('body-measured-at');
-    if (date) date.value = new Date().toISOString().slice(0, 10);
-    document.getElementById('body-measurement-title').textContent = 'Dodaj mjerenje';
-    document.getElementById('body-measurement-save-button').textContent = 'Sačuvaj mjerenje';
-    document.getElementById('body-measurement-delete-button').hidden = true;
-    document.getElementById('body-measurement-status').textContent = '';
-    document.getElementById('body-measurement-modal')?.style.setProperty('display', 'flex');
-  };
-
-  async function resolveBodyMeasurementRecord(measurementId) {
-    let item = bodyMeasurements.find((measurement) => measurement.id === measurementId);
-    if (item?.id?.startsWith('local-')) {
-      const cachedItem = item;
-      await loadBodyMeasurements({ force: true });
-      const keys = ['measuredAt', 'weightKg', 'waistCm', 'chestCm', 'armCm', 'legCm', 'hipsCm', 'note'];
-      item = bodyMeasurements.find((measurement) => keys.every((key) => (measurement[key] ?? '') === (cachedItem[key] ?? '')));
-    }
-    return item && !item.id?.startsWith('local-') ? item : null;
-  }
-
-  window.openBodyMeasurementForEdit = async function(measurementId) {
-    if (!currentUser || !bodyTrackingEnabled()) return;
-    const item = await resolveBodyMeasurementRecord(measurementId);
-    if (!item) { ShowToast('Ovo mjerenje nije pronađeno.', 'error'); return; }
-    editingBodyMeasurementId = item.id;
-    const fields = { weightKg: 'body-weight', waistCm: 'body-waist', chestCm: 'body-chest', armCm: 'body-arm', legCm: 'body-leg', hipsCm: 'body-hips' };
-    document.getElementById('body-measured-at').value = item.measuredAt || '';
-    Object.entries(fields).forEach(([key, id]) => { document.getElementById(id).value = item[key] ?? ''; });
-    document.getElementById('body-note').value = item.note || '';
-    document.getElementById('body-measurement-title').textContent = 'Uredi mjerenje';
-    document.getElementById('body-measurement-save-button').textContent = 'Sačuvaj promjene';
-    document.getElementById('body-measurement-delete-button').hidden = false;
-    document.getElementById('body-measurement-status').textContent = '';
+    if (date && !date.value) date.value = new Date().toISOString().slice(0, 10);
     document.getElementById('body-measurement-modal')?.style.setProperty('display', 'flex');
   };
 
   window.saveBodyMeasurement = async function() {
     if (!currentUser || !bodyTrackingEnabled()) return;
     const fields = { weightKg: 'body-weight', waistCm: 'body-waist', chestCm: 'body-chest', armCm: 'body-arm', legCm: 'body-leg', hipsCm: 'body-hips' };
-    const date = document.getElementById('body-measured-at')?.value || '';
-    const data = { userId: currentUser.uid, measuredAt: date, note: document.getElementById('body-note')?.value.trim() || '' };
-    const bounds = { weightKg: [25, 400], waistCm: [30, 250], chestCm: [30, 250], armCm: [10, 100], legCm: [20, 150], hipsCm: [30, 250] };
-    for (const [key, id] of Object.entries(fields)) {
-      const raw = document.getElementById(id)?.value.trim();
-      if (!raw) continue;
-      const value = Number(raw), [min, max] = bounds[key];
-      if (!Number.isFinite(value) || value < min || value > max) { ShowToast(`Provjeri unesenu vrijednost za ${key === 'weightKg' ? 'težinu' : 'obim'}.`, 'error'); return; }
-      data[key] = value;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T12:00:00`).getTime())) { ShowToast('Izaberi ispravan datum mjerenja.', 'error'); return; }
-    if (!Object.keys(bounds).some((key) => data[key] != null)) { ShowToast('Unesi barem jednu vrijednost.', 'error'); return; }
-    const button = document.getElementById('body-measurement-save-button');
+    const data = { userId: currentUser.uid, measuredAt: document.getElementById('body-measured-at')?.value || new Date().toISOString().slice(0, 10), note: document.getElementById('body-note')?.value.trim() || '' };
+    Object.entries(fields).forEach(([key, id]) => { const value = Number(document.getElementById(id)?.value); if (Number.isFinite(value) && value > 0) data[key] = value; });
+    if (Object.keys(data).filter((key) => ['weightKg', 'waistCm', 'chestCm', 'armCm', 'legCm', 'hipsCm'].includes(key)).length === 0) { ShowToast('Unesi barem jednu vrijednost.', 'error'); return; }
+    const button = document.querySelector('[data-action="save-body-measurement"]');
     if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
     try {
-      if (editingBodyMeasurementId) {
-        const id = editingBodyMeasurementId;
-        await setDoc(doc(db, 'bodyMeasurements', id), data);
-        bodyMeasurements = bodyMeasurements.map((item) => item.id === id ? { ...item, ...data } : item).sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)));
-      } else {
-        const saved = await addDoc(collection(db, 'bodyMeasurements'), data);
-        bodyMeasurements = [...bodyMeasurements, { id: saved.id, ...data }].sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)));
-      }
-      writeBodyMeasurementsCache(currentUser.uid, bodyMeasurements);
+      await addDoc(collection(db, 'bodyMeasurements'), data);
+      bodyMeasurements.unshift({ id: `local-${Date.now()}`, ...data });
       document.getElementById('body-measurement-modal').style.display = 'none';
-      editingBodyMeasurementId = null;
-      document.querySelectorAll('#body-measurement-modal input, #body-measurement-modal textarea').forEach((input) => { input.value = ''; });
+      document.querySelectorAll('#body-measurement-modal input, #body-measurement-modal textarea').forEach((input) => { if (input.type !== 'date') input.value = ''; });
       renderBodyMeasurements();
       ShowToast('Mjerenje je sačuvano.');
     } catch (error) {
       console.error('Body measurement save diagnostic:', error);
       ShowToast('Mjerenje nije moguće sačuvati. Provjeri internet i pokušaj ponovo.', 'error');
-    } finally { if (button) { button.disabled = false; button.textContent = editingBodyMeasurementId ? 'Sačuvaj promjene' : 'Sačuvaj mjerenje'; } }
-  };
-
-  window.deleteBodyMeasurement = async function(measurementId) {
-    if (!currentUser || !measurementId) return;
-    const item = await resolveBodyMeasurementRecord(measurementId);
-    if (!item) { ShowToast('Ovo mjerenje nije pronađeno.', 'error'); return; }
-    pendingBodyMeasurementDeleteId = item.id;
-    const modal = document.getElementById('body-measurement-delete-modal');
-    const date = document.getElementById('body-measurement-delete-date');
-    if (date) date.textContent = formatDateClean(item.measuredAt);
-    if (modal) modal.style.display = 'flex';
-  };
-
-  window.confirmBodyMeasurementDelete = async function() {
-    const measurementId = pendingBodyMeasurementDeleteId;
-    if (!measurementId || !currentUser) return;
-    const modal = document.getElementById('body-measurement-delete-modal');
-    const button = document.getElementById('confirm-body-measurement-delete');
-    if (button) button.disabled = true;
-    try {
-      await deleteDoc(doc(db, 'bodyMeasurements', measurementId));
-      bodyMeasurements = bodyMeasurements.filter((measurement) => measurement.id !== measurementId);
-      writeBodyMeasurementsCache(currentUser.uid, bodyMeasurements);
-      if (editingBodyMeasurementId === measurementId) {
-        document.getElementById('body-measurement-modal').style.display = 'none';
-        editingBodyMeasurementId = null;
-      }
-      if (modal) modal.style.display = 'none';
-      pendingBodyMeasurementDeleteId = null;
-      renderBodyMeasurements();
-      ShowToast('Mjerenje je obrisano.');
-    } catch (error) {
-      console.error('Body measurement delete diagnostic:', error);
-      ShowToast('Mjerenje nije moguće obrisati. Provjeri internet i pokušaj ponovo.', 'error');
-    } finally {
-      if (button) button.disabled = false;
-    }
-  };
-
-  window.cancelBodyMeasurementDelete = function() {
-    pendingBodyMeasurementDeleteId = null;
-    const modal = document.getElementById('body-measurement-delete-modal');
-    if (modal) modal.style.display = 'none';
+    } finally { if (button) { button.disabled = false; button.textContent = 'Sačuvaj mjerenje'; } }
   };
 
   async function setBodyTrackingEnabled(enabled) {
@@ -3647,104 +2516,7 @@ function renderPendingSyncStatus() {
     return setBodyTrackingEnabled(document.getElementById('settings-body-tracking-toggle')?.checked === true);
   };
 
-  function setRequiredProfileFieldVisible(id, visible) {
-    const field = document.getElementById(id);
-    if (!field) return;
-    const label = document.querySelector(`label[for="${id}"]`);
-    [field, label].filter(Boolean).forEach((element) => {
-      element.hidden = !visible;
-    });
-    const preferenceButton = field.nextElementSibling?.matches('.profile-preference-none') ? field.nextElementSibling : null;
-    if (preferenceButton) preferenceButton.hidden = !visible;
-  }
-
-  function ensureProfilePreferenceMarkup(modal) {
-    const section = modal?.querySelector('.profile-preferences-section');
-    if (!section || section.dataset.ready === 'true') return;
-    section.innerHTML = `
-      <span class="settings-label">Preferencije za buduće prijedloge</span>
-      <p class="profile-modal-help">Odgovori na svako polje ili izaberi opciju „Nemam“.</p>
-      <label class="settings-label" for="required-profile-preferred-exercises">Vježbe koje želiš raditi</label>
-      <textarea id="required-profile-preferred-exercises" class="custom-input" rows="2" maxlength="1000" placeholder="npr. čučanj, bench press, zgibovi"></textarea>
-      <button class="profile-preference-none" type="button" data-action="set-profile-preference" data-target="required-profile-preferred-exercises" data-value="Nemam posebne vježbe koje želim.">Nemam posebnu želju</button>
-      <label class="settings-label" for="required-profile-avoided-exercises">Vježbe koje želiš izbjegavati</label>
-      <textarea id="required-profile-avoided-exercises" class="custom-input" rows="2" maxlength="1000" placeholder="npr. čučanj, mrtvo dizanje ili bench press"></textarea>
-      <button class="profile-preference-none" type="button" data-action="set-profile-preference" data-target="required-profile-avoided-exercises" data-value="Nemam vježbi koje izbjegavam.">Nemam vježbi koje izbjegavam</button>
-      <label class="settings-label" for="required-profile-food-allergies">Alergije i hrana koju moraš izbjegavati</label>
-      <textarea id="required-profile-food-allergies" class="custom-input" rows="2" maxlength="1000" placeholder="npr. kikiriki, laktoza, gluten"></textarea>
-      <button class="profile-preference-none" type="button" data-action="set-profile-preference" data-target="required-profile-food-allergies" data-value="Nemam alergije ni ograničenja hrane.">Nemam alergije ni ograničenja hrane</button>
-      <p class="profile-modal-help">Ovo nije medicinska zaštita. Prije jela uvijek provjeri sastojke i savjet stručnjaka ako imaš alergiju.</p>`;
-    const preferredLabel = section.querySelector('label[for="required-profile-preferred-exercises"]');
-    const avoidedLabel = section.querySelector('label[for="required-profile-avoided-exercises"]');
-    const foodLabel = section.querySelector('label[for="required-profile-food-allergies"]');
-    if (preferredLabel) {
-      preferredLabel.textContent = 'Preferiram ove vježbe';
-      preferredLabel.insertAdjacentHTML('beforebegin', '<div class="profile-preference-heading profile-preference-training-heading"><strong>Trening</strong><small>Upiši vježbe koje voliš ili izaberi „Nemam posebnu želju“.</small></div>');
-    }
-    if (avoidedLabel) avoidedLabel.textContent = 'Ne želim ove vježbe';
-    if (foodLabel) {
-      foodLabel.textContent = 'Alergije i hrana koju izbjegavam';
-      foodLabel.insertAdjacentHTML('beforebegin', '<div class="profile-preference-heading profile-preference-food-heading"><strong>Ishrana</strong><small>Upiši alergije ili namirnice koje moraš izbjegavati.</small></div>');
-    }
-    section.dataset.ready = 'true';
-  }
-
-  function setRequiredProfileGroupVisible(selector, visible) {
-    const selected = document.querySelector(selector);
-    const group = selected?.matches('input') ? selected.closest('.gender-options') : selected;
-    if (!group) return;
-    group.hidden = !visible;
-    const label = group.previousElementSibling;
-    if (label?.classList.contains('settings-label')) label.hidden = !visible;
-  }
-
-  function updateRequiredProfileFieldVisibility(onlyMissing) {
-    const modal = document.getElementById('profile-required-modal');
-    if (!modal) return;
-    const profile = currentProfileData || {};
-    const goalNote = modal.querySelector('.profile-goal-note');
-    if (!onlyMissing) {
-      ['required-profile-name', 'required-profile-age', 'required-profile-height', 'required-profile-weight', 'required-profile-goal', 'required-profile-focus', 'required-profile-frequency', 'required-profile-experience', 'required-profile-minutes', 'required-profile-preferred-exercises', 'required-profile-avoided-exercises', 'required-profile-food-allergies'].forEach((id) => setRequiredProfileFieldVisible(id, true));
-      setRequiredProfileGroupVisible('input[name="required-profile-gender"]', true);
-      setRequiredProfileGroupVisible('input[name="required-profile-location"]', true);
-      setRequiredProfileGroupVisible('.muscle-choice-grid', true);
-      const preferenceSection = modal.querySelector('.profile-preferences-section');
-      if (preferenceSection) preferenceSection.hidden = false;
-      if (goalNote) goalNote.hidden = false;
-      return;
-    }
-    const present = (value) => value !== undefined && value !== null && String(value).trim() !== '';
-    const inRange = (value, min, max) => Number.isFinite(Number(value)) && Number(value) >= min && Number(value) <= max;
-    const checks = {
-      'required-profile-name': present(profile.fullName),
-      'required-profile-age': inRange(profile.age, 13, 100),
-      'required-profile-height': inRange(profile.heightCm, 100, 250),
-      'required-profile-weight': inRange(profile.weightKg, 25, 400),
-      'required-profile-goal': present(profile.goal),
-      'required-profile-focus': present(profile.trainingFocus),
-      'required-profile-frequency': inRange(profile.trainingFrequency, 0, 14),
-      'required-profile-experience': present(profile.experienceLevel),
-      'required-profile-minutes': inRange(profile.sessionMinutes, 10, 300),
-      'required-profile-preferred-exercises': present(profile.preferredExercises),
-      'required-profile-avoided-exercises': present(profile.avoidedExercises),
-      'required-profile-food-allergies': present(profile.foodAllergies)
-    };
-    Object.entries(checks).forEach(([id, isPresent]) => setRequiredProfileFieldVisible(id, !isPresent));
-    setRequiredProfileGroupVisible('input[name="required-profile-gender"]', !VALID_GENDER_VALUES.has(profile.gender));
-    setRequiredProfileGroupVisible('input[name="required-profile-location"]', !present(profile.trainingLocation));
-    setRequiredProfileGroupVisible('.muscle-choice-grid', !Array.isArray(profile.targetMuscleGroups) || profile.targetMuscleGroups.length === 0);
-    const preferenceSection = modal.querySelector('.profile-preferences-section');
-    if (preferenceSection) preferenceSection.hidden = checks['required-profile-preferred-exercises'] && checks['required-profile-avoided-exercises'] && checks['required-profile-food-allergies'];
-    const trainingHeading = modal.querySelector('.profile-preference-training-heading');
-    const foodHeading = modal.querySelector('.profile-preference-food-heading');
-    if (trainingHeading) trainingHeading.hidden = checks['required-profile-preferred-exercises'] && checks['required-profile-avoided-exercises'];
-    if (foodHeading) foodHeading.hidden = checks['required-profile-food-allergies'];
-    if (goalNote) goalNote.hidden = checks['required-profile-goal'];
-  }
-
   function populateRequiredProfileForm() {
-    const modal = document.getElementById('profile-required-modal');
-    ensureProfilePreferenceMarkup(modal);
     const profile = currentProfileData || {};
     const values = {
       'required-profile-name': profile.fullName || currentUser?.displayName || '',
@@ -3752,10 +2524,7 @@ function renderPendingSyncStatus() {
       'required-profile-height': profile.heightCm ?? '',
       'required-profile-weight': profile.weightKg ?? '',
       'required-profile-frequency': profile.trainingFrequency ?? '',
-      'required-profile-minutes': profile.sessionMinutes ?? '',
-      'required-profile-preferred-exercises': profile.preferredExercises ?? '',
-      'required-profile-avoided-exercises': profile.avoidedExercises ?? '',
-      'required-profile-food-allergies': profile.foodAllergies ?? ''
+      'required-profile-minutes': profile.sessionMinutes ?? ''
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
@@ -3774,21 +2543,13 @@ function renderPendingSyncStatus() {
     if (experience) experience.value = profile.experienceLevel || '';
     const muscleGroups = new Set(Array.isArray(profile.targetMuscleGroups) ? profile.targetMuscleGroups : []);
     document.querySelectorAll('input[name="required-profile-muscles"]').forEach((input) => { input.checked = muscleGroups.has(input.value); });
-    updateRequiredProfileFieldVisibility(!profileRequiredEditMode);
-    const title = document.getElementById('profile-required-title');
-    const intro = title?.nextElementSibling;
-    const preferenceIntro = modal.querySelector('.profile-preferences-section .profile-modal-help');
-    if (preferenceIntro) preferenceIntro.textContent = 'Odgovori na svako polje ili izaberi opciju „Nemam“. Ovo će kasnije pomoći prijedlozima treninga i ishrane.';
-    if (title) title.textContent = profileRequiredEditMode ? 'Pripremimo GymLeader za tebe' : 'Dovrši samo nove podatke';
-    if (intro) intro.textContent = profileRequiredEditMode
-      ? 'Ovi podaci pomažu da kasnije dobiješ smislen pregled napretka. Možeš ih promijeniti kada želiš.'
-      : 'Popuni samo nova polja koja još nemamo. Ostali podaci su već sačuvani.';
   }
 
   window.openProfileDetailsEditor = function() {
     if (!currentUser) return;
     profileRequiredEditMode = true;
     populateRequiredProfileForm();
+    const modal = document.getElementById('profile-required-modal');
     const close = document.getElementById('profile-required-close');
     const button = document.querySelector('[data-action="save-required-profile"], [data-action="save-profile-details"]');
     if (close) close.style.display = 'block';
@@ -3796,14 +2557,6 @@ function renderPendingSyncStatus() {
     const status = document.getElementById('profile-required-status');
     if (status) { status.textContent = ''; status.style.color = ''; }
     if (modal) modal.style.display = 'flex';
-  };
-
-  window.setProfilePreference = function(targetId, value) {
-    const input = document.getElementById(targetId);
-    if (!input) return;
-    input.value = value;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.focus();
   };
 
   function readRequiredProfileForm() {
@@ -3821,10 +2574,7 @@ function renderPendingSyncStatus() {
       trainingLocation: document.querySelector('input[name="required-profile-location"]:checked')?.value || '',
       experienceLevel: document.getElementById('required-profile-experience')?.value || '',
       sessionMinutes: Number(document.getElementById('required-profile-minutes')?.value),
-      targetMuscleGroups: normalizedMuscles,
-      preferredExercises: document.getElementById('required-profile-preferred-exercises')?.value.trim() || '',
-      avoidedExercises: document.getElementById('required-profile-avoided-exercises')?.value.trim() || '',
-      foodAllergies: document.getElementById('required-profile-food-allergies')?.value.trim() || ''
+      targetMuscleGroups: normalizedMuscles
     };
   }
 
@@ -3846,10 +2596,6 @@ function renderPendingSyncStatus() {
     if (!['beginner', 'intermediate', 'advanced'].includes(profileValues.experienceLevel)) errors.push('iskustvo');
     if (!Number.isInteger(profileValues.sessionMinutes) || profileValues.sessionMinutes < 10 || profileValues.sessionMinutes > 300) errors.push('trajanje treninga');
     if (!profileValues.targetMuscleGroups.length) errors.push('barem jednu mišićnu grupu');
-    if (!profileValues.preferredExercises) errors.push('vježbe koje želiš raditi');
-    if (!profileValues.avoidedExercises) errors.push('vježbe koje želiš izbjegavati');
-    if (!profileValues.foodAllergies) errors.push('alergije ili ograničenja hrane');
-    if (profileValues.preferredExercises.length > 1000 || profileValues.avoidedExercises.length > 1000 || profileValues.foodAllergies.length > 1000) errors.push('predugačke preferencije');
     if (errors.length) {
       if (status) { status.textContent = `Nedostaje: ${errors.join(', ')}.`; status.style.color = 'var(--danger)'; }
       return;
@@ -4204,7 +2950,7 @@ function renderPendingSyncStatus() {
   }
 
   async function clearLocalUserData(userId) {
-    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v'];
+    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v'];
     const matchingKeys = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
@@ -4671,15 +3417,6 @@ function renderPendingSyncStatus() {
       if (input.value === 'full_body' && !input.checked) individual.forEach((item) => { item.checked = false; });
       if (input.value !== 'full_body' && !input.checked && all) all.checked = false;
     });
-    document.getElementById('plan-generator-modal')?.addEventListener('change', (event) => {
-      const input = event.target;
-      if (!(input instanceof HTMLInputElement) || input.name !== 'plan-generator-mode') return;
-      const summary = document.getElementById('plan-generator-mode-help');
-      const results = document.getElementById('plan-generator-results');
-      if (summary) summary.textContent = describeGeneratorProfile(currentProfileData, input.value);
-      if (results) { results.hidden = true; results.innerHTML = ''; }
-      generatedPlanSuggestions = [];
-    });
 
     setupTouchReorder();
 
@@ -4692,16 +3429,6 @@ function renderPendingSyncStatus() {
       if (event.target?.id !== 'body-manual-metric-select' || !currentUser) return;
       localStorage.setItem(`gym-body-selected-metric-v1-${currentUser.uid}`, event.target.value);
       renderBodyMeasurements();
-    });
-    document.addEventListener('input', (event) => {
-      const input = event.target;
-      if (!(input instanceof Element) || !input.matches('.exercise-library-search')) return;
-      renderExerciseLibraryPicker(input.closest('.exercise-library-picker'));
-    });
-    document.addEventListener('change', (event) => {
-      const input = event.target;
-      if (!(input instanceof Element) || !input.matches('.exercise-library-muscle, .exercise-library-equipment, .exercise-library-place')) return;
-      renderExerciseLibraryPicker(input.closest('.exercise-library-picker'));
     });
 
     document.addEventListener('click', (event) => {
@@ -4728,9 +3455,6 @@ function renderPendingSyncStatus() {
           break;
         case 'switch-tab':
           window.switchTab(button.dataset.tab);
-          break;
-        case 'export-user-data':
-          window.exportUserData();
           break;
         case 'auth-mode':
           window.toggleAuthMode(button.dataset.mode);
@@ -4804,14 +3528,7 @@ function renderPendingSyncStatus() {
           window.resumeDraftWorkout();
           break;
         case 'open-import-modal':
-          document.getElementById('createRoutineModal')?.style.setProperty('display', 'none');
           document.getElementById('importNotesModal').style.display = 'flex';
-          break;
-        case 'toggle-exercise-library':
-          window.toggleExerciseLibrary(button.dataset.targetList);
-          break;
-        case 'add-library-exercise':
-          window.addLibraryExerciseToRoutine(button.dataset.exerciseId, button.dataset.targetList);
           break;
         case 'cancel-workout':
           window.cancelWorkout();
@@ -4867,39 +3584,8 @@ function renderPendingSyncStatus() {
         case 'open-profile-details-editor':
           window.openProfileDetailsEditor();
           break;
-        case 'set-profile-preference':
-          window.setProfilePreference(button.dataset.target || '', button.dataset.value || '');
-          break;
         case 'open-body-measurement-modal':
           window.openBodyMeasurementModal();
-          break;
-        case 'edit-body-measurement':
-          window.openBodyMeasurementForEdit(button.dataset.measurementId);
-          break;
-        case 'toggle-body-measurement-actions': {
-          if (button.id === 'body-measurements-edit-toggle') {
-            bodyMeasurementsEditMode = !bodyMeasurementsEditMode;
-            renderBodyMeasurements();
-            break;
-          }
-          const item = button.closest('.body-measurement-item');
-          const actions = item?.querySelector('.body-measurement-actions');
-          const expanded = actions ? actions.hidden : false;
-          if (actions) actions.hidden = !expanded;
-          button.setAttribute('aria-expanded', String(expanded));
-          break;
-        }
-        case 'delete-body-measurement':
-          window.deleteBodyMeasurement(button.dataset.measurementId);
-          break;
-        case 'delete-active-body-measurement':
-          window.deleteBodyMeasurement(editingBodyMeasurementId);
-          break;
-        case 'confirm-body-measurement-delete':
-          window.confirmBodyMeasurementDelete();
-          break;
-        case 'cancel-body-measurement-delete':
-          window.cancelBodyMeasurementDelete();
           break;
         case 'save-body-measurement':
           window.saveBodyMeasurement();
@@ -4962,41 +3648,14 @@ function renderPendingSyncStatus() {
         case 'add-routine-exercise':
           window.addRoutineExercise();
           break;
-        case 'add-edit-routine-exercise':
-          window.addEditRoutineExercise();
-          break;
         case 'remove-routine-exercise':
           window.removeRoutineExercise(button);
           break;
         case 'open-create-routine':
           window.openCreateRoutineModal();
           break;
-        case 'open-plan-generator':
-          window.openPlanGenerator();
-          break;
-        case 'generate-personalized-plans':
-          window.generatePersonalizedPlans();
-          break;
-        case 'use-generated-plan':
-          window.useGeneratedPlan(button.dataset.generatedPlanId || '');
-          break;
-        case 'return-to-generated-plans':
-          window.returnToGeneratedPlans();
-          break;
-        case 'save-all-generated-plans':
-          window.saveAllGeneratedPlans();
-          break;
         case 'toggle-routine-edit-mode':
           window.toggleRoutineEditMode();
-          break;
-        case 'duplicate-routine':
-          window.duplicateRoutine(button.dataset.routineId);
-          break;
-        case 'toggle-routine-favorite':
-          window.toggleRoutineFavorite(button.dataset.routineId);
-          break;
-        case 'toggle-routine-archive':
-          window.toggleRoutineArchive(button.dataset.routineId);
           break;
         case 'open-edit-routine':
           if (button.dataset.routineId) window.openEditRoutineModal(button.dataset.routineId);
@@ -5092,7 +3751,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    navigator.serviceWorker.register('/sw.js?v=20260930-generator-body-finish-01', { scope: '/' })
+    navigator.serviceWorker.register('/sw.js?v=20260930-body-anatomy-22', { scope: '/' })
       .then((registration) => registration.update())
       .catch((error) => console.warn('Offline worker nije registrovan:', error));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});

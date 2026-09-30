@@ -1,9 +1,10 @@
-const CACHE_NAME = 'gymleader-app-v31-stage-centered-silhouette';
+const CACHE_NAME = 'gymleader-app-v49-generator-body-finish';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
   '/javascript.js',
+  '/exercise-library.js',
   '/translations.js',
   '/manifest.webmanifest',
   '/assets/gymleader-mark-v2.png',
