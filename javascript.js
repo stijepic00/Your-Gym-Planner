@@ -1,6 +1,8 @@
 /*-- FIREBASE ENGINE & AUTH */
   import { TRANSLATIONS } from './translations.js';
   import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -27,6 +29,7 @@
     setDoc, 
     updateDoc,
     deleteDoc,
+    deleteField,
     query, 
     where,
     orderBy,
@@ -109,6 +112,19 @@
   let pendingBodyMeasurementDeleteId = null;
   let bodyMeasurementsEditMode = false;
   let bodyChartInstance = null;
+  let foodEntries = [];
+  let foodEntriesLoadedDate = '';
+  let activeMealPlan = null;
+  let activeMealPlanOptions = null;
+  let savedMealPlans = [];
+  let savedMealPlansLoaded = false;
+  let pendingMealPlanDeleteId = null;
+  let editingFoodEntryId = null;
+  let pendingFoodEntryDeleteId = null;
+  let editingHistoryWorkoutId = null;
+  let pendingHistoryWorkoutDeleteId = null;
+  let foodLibraryCategory = 'all';
+  let activeFoodLibraryItemId = null;
   let pendingProfilePhotoImage = null;
   let profilePhotoZoom = 1;
   let profilePhotoOffsetX = 0;
@@ -118,6 +134,7 @@
   const HISTORY_CACHE_VERSION = 1;
   const BODY_MEASUREMENTS_CACHE_VERSION = 1;
   const BODY_MEASUREMENTS_CACHE_TTL_MS = 15 * 60 * 1000;
+  const FOOD_ENTRIES_CACHE_TTL_MS = 10 * 60 * 1000;
   const LEGAL_DOCUMENT_VERSION = '2026-09-29';
   let deferredInstallPrompt = null;
   const PWA_INSTALL_DISMISSED_KEY = 'gymleader-install-dismissed-v1';
@@ -658,6 +675,15 @@ window.handleAuthSubmit = async function(e) {
     const mailDisplay = document.getElementById('user-email-display');
 
     if (user) {
+      if (currentUser && currentUser.uid !== user.uid) {
+        activeMealPlan = null;
+        activeMealPlanOptions = null;
+        savedMealPlans = [];
+        savedMealPlansLoaded = false;
+        pendingMealPlanDeleteId = null;
+        renderMealPlan();
+        renderSavedMealPlans();
+      }
       currentUser = user;
       
       if (bottomNav) bottomNav.style.display = 'flex';
@@ -698,6 +724,11 @@ window.handleAuthSubmit = async function(e) {
       }
       currentUser = null;
       currentProfileData = null;
+      activeMealPlan = null;
+      activeMealPlanOptions = null;
+      savedMealPlans = [];
+      savedMealPlansLoaded = false;
+      pendingMealPlanDeleteId = null;
       profileReadSucceeded = false;
       document.getElementById('legal-acceptance-modal')?.style.setProperty('display', 'none');
       document.getElementById('gender-required-modal')?.style.setProperty('display', 'none');
@@ -755,7 +786,7 @@ window.handleAuthSubmit = async function(e) {
     if (targetView) targetView.classList.add('active');
 
     const navBtns = document.querySelectorAll('.nav-item');
-    const indexMap = { dashboard: 0, workouts: 1, analytics: 2, body: 2, history: 2, progress: 2, settings: 3 };
+    const indexMap = { dashboard: 0, workouts: 1, analytics: 2, body: 2, food: 2, history: 2, progress: 2, settings: 3 };
     if (indexMap[tabId] !== undefined && navBtns[indexMap[tabId]]) {
       navBtns[indexMap[tabId]].classList.add('active');
     }
@@ -769,6 +800,7 @@ window.handleAuthSubmit = async function(e) {
       if (toggle) toggle.checked = bodyTrackingEnabled();
       loadBodyMeasurements();
     }
+    if (tabId === 'food') { loadFoodEntriesForSelectedDay(); loadSavedMealPlans(); }
     if (tabId === 'settings') renderProfileSettings();
 
     if (tabId === 'dashboard' || tabId === 'login') {
@@ -2807,12 +2839,15 @@ async function loadCloudData() {
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       if (data.date && data.exercises && data.exercises.length > 0) {
-        cachedHistory.push(data);
+        // Keep the Firestore document ID only in local memory/cache. It is needed
+        // for targeted edits and deletes, but is never written into the workout.
+        cachedHistory.push({ id: docSnap.id, ...data });
       }
     });
     writeHistoryCache(currentUser.uid, cachedHistory);
     checkDraftState();
     renderDashboard();
+    if (document.getElementById('view-history')?.classList.contains('active')) renderHistory();
   } catch (e) {
     console.error("Greška pri učitavanju sa clouda: ", e);
   }
@@ -2852,6 +2887,7 @@ function renderPendingSyncStatus() {
     const greeting = document.getElementById('dashboard-greeting');
     if (greeting) greeting.textContent = getDashboardGreeting();
     renderDashboardPrimaryAction();
+    renderWeeklyGoalCard();
     renderPendingSyncStatus();
     const container = document.getElementById('last-workout-container');
     if (cachedHistory.length === 0) {
@@ -2887,6 +2923,249 @@ function renderPendingSyncStatus() {
       ${exercisesHtml}
     `;
   }
+
+  function getWeeklyGoalStorageKey(userId = currentUser?.uid) {
+    return userId ? `gym_weekly_goal_v1_${userId}` : '';
+  }
+
+  function getWeeklyTrainingGoal() {
+    const saved = Number(localStorage.getItem(getWeeklyGoalStorageKey()));
+    if (Number.isInteger(saved) && saved >= 1 && saved <= 7) return saved;
+    const profileGoal = Number(currentProfileData?.trainingFrequency);
+    return Number.isInteger(profileGoal) && profileGoal >= 1 && profileGoal <= 7 ? profileGoal : 3;
+  }
+
+  function getLocalWeekStart(date) {
+    const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    return start;
+  }
+
+  function getWorkoutDate(workout) {
+    const raw = workout?.date;
+    // A date-only string represents the user's local training day, not midnight UTC.
+    // Parsing it at local noon keeps the day stable across time zones and DST changes.
+    if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const [year, month, day] = raw.split('-').map(Number);
+      return new Date(year, month - 1, day, 12);
+    }
+    const date = raw?.toDate instanceof Function ? raw.toDate() : new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function getLocalCalendarDayKey(date) {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  }
+
+  function getWeeklyTrainingDayCounts() {
+    const daysByWeek = new Map();
+    for (const workout of cachedHistory) {
+      const date = getWorkoutDate(workout);
+      if (!date) continue;
+      const start = getLocalWeekStart(date);
+      const weekKey = getLocalCalendarDayKey(start);
+      if (!daysByWeek.has(weekKey)) daysByWeek.set(weekKey, new Set());
+      daysByWeek.get(weekKey).add(getLocalCalendarDayKey(date));
+    }
+    return new Map(Array.from(daysByWeek, ([weekKey, days]) => [weekKey, days.size]));
+  }
+
+  function getWeekCount(counts, start) {
+    return counts.get(getLocalCalendarDayKey(start)) || 0;
+  }
+
+  function getWeeklyStreak(counts, goal, currentWeekStart, currentWeekCount) {
+    const previousWeekStart = new Date(currentWeekStart);
+    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+    if (getWeekCount(counts, previousWeekStart) < goal) return null;
+
+    let weeks = 0;
+    let cursor = new Date(previousWeekStart);
+    let reachedCacheLimit = false;
+    const validDates = cachedHistory.map(getWorkoutDate).filter(Boolean);
+    const oldestDate = validDates.length ? new Date(Math.min(...validDates.map((date) => date.getTime()))) : null;
+    const oldestWeekStart = oldestDate ? getLocalWeekStart(oldestDate) : null;
+
+    while (weeks < 260) {
+      if (getWeekCount(counts, cursor) < goal) break;
+      weeks += 1;
+      cursor.setDate(cursor.getDate() - 7);
+      if (oldestWeekStart && cursor < oldestWeekStart) {
+        reachedCacheLimit = cachedHistory.length >= 30;
+        break;
+      }
+    }
+
+    if (currentWeekCount >= goal) weeks += 1;
+    return { weeks, reachedCacheLimit };
+  }
+
+  function getWeeklyGoalCopy(language = getCurrentLanguage()) {
+    const copy = {
+      sr: {
+        title: 'Sedmični cilj',
+        thisWeek: 'Ove sedmice',
+        count: (count, goal) => `${count} od ${goal} treninga`,
+        remaining: (count) => count === 1 ? 'Još jedan trening do cilja.' : `Još ${count} treninga do cilja.`,
+        achieved: 'Sedmični cilj ostvaren. Svaka čast!',
+        newWeek: 'Nova sedmica, novi početak.',
+        none: 'Još nema treninga ove sedmice.',
+        streak: (weeks, plus) => `${weeks}${plus ? '+' : ''} ${weeks === 1 ? 'sedmica' : 'sedmice'} u nizu`,
+        goalLabel: (goal) => `${goal} ${goal === 1 ? 'trening' : 'treninga'} sedmično`,
+        eyebrow: 'SEDMIČNI CILJ',
+        settingTitle: 'Koliko treninga želiš sedmično?',
+        settingHelp: 'Izaberi cilj koji ti odgovara. Možeš ga promijeniti kad god želiš.',
+        settingLabel: 'Treninzi sedmično',
+        save: 'Sačuvaj cilj',
+        localNote: 'Ovaj cilj se čuva na ovom uređaju.',
+        saved: 'Sedmični cilj je sačuvan.'
+      },
+      en: {
+        title: 'Weekly goal',
+        thisWeek: 'This week',
+        count: (count, goal) => `${count} of ${goal} ${goal === 1 ? 'workout' : 'workouts'}`,
+        remaining: (count) => `${count} ${count === 1 ? 'workout' : 'workouts'} left to reach your goal.`,
+        achieved: 'Weekly goal reached. Well done!',
+        newWeek: 'New week, fresh start.',
+        none: 'No workouts yet this week.',
+        streak: (weeks, plus) => `${weeks}${plus ? '+' : ''} ${weeks === 1 ? 'week' : 'weeks'} in a row`,
+        goalLabel: (goal) => `${goal} ${goal === 1 ? 'workout' : 'workouts'} per week`,
+        eyebrow: 'WEEKLY GOAL',
+        settingTitle: 'How many workouts per week?',
+        settingHelp: 'Choose a goal that works for you. You can change it any time.',
+        settingLabel: 'Workouts per week',
+        save: 'Save goal',
+        localNote: 'This goal is saved on this device.',
+        saved: 'Weekly goal saved.'
+      },
+      de: {
+        title: 'Wochenziel',
+        thisWeek: 'Diese Woche',
+        count: (count, goal) => `${count} von ${goal} ${goal === 1 ? 'Training' : 'Trainingseinheiten'}`,
+        remaining: (count) => `Noch ${count} ${count === 1 ? 'Training' : 'Trainingseinheiten'} bis zum Ziel.`,
+        achieved: 'Wochenziel erreicht. Gut gemacht!',
+        newWeek: 'Neue Woche, neuer Anfang.',
+        none: 'Diese Woche noch kein Training.',
+        streak: (weeks, plus) => `${weeks}${plus ? '+' : ''} ${weeks === 1 ? 'Woche' : 'Wochen'} in Folge`,
+        goalLabel: (goal) => `${goal} ${goal === 1 ? 'Training' : 'Trainingseinheiten'} pro Woche`,
+        eyebrow: 'WOCHENZIEL',
+        settingTitle: 'Wie oft möchtest du pro Woche trainieren?',
+        settingHelp: 'Wähle ein passendes Ziel. Du kannst es jederzeit ändern.',
+        settingLabel: 'Trainingseinheiten pro Woche',
+        save: 'Ziel speichern',
+        localNote: 'Dieses Ziel wird auf diesem Gerät gespeichert.',
+        saved: 'Wochenziel gespeichert.'
+      }
+    }[language] || getWeeklyGoalCopy('sr');
+
+    if (language === 'sr') {
+      Object.assign(copy, {
+        count: (count, goal) => `${count} od ${goal} dana treninga`,
+        remaining: (count) => count === 1 ? 'Jo\u0161 jedan dan do cilja.' : `Jo\u0161 ${count} dana do cilja.`,
+        achieved: 'Sedmi\u010dni cilj ostvaren. Svaka \u010dast!',
+        none: 'Jo\u0161 nisi trenirao/la ove sedmice.',
+        goalLabel: (goal) => goal === 1 ? '1 dan treninga sedmi\u010dno' : `${goal} dana treninga sedmi\u010dno`,
+        settingTitle: 'Koliko dana želiš trenirati sedmično?',
+        settingHelp: 'Ako trenira\u0161 vi\u0161e puta istog dana, taj dan se broji jednom.',
+        settingLabel: 'Dana treninga sedmi\u010dno'
+      });
+    } else if (language === 'en') {
+      Object.assign(copy, {
+        count: (count, goal) => `${count} of ${goal} workout days`,
+        remaining: (count) => `${count} ${count === 1 ? 'day' : 'days'} left to reach your goal.`,
+        achieved: 'Weekly goal reached. Well done!',
+        none: 'You have not trained yet this week.',
+        goalLabel: (goal) => `${goal} workout days per week`,
+        settingTitle: 'How many days would you like to train each week?',
+        settingHelp: 'If you work out more than once on the same day, it counts as one day.',
+        settingLabel: 'Workout days per week'
+      });
+    } else if (language === 'de') {
+      Object.assign(copy, {
+        count: (count, goal) => `${count} von ${goal} Trainingstagen`,
+        remaining: (count) => `Noch ${count} ${count === 1 ? 'Tag' : 'Tage'} bis zum Ziel.`,
+        achieved: 'Wochenziel erreicht. Gut gemacht!',
+        none: 'Diese Woche hast du noch nicht trainiert.',
+        goalLabel: (goal) => `${goal} Trainingstage pro Woche`,
+        settingTitle: 'An wie vielen Tagen möchtest du pro Woche trainieren?',
+        settingHelp: 'Mehrere Workouts am selben Tag zählen als ein Trainingstag.',
+        settingLabel: 'Trainingstage pro Woche'
+      });
+    }
+
+    return copy;
+  }
+
+  function renderWeeklyGoalCard() {
+    const card = document.getElementById('weekly-goal-card');
+    if (!card || !currentUser) { if (card) card.hidden = true; return; }
+
+    const language = getCurrentLanguage();
+    const copy = getWeeklyGoalCopy(language);
+    const goal = getWeeklyTrainingGoal();
+    const now = new Date();
+    const currentWeekStart = getLocalWeekStart(now);
+    const counts = getWeeklyTrainingDayCounts();
+    const thisWeekCount = getWeekCount(counts, currentWeekStart);
+    const remaining = Math.max(0, goal - thisWeekCount);
+    const streak = getWeeklyStreak(counts, goal, currentWeekStart, thisWeekCount);
+    let message;
+    if (remaining === 0) message = copy.achieved;
+    else if (thisWeekCount === 0) message = now.getDay() === 1 ? copy.newWeek : copy.none;
+    else message = copy.remaining(remaining);
+
+    const progress = Math.min(100, Math.round((thisWeekCount / goal) * 100));
+    const countText = copy.count(thisWeekCount, goal);
+    const streakMarkup = streak
+      ? `<span class="weekly-goal-streak">⚡ ${escapeHtml(copy.streak(streak.weeks, streak.reachedCacheLimit))}</span>`
+      : '';
+    card.innerHTML = `<div class="weekly-goal-heading"><div><span class="weekly-goal-eyebrow">${escapeHtml(copy.title)}</span><strong>${escapeHtml(copy.thisWeek)}</strong></div>${streakMarkup}</div><div class="weekly-goal-stats"><strong>${escapeHtml(countText)}</strong><span>${escapeHtml(copy.goalLabel(goal))}</span></div><div class="weekly-goal-progress" role="progressbar" aria-label="${escapeHtml(copy.title)}" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.min(thisWeekCount, goal)}"><span style="width:${progress}%"></span></div><p class="weekly-goal-message">${escapeHtml(message)}</p>`;
+    card.hidden = false;
+  }
+
+  function renderWeeklyGoalSettingsSummary() {
+    const summary = document.getElementById('weekly-goal-settings-summary');
+    if (summary) summary.textContent = getWeeklyGoalCopy().goalLabel(getWeeklyTrainingGoal());
+  }
+
+  window.openWeeklyGoalSettings = function() {
+    if (!currentUser) return;
+    const language = getCurrentLanguage();
+    const copy = getWeeklyGoalCopy(language);
+    const modal = document.getElementById('weekly-goal-settings-modal');
+    const select = document.getElementById('weekly-goal-select');
+    if (!modal || !select) return;
+    document.getElementById('weekly-goal-modal-eyebrow').textContent = copy.eyebrow;
+    document.getElementById('weekly-goal-modal-title').textContent = copy.settingTitle;
+    document.getElementById('weekly-goal-modal-help').textContent = copy.settingHelp;
+    document.getElementById('weekly-goal-modal-label').textContent = copy.settingLabel;
+    document.querySelector('#weekly-goal-settings-modal [data-action="save-weekly-goal"]').textContent = copy.save;
+    document.getElementById('weekly-goal-local-note').textContent = copy.localNote;
+    select.innerHTML = Array.from({ length: 7 }, (_, index) => {
+      const goal = index + 1;
+      return `<option value="${goal}">${escapeHtml(copy.goalLabel(goal))}</option>`;
+    }).join('');
+    select.value = String(getWeeklyTrainingGoal());
+    document.getElementById('weekly-goal-settings-status').textContent = '';
+    modal.style.display = 'flex';
+  };
+
+  window.saveWeeklyGoal = function() {
+    if (!currentUser) return;
+    const goal = Number(document.getElementById('weekly-goal-select')?.value);
+    if (!Number.isInteger(goal) || goal < 1 || goal > 7) return;
+    try {
+      localStorage.setItem(getWeeklyGoalStorageKey(), String(goal));
+      document.getElementById('weekly-goal-settings-modal').style.display = 'none';
+      renderWeeklyGoalSettingsSummary();
+      renderWeeklyGoalCard();
+      ShowToast(getWeeklyGoalCopy().saved);
+    } catch (error) {
+      console.warn('Sedmični cilj nije mogao biti sačuvan lokalno:', error);
+      const status = document.getElementById('weekly-goal-settings-status');
+      if (status) status.textContent = getCurrentLanguage() === 'en' ? 'Could not save this goal on this device.' : getCurrentLanguage() === 'de' ? 'Das Ziel konnte auf diesem Gerät nicht gespeichert werden.' : 'Cilj nije moguće sačuvati na ovom uređaju.';
+    }
+  };
 
   function renderDashboardPrimaryAction() {
     const button = document.getElementById('dashboard-primary-action');
@@ -3074,17 +3353,259 @@ function renderPendingSyncStatus() {
         `;
       }).join('');
 
+      const canEdit = Boolean(h.id && !h._localId && h._syncStatus !== 'pending' && h.userId === currentUser?.uid);
+      const actionMarkup = canEdit
+        ? `<button class="history-edit-button" type="button" data-action="open-history-workout-editor" data-workout-id="${escapeHtml(h.id)}">\u270e Uredi</button>`
+        : h._syncStatus === 'pending' || h._localId
+          ? '<span class="history-sync-pending">\u23f3 \u010ceka sinhronizaciju</span>'
+          : '';
+
       return `
-        <div class="card" style="border-left: 4px solid var(--primary);">
+        <div class="card history-card">
           <div class="flex-between" style="margin-bottom: 6px;">
             <strong style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(h.name || 'Trening')}</strong>
-            <span class="badge">${dateStr}</span>
+            <div class="history-card-actions"><span class="badge">${dateStr}</span>${actionMarkup}</div>
           </div>
           ${exercisesHtml}
         </div>
       `;
     }).join('');
   }
+
+  function getHistoryWorkoutForEdit(workoutId) {
+    const workout = cachedHistory.find((item) => item.id === workoutId);
+    if (!workout || !currentUser || workout.userId !== currentUser.uid) return null;
+    if (workout._localId || workout._syncStatus === 'pending') return null;
+    return workout;
+  }
+
+  function getDateInputValue(dateValue) {
+    const date = getWorkoutDate({ date: dateValue });
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function getHistoryExerciseType(exercise) {
+    if (exercise?._editorType) return exercise._editorType;
+    if (Number.isFinite(Number(exercise?.minutes)) || Number.isFinite(Number(exercise?.calories))) return 'cardio';
+    const firstSet = Array.isArray(exercise?.sets) ? exercise.sets[0] : null;
+    if (firstSet && Object.prototype.hasOwnProperty.call(firstSet, 'seconds')) return 'seconds';
+    if (firstSet && Object.prototype.hasOwnProperty.call(firstSet, 'weight')) return 'weight-reps';
+    return 'reps';
+  }
+
+  function getHistoryEditorExerciseMarkup(exercise, index) {
+    const type = getHistoryExerciseType(exercise);
+    const name = exercise?.name || '';
+    const note = exercise?.notes || '';
+    const sets = Array.isArray(exercise?.sets) ? exercise.sets : [];
+    const setRows = type === 'cardio'
+      ? `<div class="history-editor-cardio-fields"><label><span>Trajanje (min)</span><input class="custom-input history-editor-minutes" type="number" min="0" max="1440" step="1" inputmode="numeric" value="${escapeHtml(exercise?.minutes ?? '')}"></label><label><span>Kalorije (opcionalno)</span><input class="custom-input history-editor-calories" type="number" min="0" max="20000" step="1" inputmode="numeric" value="${escapeHtml(exercise?.calories ?? '')}"></label></div>`
+      : `<div class="history-editor-sets">${(sets.length ? sets : [{}]).map((set, setIndex) => {
+          const fields = type === 'seconds'
+            ? `<label><span>Sekunde</span><input class="custom-input history-editor-set-seconds" type="number" min="1" max="86400" step="1" inputmode="numeric" value="${escapeHtml(set.seconds ?? '')}"></label>`
+            : type === 'reps'
+              ? `<label><span>Ponavljanja</span><input class="custom-input history-editor-set-reps" type="number" min="1" max="1000" step="1" inputmode="numeric" value="${escapeHtml(set.reps ?? '')}"></label>`
+              : `<label><span>Kila\u017ea (kg)</span><input class="custom-input history-editor-set-weight" type="number" min="0" max="5000" step="0.1" inputmode="decimal" value="${escapeHtml(set.weight ?? '')}"></label><label><span>Ponavljanja</span><input class="custom-input history-editor-set-reps" type="number" min="1" max="1000" step="1" inputmode="numeric" value="${escapeHtml(set.reps ?? '')}"></label>`;
+          return `<div class="history-editor-set-row"><span class="history-editor-set-number">${setIndex + 1}</span>${fields}<button type="button" class="history-editor-remove-set" data-action="remove-history-workout-set" data-exercise-index="${index}" data-set-index="${setIndex}" aria-label="Ukloni seriju">\u00d7</button></div>`;
+        }).join('')}<button class="btn btn-secondary history-editor-add-set" type="button" data-action="add-history-workout-set" data-exercise-index="${index}">+ Dodaj seriju</button></div>`;
+
+    return `<article class="history-editor-exercise" data-history-exercise-index="${index}"><div class="history-editor-exercise-heading"><strong>Vje\u017eba ${index + 1}</strong><button type="button" class="history-editor-remove-exercise" data-action="remove-history-workout-exercise" data-exercise-index="${index}">Ukloni vje\u017ebu</button></div><label><span>Naziv vje\u017ebe</span><input class="custom-input history-editor-exercise-name" type="text" maxlength="120" value="${escapeHtml(name)}"></label><label><span>Na\u010din pra\u0107enja</span><select class="custom-input history-editor-exercise-type" data-exercise-index="${index}"><option value="weight-reps" ${type === 'weight-reps' ? 'selected' : ''}>Kila\u017ea i ponavljanja</option><option value="reps" ${type === 'reps' ? 'selected' : ''}>Samo ponavljanja</option><option value="seconds" ${type === 'seconds' ? 'selected' : ''}>Trajanje u sekundama</option><option value="cardio" ${type === 'cardio' ? 'selected' : ''}>Kardio</option></select></label>${setRows}<label><span>Napomena (opcionalno)</span><textarea class="custom-input history-editor-exercise-note" rows="2" maxlength="500">${escapeHtml(note)}</textarea></label></article>`;
+  }
+
+  function renderHistoryWorkoutEditorExercises(exercises) {
+    const root = document.getElementById('history-workout-editor-exercises');
+    if (!root) return;
+    root.innerHTML = exercises.map((exercise, index) => getHistoryEditorExerciseMarkup(exercise, index)).join('');
+  }
+
+  function readHistoryWorkoutEditorExercises({ strict = false } = {}) {
+    const cards = Array.from(document.querySelectorAll('#history-workout-editor-exercises .history-editor-exercise'));
+    const exercises = [];
+    for (const card of cards) {
+      const name = card.querySelector('.history-editor-exercise-name')?.value.trim() || '';
+      const type = card.querySelector('.history-editor-exercise-type')?.value || 'weight-reps';
+      const notes = card.querySelector('.history-editor-exercise-note')?.value.trim() || '';
+      if (!name) {
+        if (strict) throw new Error('Svaka vje\u017eba mora imati naziv.');
+        continue;
+      }
+      const exercise = { name, sets: [] };
+      if (notes) exercise.notes = notes;
+      if (type === 'cardio') {
+        const minutes = Number(card.querySelector('.history-editor-minutes')?.value);
+        const calories = Number(card.querySelector('.history-editor-calories')?.value);
+        if (strict && (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440 || (!minutes && (!Number.isFinite(calories) || calories <= 0)))) throw new Error(`Unesi trajanje ili kalorije za vje\u017ebu „${name}“.`);
+        exercise.minutes = Number.isFinite(minutes) && minutes >= 0 ? minutes : 0;
+        exercise.calories = Number.isFinite(calories) && calories >= 0 ? calories : 0;
+      } else {
+        const rows = Array.from(card.querySelectorAll('.history-editor-set-row'));
+        for (const row of rows) {
+          if (type === 'seconds') {
+            const seconds = Number(row.querySelector('.history-editor-set-seconds')?.value);
+            if (Number.isFinite(seconds) && seconds > 0) exercise.sets.push({ seconds: Math.round(seconds) });
+          } else if (type === 'reps') {
+            const reps = Number(row.querySelector('.history-editor-set-reps')?.value);
+            if (Number.isFinite(reps) && reps > 0) exercise.sets.push({ reps: Math.round(reps) });
+          } else {
+            const weight = Number(row.querySelector('.history-editor-set-weight')?.value);
+            const reps = Number(row.querySelector('.history-editor-set-reps')?.value);
+            if (Number.isFinite(weight) && weight >= 0 && Number.isFinite(reps) && reps > 0) exercise.sets.push({ weight, reps: Math.round(reps) });
+          }
+        }
+        if (strict && !exercise.sets.length) throw new Error(`Unesi barem jednu seriju za vje\u017ebu „${name}“.`);
+      }
+      exercises.push(exercise);
+    }
+    if (strict && !exercises.length) throw new Error('Trening mora imati barem jednu zavr\u0161enu vje\u017ebu.');
+    return exercises;
+  }
+
+  function getHistoryEditorDraftExercises() {
+    try { return readHistoryWorkoutEditorExercises(); } catch { return []; }
+  }
+
+  function updateHistoryEditorExercises(mutator) {
+    const exercises = getHistoryEditorDraftExercises();
+    mutator(exercises);
+    renderHistoryWorkoutEditorExercises(exercises);
+  }
+
+  function refreshWorkoutViews() {
+    if (!currentUser) return;
+    writeHistoryCache(currentUser.uid, cachedHistory);
+    renderHistory();
+    renderDashboard();
+    setupAnalyticsUI();
+  }
+
+  window.openHistoryWorkoutEditor = function(workoutId) {
+    const workout = getHistoryWorkoutForEdit(workoutId);
+    if (!workout) { ShowToast('Ovaj trening nije dostupan za ure\u0111ivanje. Sa\u010dekaj da se prvo sinhronizuje.', 'error'); return; }
+    editingHistoryWorkoutId = workout.id;
+    document.getElementById('history-workout-editor-name').value = workout.name || 'Trening';
+    document.getElementById('history-workout-editor-date').value = getDateInputValue(workout.date);
+    document.getElementById('history-workout-editor-status').textContent = '';
+    renderHistoryWorkoutEditorExercises(workout.exercises || []);
+    document.getElementById('history-workout-editor-modal').style.display = 'flex';
+  };
+
+  window.addHistoryWorkoutExercise = function() {
+    updateHistoryEditorExercises((exercises) => exercises.push({ name: '', sets: [{}] }));
+  };
+
+  window.removeHistoryWorkoutExercise = function(index) {
+    updateHistoryEditorExercises((exercises) => exercises.splice(Number(index), 1));
+  };
+
+  window.addHistoryWorkoutSet = function(index) {
+    updateHistoryEditorExercises((exercises) => {
+      const exercise = exercises[Number(index)];
+      if (!exercise || getHistoryExerciseType(exercise) === 'cardio') return;
+      exercise.sets = [...(exercise.sets || []), {}];
+    });
+  };
+
+  window.removeHistoryWorkoutSet = function(exerciseIndex, setIndex) {
+    updateHistoryEditorExercises((exercises) => {
+      const exercise = exercises[Number(exerciseIndex)];
+      if (!exercise || getHistoryExerciseType(exercise) === 'cardio') return;
+      exercise.sets = (exercise.sets || []).filter((_, index) => index !== Number(setIndex));
+    });
+  };
+
+  window.changeHistoryWorkoutExerciseType = function(index, type) {
+    updateHistoryEditorExercises((exercises) => {
+      const exercise = exercises[Number(index)];
+      if (!exercise) return;
+      exercise.sets = type === 'cardio' ? [] : [{}];
+      delete exercise.minutes;
+      delete exercise.calories;
+      exercise._editorType = type;
+    });
+    const cards = document.querySelectorAll('#history-workout-editor-exercises .history-editor-exercise');
+    const card = cards[Number(index)];
+    const select = card?.querySelector('.history-editor-exercise-type');
+    if (select) select.value = type;
+  };
+
+  function getEditorExerciseType(exercise) {
+    return exercise?._editorType || getHistoryExerciseType(exercise);
+  }
+
+  window.saveHistoryWorkout = async function() {
+    const workout = getHistoryWorkoutForEdit(editingHistoryWorkoutId);
+    const status = document.getElementById('history-workout-editor-status');
+    if (!workout) { if (status) status.textContent = 'Ovaj trening vi\u0161e nije dostupan.'; return; }
+    const name = document.getElementById('history-workout-editor-name')?.value.trim() || '';
+    const day = document.getElementById('history-workout-editor-date')?.value || '';
+    if (!name || name.length > 120) { if (status) status.textContent = 'Unesi naziv treninga do 120 znakova.'; return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { if (status) status.textContent = 'Izaberi ispravan datum treninga.'; return; }
+    let exercises;
+    try { exercises = readHistoryWorkoutEditorExercises({ strict: true }); }
+    catch (error) { if (status) status.textContent = error.message; return; }
+    const originalDate = getWorkoutDate(workout);
+    const [year, month, date] = day.split('-').map(Number);
+    const savedDate = new Date(year, month - 1, date, originalDate?.getHours() || 12, originalDate?.getMinutes() || 0, originalDate?.getSeconds() || 0).toISOString();
+    const button = document.getElementById('history-workout-editor-save');
+    if (button) { button.disabled = true; button.textContent = '\u010cuvam\u2026'; }
+    if (status) status.textContent = '';
+    try {
+      await updateDoc(doc(db, 'workouts', workout.id), { name, date: savedDate, exercises });
+      cachedHistory = cachedHistory.map((item) => item.id === workout.id ? { ...item, name, date: savedDate, exercises } : item)
+        .sort((a, b) => (getWorkoutDate(b)?.getTime() || 0) - (getWorkoutDate(a)?.getTime() || 0));
+      document.getElementById('history-workout-editor-modal').style.display = 'none';
+      editingHistoryWorkoutId = null;
+      refreshWorkoutViews();
+      ShowToast('Trening je sa\u010duvan.');
+    } catch (error) {
+      console.error('Workout history update diagnostic:', error);
+      if (status) status.textContent = 'Trening nije mogu\u0107e sa\u010duvati. Provjeri internet i poku\u0161aj ponovo.';
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Sa\u010duvaj promjene'; }
+    }
+  };
+
+  window.deleteHistoryWorkout = function() {
+    const workout = getHistoryWorkoutForEdit(editingHistoryWorkoutId);
+    if (!workout) { ShowToast('Ovaj trening vi\u0161e nije dostupan.', 'error'); return; }
+    pendingHistoryWorkoutDeleteId = workout.id;
+    document.getElementById('history-workout-delete-name').textContent = workout.name || 'ovaj trening';
+    document.getElementById('history-workout-delete-date').textContent = formatDateClean(workout.date, true);
+    document.getElementById('history-workout-delete-modal').style.display = 'flex';
+  };
+
+  window.cancelHistoryWorkoutDelete = function() {
+    pendingHistoryWorkoutDeleteId = null;
+    document.getElementById('history-workout-delete-modal').style.display = 'none';
+  };
+
+  window.confirmHistoryWorkoutDelete = async function() {
+    const workout = getHistoryWorkoutForEdit(pendingHistoryWorkoutDeleteId);
+    const status = document.getElementById('history-workout-editor-status');
+    if (!workout) { window.cancelHistoryWorkoutDelete(); if (status) status.textContent = 'Ovaj trening vi\u0161e nije dostupan.'; return; }
+    const button = document.getElementById('confirm-history-workout-delete');
+    if (button) { button.disabled = true; button.textContent = 'Bri\u0161em\u2026'; }
+    try {
+      await deleteDoc(doc(db, 'workouts', workout.id));
+      cachedHistory = cachedHistory.filter((item) => item.id !== workout.id);
+      pendingHistoryWorkoutDeleteId = null;
+      editingHistoryWorkoutId = null;
+      document.getElementById('history-workout-delete-modal').style.display = 'none';
+      document.getElementById('history-workout-editor-modal').style.display = 'none';
+      refreshWorkoutViews();
+      ShowToast('Trening je obrisan.');
+    } catch (error) {
+      console.error('Workout history delete diagnostic:', error);
+      if (status) status.textContent = 'Trening nije mogu\u0107e obrisati. Ostao je sa\u010duvan.';
+      ShowToast('Trening nije mogu\u0107e obrisati. Provjeri internet i poku\u0161aj ponovo.', 'error');
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Obri\u0161i trening'; }
+    }
+  };
 
   function getWorkoutTime(workout) {
     const timestamp = new Date(workout?.date || '').getTime();
@@ -3323,11 +3844,13 @@ function renderPendingSyncStatus() {
 
     try {
       const userId = currentUser.uid;
-      const [profileSnapshot, routinesSnapshot, workoutsSnapshot, measurementsSnapshot] = await Promise.all([
+      const [profileSnapshot, routinesSnapshot, workoutsSnapshot, measurementsSnapshot, foodEntriesSnapshot, mealPlansSnapshot] = await Promise.all([
         getDoc(doc(db, 'users', userId)),
         getDocs(query(collection(db, 'routines'), where('userId', '==', userId))),
         getDocs(query(collection(db, 'workouts'), where('userId', '==', userId))),
-        getDocs(query(collection(db, 'bodyMeasurements'), where('userId', '==', userId)))
+        getDocs(query(collection(db, 'bodyMeasurements'), where('userId', '==', userId))),
+        getDocs(query(collection(db, 'foodEntries'), where('userId', '==', userId))),
+        getDocs(collection(db, 'users', userId, 'mealPlans'))
       ]);
       const payload = {
         app: 'GymLeader',
@@ -3335,7 +3858,9 @@ function renderPendingSyncStatus() {
         profile: profileSnapshot.exists() ? profileSnapshot.data() : null,
         routines: routinesSnapshot.docs.map((item) => item.data()),
         workouts: workoutsSnapshot.docs.map((item) => item.data()),
-        bodyMeasurements: measurementsSnapshot.docs.map((item) => item.data())
+        bodyMeasurements: measurementsSnapshot.docs.map((item) => item.data()),
+        foodEntries: foodEntriesSnapshot.docs.map((item) => item.data()),
+        mealPlans: mealPlansSnapshot.docs.map((item) => item.data())
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
       const downloadUrl = URL.createObjectURL(blob);
@@ -3673,6 +4198,808 @@ function renderPendingSyncStatus() {
     if (modal) modal.style.display = 'none';
   };
 
+  function getFoodSelectedDate() {
+    const input = document.getElementById('food-selected-date');
+    const localNow = new Date();
+    const today = `${localNow.getFullYear()}-${String(localNow.getMonth() + 1).padStart(2, '0')}-${String(localNow.getDate()).padStart(2, '0')}`;
+    if (input && !input.value) input.value = today;
+    return input?.value || today;
+  }
+
+  function getFoodEntriesCacheKey(userId, date) {
+    return userId && date ? `gym_food_entries_cache_v1_${userId}_${date}` : '';
+  }
+
+  function readFoodEntriesCache(userId, date) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(getFoodEntriesCacheKey(userId, date)) || 'null');
+      return cached && Array.isArray(cached.items) ? cached : null;
+    } catch { return null; }
+  }
+
+  function writeFoodEntriesCache(userId, date, items) {
+    try { localStorage.setItem(getFoodEntriesCacheKey(userId, date), JSON.stringify({ savedAt: Date.now(), items })); }
+    catch (error) { console.warn('Lokalni cache ishrane nije mogao biti sačuvan:', error); }
+  }
+
+  function getFoodGoalStorageKey(userId = currentUser?.uid) {
+    return userId ? `gym_food_daily_goal_v1_${userId}` : '';
+  }
+
+  const NUTRITION_GOAL_FIELDS = {
+    calories: 'dailyCaloriesGoal',
+    protein: 'dailyProteinGoal',
+    carbs: 'dailyCarbsGoal',
+    fat: 'dailyFatGoal'
+  };
+
+  function validNutritionGoal(value, { integer = false, max = 2000 } = {}) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 1 && number <= max && (!integer || Number.isInteger(number)) ? number : null;
+  }
+
+  function getNutritionGoals() {
+    const profile = currentProfileData || {};
+    const profileCalories = validNutritionGoal(profile[NUTRITION_GOAL_FIELDS.calories], { integer: true, max: 10000 });
+    const legacyCalories = validNutritionGoal(localStorage.getItem(getFoodGoalStorageKey()), { integer: true, max: 10000 });
+    return {
+      calories: profileCalories || legacyCalories,
+      protein: validNutritionGoal(profile[NUTRITION_GOAL_FIELDS.protein]),
+      carbs: validNutritionGoal(profile[NUTRITION_GOAL_FIELDS.carbs]),
+      fat: validNutritionGoal(profile[NUTRITION_GOAL_FIELDS.fat])
+    };
+  }
+
+  function getFoodDailyGoal() {
+    return getNutritionGoals().calories;
+  }
+
+  function formatFoodNumber(value) {
+    return Number(value || 0).toLocaleString(getCurrentLanguage() === 'de' ? 'de-DE' : getCurrentLanguage() === 'en' ? 'en-GB' : 'sr-Latn-RS', { maximumFractionDigits: 1 });
+  }
+
+  function getFoodMealLabel(type) {
+    const labels = {
+      sr: { breakfast: 'Doručak', lunch: 'Ručak', dinner: 'Večera', snack: 'Užina', other: 'Drugo' },
+      en: { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', other: 'Other' },
+      de: { breakfast: 'Frühstück', lunch: 'Mittagessen', dinner: 'Abendessen', snack: 'Snack', other: 'Andere' }
+    };
+    return (labels[getCurrentLanguage()] || labels.sr)[type] || labels.sr.other;
+  }
+
+  function getFoodFavoritesStorageKey(userId = currentUser?.uid) {
+    return userId ? `gym_food_favorites_v1_${userId}` : '';
+  }
+
+  function getFoodFavorites() {
+    try {
+      const values = JSON.parse(localStorage.getItem(getFoodFavoritesStorageKey()) || '[]');
+      return Array.isArray(values) ? values.slice(0, 20) : [];
+    } catch { return []; }
+  }
+
+  function saveFoodFavorites(items) {
+    try { localStorage.setItem(getFoodFavoritesStorageKey(), JSON.stringify(items.slice(0, 20))); }
+    catch (error) { console.warn('Omiljeni obroci nisu mogli biti sačuvani lokalno:', error); }
+  }
+
+  function getFoodLibraryCategoryLabel(category) {
+    const language = getCurrentLanguage();
+    return FOOD_LIBRARY_CATEGORIES.find((item) => item.id === category)?.labels?.[language]
+      || FOOD_LIBRARY_CATEGORIES.find((item) => item.id === category)?.labels?.sr
+      || category;
+  }
+
+  function normalizeFoodLibrarySearch(value) {
+    return String(value || '')
+      .toLocaleLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\u0111/g, 'd')
+      .replace(/\u00df/g, 'ss');
+  }
+
+  function ensureFoodLibraryPicker() {
+    const mealType = document.getElementById('food-entry-meal-type');
+    if (!mealType || document.getElementById('food-library-picker')) return;
+    const picker = document.createElement('section');
+    picker.id = 'food-library-picker';
+    picker.className = 'food-library-picker';
+    picker.innerHTML = '<div class="food-library-picker-heading"><strong>Pronađi namirnicu</strong><small>Makroi se popune automatski, a količinu možeš promijeniti.</small></div><input id="food-library-search" class="custom-input" type="search" autocomplete="off" placeholder="Pretraži, npr. piletina ili banana"><div id="food-library-categories" class="food-library-categories" role="group" aria-label="Kategorije namirnica"></div><div id="food-library-results" class="food-library-results"></div><div id="food-favorites" class="food-favorites"></div><button id="save-food-favorite-button" class="food-favorite-button" data-action="save-food-favorite" type="button" hidden>☆ Sačuvaj kao omiljeni obrok</button><p class="food-manual-hint">Ne vidiš namirnicu? Ispod je upiši ručno.</p>';
+    mealType.previousElementSibling?.insertAdjacentElement('beforebegin', picker);
+    document.getElementById('food-library-search')?.addEventListener('input', renderFoodLibraryPicker);
+    document.getElementById('food-entry-quantity')?.addEventListener('input', syncSelectedFoodLibraryQuantity);
+    document.getElementById('food-entry-name')?.addEventListener('input', () => { activeFoodLibraryItemId = null; document.getElementById('save-food-favorite-button').hidden = !document.getElementById('food-entry-name').value.trim(); });
+    renderFoodLibraryPicker();
+  }
+
+  function renderFoodLibraryPicker() {
+    const categories = document.getElementById('food-library-categories');
+    const results = document.getElementById('food-library-results');
+    if (!categories || !results) return;
+    const queryText = normalizeFoodLibrarySearch(document.getElementById('food-library-search')?.value || '');
+    const language = getCurrentLanguage();
+    categories.innerHTML = [`<button type="button" class="${foodLibraryCategory === 'all' ? 'is-active' : ''}" data-action="set-food-library-category" data-food-category="all">Sve</button>`, ...FOOD_LIBRARY_CATEGORIES.map((category) => `<button type="button" class="${foodLibraryCategory === category.id ? 'is-active' : ''}" data-action="set-food-library-category" data-food-category="${category.id}">${escapeHtml(getFoodLibraryCategoryLabel(category.id))}</button>`)].join('');
+    const matches = FOOD_LIBRARY.filter((item) => {
+      const names = normalizeFoodLibrarySearch(Object.values(item.names).join(' '));
+      return (foodLibraryCategory === 'all' || item.category === foodLibraryCategory) && (!queryText || names.includes(queryText));
+    }).slice(0, 12);
+    results.innerHTML = matches.length ? matches.map((item) => `<button type="button" class="food-library-result" data-action="select-food-library-item" data-food-library-id="${item.id}"><span><strong>${escapeHtml(getFoodLibraryName(item, language))}</strong><small>${escapeHtml(getFoodLibraryCategoryLabel(item.category))} · ${item.portion} ${escapeHtml(item.unit)}${item.allergens.length ? ` · sadrži: ${escapeHtml(item.allergens.join(', '))}` : ''}</small></span><em>${formatFoodNumber(item.calories)} kcal</em></button>`).join('') : '<p class="food-library-empty">Nema rezultata. Možeš upisati vlastitu hranu ispod.</p>';
+    renderFoodFavorites();
+  }
+
+  function renderFoodFavorites() {
+    const root = document.getElementById('food-favorites');
+    if (!root) return;
+    const favorites = getFoodFavorites();
+    root.innerHTML = favorites.length ? `<span>Omiljeni obroci</span><div>${favorites.map((item) => `<button type="button" data-action="select-food-favorite" data-food-favorite-id="${escapeHtml(item.id)}">${escapeHtml(item.name)}</button>`).join('')}</div>` : '';
+  }
+
+  function applyFoodLibraryItem(item) {
+    if (!item) return;
+    activeFoodLibraryItemId = item.id;
+    document.getElementById('food-entry-name').value = getFoodLibraryName(item, getCurrentLanguage());
+    document.getElementById('food-entry-quantity').value = item.portion;
+    document.getElementById('food-entry-unit').value = item.unit;
+    document.getElementById('food-entry-calories').value = item.calories;
+    document.getElementById('food-entry-protein').value = item.proteinG;
+    document.getElementById('food-entry-carbs').value = item.carbsG;
+    document.getElementById('food-entry-fat').value = item.fatG;
+    document.getElementById('save-food-favorite-button').hidden = false;
+  }
+
+  function syncSelectedFoodLibraryQuantity() {
+    const item = FOOD_LIBRARY.find((entry) => entry.id === activeFoodLibraryItemId);
+    if (!item) return;
+    const amount = Number(document.getElementById('food-entry-quantity')?.value);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    const ratio = amount / item.portion;
+    document.getElementById('food-entry-calories').value = Math.round(item.calories * ratio);
+    document.getElementById('food-entry-protein').value = Number((item.proteinG * ratio).toFixed(1));
+    document.getElementById('food-entry-carbs').value = Number((item.carbsG * ratio).toFixed(1));
+    document.getElementById('food-entry-fat').value = Number((item.fatG * ratio).toFixed(1));
+  }
+
+  window.selectFoodLibraryItem = function(id) { applyFoodLibraryItem(FOOD_LIBRARY.find((item) => item.id === id)); };
+  window.selectFoodFavorite = function(id) {
+    const favorite = getFoodFavorites().find((item) => item.id === id);
+    if (!favorite) return;
+    activeFoodLibraryItemId = null;
+    document.getElementById('food-entry-meal-type').value = favorite.mealType || 'other';
+    document.getElementById('food-entry-name').value = favorite.name || '';
+    document.getElementById('food-entry-quantity').value = favorite.quantity ?? '';
+    document.getElementById('food-entry-unit').value = favorite.unit || '';
+    document.getElementById('food-entry-calories').value = favorite.calories ?? '';
+    document.getElementById('food-entry-protein').value = favorite.proteinG ?? '';
+    document.getElementById('food-entry-carbs').value = favorite.carbsG ?? '';
+    document.getElementById('food-entry-fat').value = favorite.fatG ?? '';
+    document.getElementById('save-food-favorite-button').hidden = false;
+  };
+  window.saveFoodFavorite = function() {
+    const name = document.getElementById('food-entry-name')?.value.trim() || '';
+    const quantity = foodNumber('food-entry-quantity', { min: .1, max: 10000 });
+    const calories = foodNumber('food-entry-calories', { required: true, min: 0, max: 10000 });
+    const proteinG = foodNumber('food-entry-protein', { min: 0, max: 2000 });
+    const carbsG = foodNumber('food-entry-carbs', { min: 0, max: 2000 });
+    const fatG = foodNumber('food-entry-fat', { min: 0, max: 2000 });
+    const unit = document.getElementById('food-entry-unit')?.value.trim() || '';
+    if (!name || !unit || quantity === undefined || calories === undefined || proteinG === undefined || carbsG === undefined || fatG === undefined) { ShowToast('Prvo popuni obrok koji želiš sačuvati.', 'error'); return; }
+    const items = getFoodFavorites().filter((item) => item.name.toLocaleLowerCase() !== name.toLocaleLowerCase());
+    items.unshift({ id: `favorite-${Date.now()}`, mealType: document.getElementById('food-entry-meal-type').value, name, quantity, unit, calories, proteinG: proteinG ?? 0, carbsG: carbsG ?? 0, fatG: fatG ?? 0 });
+    saveFoodFavorites(items);
+    renderFoodFavorites();
+    ShowToast('Obrok je sačuvan među omiljenima.');
+  };
+
+  function renderFoodEntries() {
+    const list = document.getElementById('food-entries-list');
+    const summary = document.getElementById('food-daily-summary');
+    const count = document.getElementById('food-entry-count');
+    if (!list || !summary) return;
+    const totals = foodEntries.reduce((sum, entry) => ({
+      calories: sum.calories + Number(entry.calories || 0), protein: sum.protein + Number(entry.proteinG || 0),
+      carbs: sum.carbs + Number(entry.carbsG || 0), fat: sum.fat + Number(entry.fatG || 0)
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    const goals = getNutritionGoals();
+    const progressCard = (label, value, goal, unit, isCalories = false) => {
+      if (!goal) return `<div><small>${label}</small><strong>${formatFoodNumber(value)} ${unit}</strong><em>Bez cilja</em></div>`;
+      const difference = goal - value;
+      const isOver = difference < 0;
+      const detail = isOver
+        ? `Preko cilja ${formatFoodNumber(Math.abs(difference))} ${unit}`
+        : isCalories
+          ? `Još ${formatFoodNumber(difference)} ${unit}`
+          : `${formatFoodNumber(value)} / ${formatFoodNumber(goal)} ${unit}`;
+      const percent = Math.min(100, Math.max(0, (value / goal) * 100));
+      return `<div class="${isOver ? 'is-over' : ''}"><small>${label}</small><strong>${formatFoodNumber(value)} / ${formatFoodNumber(goal)} ${unit}</strong><div class="food-goal-progress" aria-hidden="true"><span style="width:${percent}%"></span></div><em>${detail}</em></div>`;
+    };
+    summary.innerHTML = [
+      progressCard('Kalorije', totals.calories, goals.calories, 'kcal', true),
+      progressCard('Proteini', totals.protein, goals.protein, 'g'),
+      progressCard('Ugljikohidrati', totals.carbs, goals.carbs, 'g'),
+      progressCard('Masti', totals.fat, goals.fat, 'g')
+    ].join('');
+    const foodGoalHelp = document.getElementById('food-goal-help');
+    if (foodGoalHelp) foodGoalHelp.textContent = Object.values(goals).some(Boolean)
+      ? 'Lični dnevni ciljevi. Možeš ih promijeniti kad god želiš.'
+      : 'Opcionalno. Dnevnik hrane radi i bez ciljeva.';
+    const foodGoalHeading = document.querySelector('.food-goal-row strong');
+    const foodGoalButton = document.querySelector('.food-goal-row [data-action="open-food-goal-modal"]');
+    if (foodGoalHeading) foodGoalHeading.textContent = 'Ciljevi ishrane';
+    if (foodGoalButton) foodGoalButton.textContent = 'Podesi ciljeve';
+    if (count) count.textContent = foodEntries.length ? `${foodEntries.length} ${foodEntries.length === 1 ? 'unos' : 'unosa'}` : '';
+    if (!foodEntries.length) {
+      list.innerHTML = '<div class="food-empty-state"><strong>Još nema unosa za ovaj dan.</strong><span>Dodaj obrok kada želiš pratiti kalorije i makronutrijente.</span></div>';
+      return;
+    }
+    list.innerHTML = foodEntries.map((entry) => {
+      const quantity = entry.quantity != null ? `${formatFoodNumber(entry.quantity)} ${escapeHtml(entry.unit || '')}`.trim() : '';
+      const macros = [`${formatFoodNumber(entry.calories)} kcal`, `P ${formatFoodNumber(entry.proteinG)} g`, `UH ${formatFoodNumber(entry.carbsG)} g`, `M ${formatFoodNumber(entry.fatG)} g`].join(' · ');
+      return `<article class="food-entry-item"><div class="food-entry-main"><span class="food-meal-type">${escapeHtml(getFoodMealLabel(entry.mealType))}</span><strong>${escapeHtml(entry.name)}</strong><small>${escapeHtml(quantity)}${quantity && entry.note ? ' · ' : ''}${escapeHtml(entry.note || '')}</small><span>${escapeHtml(macros)}</span></div><div class="food-entry-actions"><button class="btn btn-secondary" data-action="edit-food-entry" data-food-entry-id="${escapeHtml(entry.id)}" type="button">Uredi</button><button class="food-delete-button" data-action="delete-food-entry" data-food-entry-id="${escapeHtml(entry.id)}" type="button">Obriši</button></div></article>`;
+    }).join('');
+  }
+
+  async function loadFoodEntriesForSelectedDay({ force = false } = {}) {
+    if (!currentUser) return;
+    const date = getFoodSelectedDate();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const cached = readFoodEntriesCache(currentUser.uid, date);
+    if (cached) {
+      foodEntries = [...cached.items].sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+      foodEntriesLoadedDate = date;
+      renderFoodEntries();
+      if (!force && Date.now() - Number(cached.savedAt || 0) < FOOD_ENTRIES_CACHE_TTL_MS) return;
+    }
+    try {
+      const snapshot = await getDocs(query(collection(db, 'foodEntries'), where('userId', '==', currentUser.uid), where('date', '==', date), limit(100)));
+      foodEntries = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+      foodEntriesLoadedDate = date;
+      writeFoodEntriesCache(currentUser.uid, date, foodEntries);
+      renderFoodEntries();
+      const status = document.getElementById('food-entries-status');
+      if (status) status.textContent = '';
+    } catch (error) {
+      console.error('Food entries load diagnostic:', error);
+      const status = document.getElementById('food-entries-status');
+      if (status) status.textContent = 'Unosi ishrane trenutno nisu dostupni. Provjeri internet i pokušaj ponovo.';
+    }
+  }
+
+  window.openFoodEntryModal = function() {
+    if (!currentUser) return;
+    ensureFoodLibraryPicker();
+    editingFoodEntryId = null;
+    activeFoodLibraryItemId = null;
+    foodLibraryCategory = 'all';
+    document.querySelectorAll('#food-entry-modal input, #food-entry-modal textarea').forEach((field) => { field.value = ''; });
+    document.getElementById('food-entry-meal-type').value = 'breakfast';
+    document.getElementById('food-entry-title').textContent = 'Dodaj obrok';
+    document.getElementById('food-entry-save-button').textContent = 'Sačuvaj obrok';
+    document.getElementById('food-entry-status').textContent = '';
+    document.getElementById('save-food-favorite-button').hidden = true;
+    renderFoodLibraryPicker();
+    document.getElementById('food-entry-modal').style.display = 'flex';
+  };
+
+  window.openFoodEntryForEdit = function(id) {
+    const entry = foodEntries.find((item) => item.id === id);
+    if (!entry) { ShowToast('Ovaj unos nije pronađen.', 'error'); return; }
+    editingFoodEntryId = id;
+    ensureFoodLibraryPicker();
+    activeFoodLibraryItemId = null;
+    document.getElementById('food-entry-meal-type').value = entry.mealType || 'other';
+    document.getElementById('food-entry-name').value = entry.name || '';
+    document.getElementById('food-entry-quantity').value = entry.quantity ?? '';
+    document.getElementById('food-entry-unit').value = entry.unit || '';
+    document.getElementById('food-entry-calories').value = entry.calories ?? '';
+    document.getElementById('food-entry-protein').value = entry.proteinG ?? '';
+    document.getElementById('food-entry-carbs').value = entry.carbsG ?? '';
+    document.getElementById('food-entry-fat').value = entry.fatG ?? '';
+    document.getElementById('food-entry-note').value = entry.note || '';
+    document.getElementById('food-entry-title').textContent = 'Uredi obrok';
+    document.getElementById('food-entry-save-button').textContent = 'Sačuvaj promjene';
+    document.getElementById('food-entry-status').textContent = '';
+    document.getElementById('save-food-favorite-button').hidden = false;
+    renderFoodLibraryPicker();
+    document.getElementById('food-entry-modal').style.display = 'flex';
+  };
+
+  function foodNumber(id, { required = false, min = 0, max = 2000 } = {}) {
+    const raw = document.getElementById(id)?.value.trim() || '';
+    if (!raw && !required) return null;
+    const number = Number(raw);
+    return Number.isFinite(number) && number >= min && number <= max ? number : undefined;
+  }
+
+  window.saveFoodEntry = async function() {
+    if (!currentUser) return;
+    const date = getFoodSelectedDate();
+    const mealType = document.getElementById('food-entry-meal-type')?.value;
+    const name = document.getElementById('food-entry-name')?.value.trim() || '';
+    const quantity = foodNumber('food-entry-quantity', { min: .1, max: 10000 });
+    const calories = foodNumber('food-entry-calories', { required: true, min: 0, max: 10000 });
+    const proteinG = foodNumber('food-entry-protein', { min: 0, max: 2000 });
+    const carbsG = foodNumber('food-entry-carbs', { min: 0, max: 2000 });
+    const fatG = foodNumber('food-entry-fat', { min: 0, max: 2000 });
+    const unit = document.getElementById('food-entry-unit')?.value.trim() || '';
+    const note = document.getElementById('food-entry-note')?.value.trim() || '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['breakfast', 'lunch', 'dinner', 'snack', 'other'].includes(mealType) || !name || name.length > 120 || !unit || unit.length > 30 || quantity === undefined || calories === undefined || proteinG === undefined || carbsG === undefined || fatG === undefined || note.length > 500) {
+      ShowToast('Provjeri naziv, količinu, jedinicu i nutritivne vrijednosti.', 'error'); return;
+    }
+    if (!editingFoodEntryId && foodEntries.length >= 100) { ShowToast('Za ovaj dan možeš sačuvati najviše 100 unosa.', 'error'); return; }
+    const data = { userId: currentUser.uid, date, mealType, name, quantity, unit, calories, proteinG: proteinG ?? 0, carbsG: carbsG ?? 0, fatG: fatG ?? 0, note, createdAt: editingFoodEntryId ? (foodEntries.find((item) => item.id === editingFoodEntryId)?.createdAt || new Date().toISOString()) : new Date().toISOString() };
+    const button = document.getElementById('food-entry-save-button');
+    if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
+    try {
+      if (editingFoodEntryId) {
+        await setDoc(doc(db, 'foodEntries', editingFoodEntryId), data);
+        foodEntries = foodEntries.map((item) => item.id === editingFoodEntryId ? { ...item, ...data } : item);
+      } else {
+        const saved = await addDoc(collection(db, 'foodEntries'), data);
+        foodEntries = [...foodEntries, { id: saved.id, ...data }];
+      }
+      foodEntries.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+      writeFoodEntriesCache(currentUser.uid, date, foodEntries);
+      foodEntriesLoadedDate = date;
+      editingFoodEntryId = null;
+      document.getElementById('food-entry-modal').style.display = 'none';
+      renderFoodEntries();
+      ShowToast('Obrok je sačuvan.');
+    } catch (error) {
+      console.error('Food entry save diagnostic:', error);
+      ShowToast('Obrok nije moguće sačuvati. Provjeri internet i pokušaj ponovo.', 'error');
+    } finally { if (button) { button.disabled = false; button.textContent = editingFoodEntryId ? 'Sačuvaj promjene' : 'Sačuvaj obrok'; } }
+  };
+
+  window.deleteFoodEntry = function(id) {
+    const entry = foodEntries.find((item) => item.id === id);
+    if (!entry) { ShowToast('Ovaj unos nije pronađen.', 'error'); return; }
+    pendingFoodEntryDeleteId = id;
+    document.getElementById('food-entry-delete-name').textContent = entry.name;
+    document.getElementById('food-entry-delete-modal').style.display = 'flex';
+  };
+
+  window.confirmFoodEntryDelete = async function() {
+    if (!currentUser || !pendingFoodEntryDeleteId) return;
+    const id = pendingFoodEntryDeleteId;
+    const button = document.getElementById('confirm-food-entry-delete');
+    if (button) button.disabled = true;
+    try {
+      await deleteDoc(doc(db, 'foodEntries', id));
+      foodEntries = foodEntries.filter((item) => item.id !== id);
+      writeFoodEntriesCache(currentUser.uid, getFoodSelectedDate(), foodEntries);
+      pendingFoodEntryDeleteId = null;
+      document.getElementById('food-entry-delete-modal').style.display = 'none';
+      renderFoodEntries();
+      ShowToast('Unos je obrisan.');
+    } catch (error) { console.error('Food entry delete diagnostic:', error); ShowToast('Unos nije moguće obrisati. Provjeri internet i pokušaj ponovo.', 'error'); }
+    finally { if (button) button.disabled = false; }
+  };
+
+  window.cancelFoodEntryDelete = function() { pendingFoodEntryDeleteId = null; document.getElementById('food-entry-delete-modal').style.display = 'none'; };
+  function nutritionGoalInput(id, { integer = false, max = 2000 } = {}) {
+    const raw = document.getElementById(id)?.value.trim() || '';
+    if (!raw) return { value: null };
+    const value = validNutritionGoal(raw, { integer, max });
+    return value == null ? { error: true } : { value };
+  }
+
+  function setNutritionGoalModalCopy() {
+    const title = document.getElementById('food-goal-title');
+    const help = document.querySelector('#food-goal-modal .profile-modal-help');
+    const action = document.querySelector('#food-goal-modal [data-action="save-food-goal"]');
+    const clear = document.querySelector('#food-goal-modal [data-action="clear-food-goal"]');
+    const localNote = document.querySelector('#food-goal-modal .weekly-goal-local-note');
+    if (title) title.textContent = 'Ciljevi ishrane';
+    if (help) help.textContent = 'Ovo su tvoji lični dnevni podsjetnici. Sva polja su opcionalna i možeš ih promijeniti ili ukloniti kad god želiš.';
+    if (action) action.textContent = 'Sačuvaj ciljeve';
+    if (clear) clear.textContent = 'Ukloni sve ciljeve';
+    if (localNote) localNote.textContent = 'Možeš koristiti dnevnik hrane i kada nijedan cilj nije postavljen.';
+    const calorieInput = document.getElementById('food-daily-goal-input');
+    if (!calorieInput || document.getElementById('food-protein-goal-input')) return;
+    const macroGrid = document.createElement('div');
+    macroGrid.className = 'food-goal-macro-grid';
+    macroGrid.innerHTML = '<div><label class="settings-label" for="food-protein-goal-input">Proteini (g)</label><input id="food-protein-goal-input" class="custom-input" type="number" min="1" max="2000" step="0.1" inputmode="decimal" placeholder="npr. 140"></div><div><label class="settings-label" for="food-carbs-goal-input">Ugljikohidrati (g)</label><input id="food-carbs-goal-input" class="custom-input" type="number" min="1" max="2000" step="0.1" inputmode="decimal" placeholder="npr. 250"></div><div><label class="settings-label" for="food-fat-goal-input">Masti (g)</label><input id="food-fat-goal-input" class="custom-input" type="number" min="1" max="2000" step="0.1" inputmode="decimal" placeholder="npr. 70"></div>';
+    calorieInput.insertAdjacentElement('afterend', macroGrid);
+    const calorieLabel = document.querySelector('label[for="food-daily-goal-input"]');
+    if (calorieLabel) calorieLabel.textContent = 'Kalorije dnevno';
+  }
+
+  window.openFoodGoalModal = function() {
+    if (!currentUser) return;
+    setNutritionGoalModalCopy();
+    const goals = getNutritionGoals();
+    document.getElementById('food-daily-goal-input').value = goals.calories || '';
+    document.getElementById('food-protein-goal-input').value = goals.protein || '';
+    document.getElementById('food-carbs-goal-input').value = goals.carbs || '';
+    document.getElementById('food-fat-goal-input').value = goals.fat || '';
+    document.getElementById('food-goal-status').textContent = '';
+    document.getElementById('food-goal-modal').style.display = 'flex';
+  };
+
+  window.saveFoodGoal = async function() {
+    if (!currentUser) return;
+    const status = document.getElementById('food-goal-status');
+    const values = {
+      calories: nutritionGoalInput('food-daily-goal-input', { integer: true, max: 10000 }),
+      protein: nutritionGoalInput('food-protein-goal-input'),
+      carbs: nutritionGoalInput('food-carbs-goal-input'),
+      fat: nutritionGoalInput('food-fat-goal-input')
+    };
+    if (Object.values(values).some((item) => item.error)) {
+      status.textContent = 'Unesi pozitivan broj u svakom polju koje želiš pratiti.';
+      return;
+    }
+    const updates = {};
+    Object.entries(NUTRITION_GOAL_FIELDS).forEach(([key, field]) => {
+      updates[field] = values[key].value == null ? deleteField() : values[key].value;
+    });
+    const button = document.querySelector('#food-goal-modal [data-action="save-food-goal"]');
+    if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), updates);
+      const nextProfile = { ...(currentProfileData || {}) };
+      Object.entries(NUTRITION_GOAL_FIELDS).forEach(([key, field]) => {
+        if (values[key].value == null) delete nextProfile[field];
+        else nextProfile[field] = values[key].value;
+      });
+      currentProfileData = nextProfile;
+      localStorage.removeItem(getFoodGoalStorageKey());
+      document.getElementById('food-goal-modal').style.display = 'none';
+      renderFoodEntries();
+      renderProfileSettings();
+      ShowToast('Ciljevi ishrane su sačuvani.');
+    } catch (error) {
+      console.error('Nutrition goals save diagnostic:', error);
+      status.textContent = 'Ciljeve trenutno nije moguće sačuvati. Provjeri internet i pokušaj ponovo.';
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Sačuvaj ciljeve'; }
+    }
+  };
+
+  window.clearFoodGoal = async function() {
+    if (!currentUser) return;
+    const status = document.getElementById('food-goal-status');
+    const updates = Object.fromEntries(Object.values(NUTRITION_GOAL_FIELDS).map((field) => [field, deleteField()]));
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), updates);
+      const nextProfile = { ...(currentProfileData || {}) };
+      Object.values(NUTRITION_GOAL_FIELDS).forEach((field) => delete nextProfile[field]);
+      currentProfileData = nextProfile;
+      localStorage.removeItem(getFoodGoalStorageKey());
+      document.getElementById('food-goal-modal').style.display = 'none';
+      renderFoodEntries();
+      renderProfileSettings();
+      ShowToast('Ciljevi ishrane su uklonjeni.');
+    } catch (error) {
+      console.error('Nutrition goals clear diagnostic:', error);
+      status.textContent = 'Ciljeve trenutno nije moguće ukloniti. Provjeri internet i pokušaj ponovo.';
+    }
+  };
+
+  function mealPlanOptionsFromForm() {
+    const value = (id) => document.getElementById(id)?.value;
+    const options = {
+      goal: value('meal-plan-goal'),
+      startDate: value('meal-plan-start'),
+      people: Number(value('meal-plan-people')),
+      dayCount: Number(value('meal-plan-days')),
+      mealCount: Number(value('meal-plan-count')),
+      budget: Number(value('meal-plan-budget')),
+      currency: value('meal-plan-currency'),
+      diet: value('meal-plan-diet'),
+      highProtein: document.getElementById('meal-plan-high-protein')?.checked === true,
+      simpleOnly: document.getElementById('meal-plan-simple')?.checked === true,
+      maxMinutes: Number(value('meal-plan-minutes')),
+      allergies: value('meal-plan-allergies')?.trim() || '',
+      disliked: value('meal-plan-disliked')?.trim() || ''
+    };
+    if (!['lose_weight', 'maintain', 'gain_weight'].includes(options.goal)
+      || !/^\d{4}-\d{2}-\d{2}$/.test(options.startDate || '')
+      || !Number.isInteger(options.people) || options.people < 1 || options.people > 10
+      || !Number.isInteger(options.dayCount) || options.dayCount < 1 || options.dayCount > 7
+      || !Number.isInteger(options.mealCount) || options.mealCount < 2 || options.mealCount > 5
+      || !Number.isFinite(options.budget) || options.budget < 1 || options.budget > 1000000
+      || !MEAL_CURRENCIES[options.currency] || !['none', 'vegetarian', 'vegan', 'halal'].includes(options.diet)
+      || !Number.isInteger(options.maxMinutes) || options.maxMinutes < 5 || options.maxMinutes > 180
+      || options.allergies.length > 1000 || options.disliked.length > 1000) return null;
+    return options;
+  }
+
+  function mealPlanCurrencyAmount(eur, currency) {
+    const config = MEAL_CURRENCIES[currency] || MEAL_CURRENCIES.EUR;
+    return `${formatFoodNumber(Math.round(eur * config.factor * 100) / 100)} ${config.symbol}`;
+  }
+
+  function formatMealPlanDate(date) {
+    const language = getCurrentLanguage();
+    const locale = language === 'de' ? 'de-DE' : language === 'en' ? 'en-GB' : 'sr-Latn-RS';
+    const parsed = new Date(`${date}T12:00:00`);
+    return Number.isNaN(parsed.getTime()) ? String(date) : new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'short' }).format(parsed);
+  }
+
+  function combinedMealAllergies(...values) {
+    return values.map((value) => String(value || '').trim())
+      .filter((value) => value && !/^(nemam|nema|none|no allergies|no restrictions|keine)/i.test(value))
+      .join(', ');
+  }
+
+  function mealPlannerCopy() {
+    const copy = {
+      sr: {
+        savedLoading: 'Učitavanje sačuvanih planova…', savedEmpty: 'Još nema sačuvanih planova.', savedUnavailable: 'Sačuvani planovi trenutno nisu dostupni. Provjeri internet i pokušaj ponovo.',
+        day: (count) => `${count} ${count === 1 ? 'dan' : 'dana'}`, mealsPerDay: (count) => `${count} obroka dnevno`, people: (count) => `Za ${count} ${count === 1 ? 'osobu' : 'osoba'}`,
+        estimate: 'procjena', perPerson: 'Po osobi: oko', dailyEstimate: 'Procjena po osobi:', totalEstimate: 'Ukupna procjena:', budget: 'Okvirni budžet:',
+        breakfast: 'Doručak', lunch: 'Ručak', dinner: 'Večera', snack: 'Užina', open: 'Otvori', delete: 'Obriši', replace: 'Zamijeni', addDiary: 'Dodaj u dnevnik',
+        save: 'Sačuvaj plan', newPlan: 'Novi prijedlog', close: 'Zatvori prijedlog', proposal: 'PRIJEDLOG OBROKA',
+        unsafe: 'Ovaj obrok sada ne odgovara tvojim ograničenjima. Napravi novi plan.',
+        unsafePlan: 'Neka ograničenja su promijenjena ili neprepoznata. Napravi novi plan prije dodavanja obroka.',
+        disclaimer: 'Kalorije, makroi i cijene su procjene. Cijene su lokalni okvirni iznosi, bez podataka iz prodavnica; omjeri valuta su ilustrativni. Provjeri sastojke i deklaracije, posebno kod alergija. Ovaj plan nije zamjena za doktora ili nutricionistu.',
+        badForm: 'Provjeri datum, budžet, broj osoba, dana i obroka.',
+        unknown: (terms) => `Ne prepoznajemo: ${terms}. Upiši tačan naziv namirnice iz naše biblioteke ili poznati alergen, pa pokušaj ponovo.`,
+        noRecipes: 'Nema dovoljno odgovarajućih recepata za ova ograničenja i vrijeme pripreme. Promijeni izbor ili sačekaj proširenje biblioteke.',
+        lowBudget: (amount) => `Okvirni budžet je ispod najjeftinije procjene za ove izbore (oko ${amount}). Povećaj budžet ili smanji broj dana, osoba ili obroka.`,
+        swapUnavailable: 'Nema druge odgovarajuće zamjene unutar ovih ograničenja i budžeta.', swapped: 'Obrok je zamijenjen. Sačuvaj plan ako želiš zadržati izmjenu.',
+        diaryReview: 'Pregledaj obrok i klikni „Sačuvaj obrok“ za potvrdu.', diaryNote: 'Iz planera obroka; nutritivne vrijednosti su procjena.',
+        tooLong: 'Lista alergija i ograničenja je preduga. Skrati unos.', limitPlans: 'Možeš čuvati najviše 10 planova. Obriši jedan stari plan prije čuvanja novog.',
+        loadFirst: 'Prvo učitaj sačuvane planove pa pokušaj ponovo.', changesUnsafe: 'Ograničenja su promijenjena. Napravi novi plan.',
+        saved: 'Plan obroka je sačuvan.', saveFailed: 'Plan trenutno nije moguće sačuvati. Provjeri internet i pokušaj ponovo.',
+        deleted: 'Sačuvani plan je obrisan.', deleteFailed: 'Plan trenutno nije moguće obrisati.'
+      },
+      en: {
+        savedLoading: 'Loading saved meal plans…', savedEmpty: 'No saved meal plans yet.', savedUnavailable: 'Saved plans are unavailable. Check your connection and try again.',
+        day: (count) => `${count} ${count === 1 ? 'day' : 'days'}`, mealsPerDay: (count) => `${count} meals per day`, people: (count) => `For ${count} ${count === 1 ? 'person' : 'people'}`,
+        estimate: 'estimate', perPerson: 'Per person: about', dailyEstimate: 'Estimated per person:', totalEstimate: 'Total estimate:', budget: 'Approximate budget:',
+        breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', open: 'Open', delete: 'Delete', replace: 'Swap', addDiary: 'Add to food diary',
+        save: 'Save plan', newPlan: 'New suggestion', close: 'Close suggestion', proposal: 'MEAL SUGGESTION',
+        unsafe: 'This meal no longer matches your restrictions. Create a new plan.',
+        unsafePlan: 'Some restrictions have changed or cannot be recognized. Create a new plan before adding meals.',
+        disclaimer: 'Calories, macros and prices are estimates. Prices are local illustrative amounts, not store prices; currency factors are illustrative. Check ingredients and labels, especially for allergies. This plan does not replace a doctor or dietitian.',
+        badForm: 'Check the date, budget, number of people, days and meals.',
+        unknown: (terms) => `Not recognized: ${terms}. Enter a food name from our catalogue or a known allergen, then try again.`,
+        noRecipes: 'There are not enough suitable recipes for these restrictions and preparation time. Change your choices or wait for a larger recipe catalogue.',
+        lowBudget: (amount) => `Your approximate budget is below the lowest estimate for these choices (about ${amount}). Increase the budget or reduce days, people or meals.`,
+        swapUnavailable: 'No other suitable replacement fits these restrictions and budget.', swapped: 'Meal swapped. Save the plan if you want to keep the change.',
+        diaryReview: 'Review the meal and click “Save meal” to confirm.', diaryNote: 'From the meal planner; nutrition values are estimates.',
+        tooLong: 'The allergy and restriction list is too long. Shorten the entry.', limitPlans: 'You can save up to 10 plans. Delete an old plan before saving a new one.',
+        loadFirst: 'Load your saved plans first, then try again.', changesUnsafe: 'Your restrictions have changed. Create a new plan.',
+        saved: 'Meal plan saved.', saveFailed: 'The plan could not be saved. Check your connection and try again.',
+        deleted: 'Saved plan deleted.', deleteFailed: 'The plan could not be deleted.'
+      },
+      de: {
+        savedLoading: 'Gespeicherte Essenspläne werden geladen…', savedEmpty: 'Noch keine gespeicherten Essenspläne.', savedUnavailable: 'Gespeicherte Pläne sind nicht verfügbar. Prüfe deine Verbindung und versuche es erneut.',
+        day: (count) => `${count} ${count === 1 ? 'Tag' : 'Tage'}`, mealsPerDay: (count) => `${count} Mahlzeiten pro Tag`, people: (count) => `Für ${count} ${count === 1 ? 'Person' : 'Personen'}`,
+        estimate: 'Schätzung', perPerson: 'Pro Person: etwa', dailyEstimate: 'Geschätzt pro Person:', totalEstimate: 'Gesamtschätzung:', budget: 'Ungefähres Budget:',
+        breakfast: 'Frühstück', lunch: 'Mittagessen', dinner: 'Abendessen', snack: 'Snack', open: 'Öffnen', delete: 'Löschen', replace: 'Tauschen', addDiary: 'Ins Ernährungstagebuch',
+        save: 'Plan speichern', newPlan: 'Neuer Vorschlag', close: 'Vorschlag schließen', proposal: 'ESSENSVORSCHLAG',
+        unsafe: 'Diese Mahlzeit entspricht deinen Einschränkungen nicht mehr. Erstelle einen neuen Plan.',
+        unsafePlan: 'Einige Einschränkungen haben sich geändert oder werden nicht erkannt. Erstelle vor dem Hinzufügen von Mahlzeiten einen neuen Plan.',
+        disclaimer: 'Kalorien, Makros und Preise sind Schätzungen. Die Preise sind lokale Richtwerte, keine Ladenpreise; Währungsfaktoren sind beispielhaft. Prüfe Zutaten und Etiketten, besonders bei Allergien. Dieser Plan ersetzt keine ärztliche oder ernährungsfachliche Beratung.',
+        badForm: 'Prüfe Datum, Budget sowie die Anzahl der Personen, Tage und Mahlzeiten.',
+        unknown: (terms) => `Nicht erkannt: ${terms}. Gib einen Namen aus unserem Katalog oder ein bekanntes Allergen ein und versuche es erneut.`,
+        noRecipes: 'Für diese Einschränkungen und Zubereitungszeit gibt es nicht genug passende Rezepte. Ändere deine Auswahl oder warte auf einen größeren Rezeptkatalog.',
+        lowBudget: (amount) => `Dein ungefähres Budget liegt unter der günstigsten Schätzung für diese Auswahl (etwa ${amount}). Erhöhe das Budget oder reduziere Tage, Personen oder Mahlzeiten.`,
+        swapUnavailable: 'Keine andere passende Alternative liegt innerhalb dieser Einschränkungen und des Budgets.', swapped: 'Mahlzeit getauscht. Speichere den Plan, wenn du die Änderung behalten möchtest.',
+        diaryReview: 'Prüfe die Mahlzeit und klicke zur Bestätigung auf „Mahlzeit speichern“.', diaryNote: 'Aus dem Essensplaner; Nährwerte sind Schätzungen.',
+        tooLong: 'Die Liste mit Allergien und Einschränkungen ist zu lang. Kürze die Eingabe.', limitPlans: 'Du kannst bis zu 10 Pläne speichern. Lösche einen alten Plan, bevor du einen neuen speicherst.',
+        loadFirst: 'Lade zuerst deine gespeicherten Pläne und versuche es erneut.', changesUnsafe: 'Deine Einschränkungen haben sich geändert. Erstelle einen neuen Plan.',
+        saved: 'Essensplan gespeichert.', saveFailed: 'Der Plan konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut.',
+        deleted: 'Gespeicherter Plan gelöscht.', deleteFailed: 'Der Plan konnte nicht gelöscht werden.'
+      }
+    };
+    return copy[getCurrentLanguage()] || copy.sr;
+  }
+
+  function mealPlanRecipeAllowed(item, options) {
+    if (!item || !options) return false;
+    const currentAllergies = currentProfileData?.foodAllergies || '';
+    const combined = { ...options, allergies: combinedMealAllergies(options.allergies, currentAllergies) };
+    const available = eligibleMealRecipes(combined);
+    return !available.unknown.length && available.recipes.some((candidate) => candidate.id === item.id);
+  }
+
+  function renderSavedMealPlans() {
+    const root = document.getElementById('meal-planner-saved-list');
+    if (!root) return;
+    const copy = mealPlannerCopy();
+    if (!savedMealPlansLoaded) { root.textContent = copy.savedLoading; return; }
+    if (!savedMealPlans.length) { root.textContent = copy.savedEmpty; return; }
+    root.innerHTML = savedMealPlans.map((plan) => `<div class="meal-planner-saved-item"><div><strong>${escapeHtml(formatMealPlanDate(plan.startDate))} · ${copy.day(plan.days.length)}</strong><small>${copy.people(plan.people)} · ${copy.mealsPerDay(plan.mealCount)} · ${copy.estimate} ${escapeHtml(mealPlanCurrencyAmount(plan.estimatedCostEur, plan.currency))}</small></div><span><button class="btn btn-secondary" data-action="show-saved-meal-plan" data-meal-plan-id="${escapeHtml(plan.id)}" type="button">${copy.open}</button><button class="food-delete-button" data-action="delete-meal-plan" data-meal-plan-id="${escapeHtml(plan.id)}" type="button">${copy.delete}</button></span></div>`).join('');
+  }
+
+  async function loadSavedMealPlans(force = false) {
+    if (!currentUser || (savedMealPlansLoaded && !force)) return;
+    const userId = currentUser.uid;
+    const root = document.getElementById('meal-planner-saved-list');
+    if (root && !savedMealPlansLoaded) root.textContent = mealPlannerCopy().savedLoading;
+    try {
+      const snapshot = await getDocs(query(collection(db, 'users', userId, 'mealPlans'), orderBy('createdAt', 'desc'), limit(10)));
+      if (currentUser?.uid !== userId) return;
+      savedMealPlans = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+        .filter((plan) => plan.userId === userId && validStoredMealPlan(plan));
+      savedMealPlansLoaded = true;
+      renderSavedMealPlans();
+    } catch (error) {
+      console.error('Meal plans load diagnostic:', error);
+      if (root) root.textContent = mealPlannerCopy().savedUnavailable;
+    }
+  }
+
+  function renderMealPlan() {
+    const root = document.getElementById('meal-planner-result');
+    if (!root) return;
+    if (!activeMealPlan || !activeMealPlanOptions) { root.innerHTML = ''; return; }
+    const plan = activeMealPlan;
+    const options = activeMealPlanOptions;
+    const copy = mealPlannerCopy();
+    const currentRestrictions = { ...options, allergies: combinedMealAllergies(options.allergies, currentProfileData?.foodAllergies) };
+    const available = eligibleMealRecipes(currentRestrictions);
+    const allowedIds = new Set(available.recipes.map((item) => item.id));
+    const unsafe = available.unknown.length > 0 || plan.days.some((day) => day.meals.some((meal) => !allowedIds.has(meal.recipeId)));
+    const cost = mealPlanCurrencyAmount(plan.estimatedCostEur, options.currency);
+    const days = plan.days.map((day, dayIndex) => {
+      const totals = mealPlanTotals(day);
+      if (!totals) return '';
+      const meals = day.meals.map((meal, mealIndex) => {
+        const item = getMealRecipe(meal.recipeId);
+        const nutrition = recipeNutrition(item);
+        const ingredients = recipeIngredients(item, getCurrentLanguage());
+        const allowed = allowedIds.has(item.id);
+        const slotLabel = copy[meal.slot] || copy.snack;
+        const portions = ingredients.map((ingredient) => `${escapeHtml(ingredient.name)} ${formatFoodNumber(ingredient.quantity * options.people)} ${escapeHtml(ingredient.unit)}`).join(' · ');
+        return `<article class="meal-planner-meal"><small>${slotLabel} · ${item.minutes} min · ${copy.estimate} ${escapeHtml(mealPlanCurrencyAmount(item.costEur * options.people, options.currency))}</small><strong>${escapeHtml(getMealRecipeName(item, getCurrentLanguage()))}</strong><p>${copy.people(options.people)}: ${portions}</p><p>${copy.perPerson} ${formatFoodNumber(nutrition.calories)} kcal · P ${formatFoodNumber(nutrition.proteinG)} g · UH ${formatFoodNumber(nutrition.carbsG)} g · M ${formatFoodNumber(nutrition.fatG)} g</p>${allowed ? `<div class="meal-planner-meal-actions"><button class="btn btn-secondary" data-action="replace-meal-plan-meal" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.replace}</button><button class="btn btn-secondary" data-action="add-meal-plan-meal-to-diary" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.addDiary}</button></div>` : `<p>${copy.unsafe}</p>`}</article>`;
+      }).join('');
+      return `<section class="card meal-planner-day"><h4>${escapeHtml(formatMealPlanDate(day.date))}</h4><div class="meal-planner-meals">${meals}</div><div class="meal-planner-day-totals">${copy.dailyEstimate} ${formatFoodNumber(totals.calories)} kcal · P ${formatFoodNumber(totals.proteinG)} g · UH ${formatFoodNumber(totals.carbsG)} g · M ${formatFoodNumber(totals.fatG)} g</div></section>`;
+    }).join('');
+    root.innerHTML = `<div class="card meal-planner-result-head"><span class="settings-eyebrow">${copy.proposal}</span><h3>${copy.day(plan.days.length)} · ${copy.mealsPerDay(options.mealCount)}</h3><div class="meal-planner-summary"><span>${copy.people(options.people)}</span><span>${copy.totalEstimate} ${escapeHtml(cost)}</span><span>${copy.budget} ${formatFoodNumber(options.budget)} ${escapeHtml(options.currency)}</span></div><p>${copy.disclaimer}</p>${unsafe ? `<p>${copy.unsafePlan}</p>` : ''}<div class="meal-planner-result-actions">${!plan.id && !unsafe ? `<button class="btn" data-action="save-meal-plan" type="button">${copy.save}</button>` : ''}<button class="btn btn-secondary" data-action="open-meal-planner" type="button">${copy.newPlan}</button><button class="btn btn-secondary" data-action="discard-meal-plan" type="button">${copy.close}</button></div><p id="meal-planner-save-status" class="settings-status" role="status"></p></div>${days}`;
+  }
+
+  window.openMealPlanner = function() {
+    if (!currentUser) return;
+    const language = getCurrentLanguage();
+    if (language !== 'sr') {
+      document.querySelectorAll('#meal-plan-goal option, #meal-plan-diet option').forEach((option) => { option.textContent = translateUiText(option.textContent, language); });
+      document.querySelectorAll('#meal-plan-days option').forEach((option) => { const count = Number(option.value); option.textContent = `${count} ${language === 'de' ? (count === 1 ? 'Tag' : 'Tage') : (count === 1 ? 'day' : 'days')}`; });
+      document.querySelectorAll('#meal-plan-count option').forEach((option) => { const count = Number(option.value); option.textContent = `${count} ${language === 'de' ? 'Mahlzeiten' : 'meals'}`; });
+      document.querySelectorAll('#meal-plan-minutes option').forEach((option) => { option.textContent = `${option.value} ${language === 'de' ? 'Minuten' : 'minutes'}`; });
+    }
+    const profileGoal = currentProfileData?.goal;
+    document.getElementById('meal-plan-goal').value = ['lose_weight', 'maintain', 'gain_weight'].includes(profileGoal) ? profileGoal : 'maintain';
+    document.getElementById('meal-plan-start').value = getFoodSelectedDate();
+    document.getElementById('meal-plan-allergies').value = currentProfileData?.foodAllergies || '';
+    document.getElementById('meal-planner-form-status').textContent = '';
+    document.getElementById('meal-planner-modal').style.display = 'flex';
+  };
+
+  window.generateMealPlan = function() {
+    if (!currentUser) return;
+    const status = document.getElementById('meal-planner-form-status');
+    const copy = mealPlannerCopy();
+    const options = mealPlanOptionsFromForm();
+    if (!options) { status.textContent = copy.badForm; return; }
+    options.allergies = combinedMealAllergies(options.allergies, currentProfileData?.foodAllergies);
+    if (options.allergies.length > 1000) { status.textContent = copy.tooLong; return; }
+    const result = buildMealPlan(options);
+    if (result.error === 'unknown-restrictions') {
+      status.textContent = copy.unknown(result.unknown.join(', '));
+      return;
+    }
+    if (result.error === 'no-recipes') { status.textContent = copy.noRecipes; return; }
+    if (result.error === 'budget') { status.textContent = copy.lowBudget(mealPlanCurrencyAmount(result.minimumCostEur, options.currency)); return; }
+    activeMealPlanOptions = options;
+    activeMealPlan = { ...result, ...options, userId: currentUser.uid, createdAt: new Date().toISOString() };
+    document.getElementById('meal-planner-modal').style.display = 'none';
+    renderMealPlan();
+    document.getElementById('meal-planner-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  window.replaceMealPlanMeal = function(dayIndex, mealIndex) {
+    if (!activeMealPlan || !activeMealPlanOptions) return;
+    const liveOptions = { ...activeMealPlanOptions, allergies: combinedMealAllergies(activeMealPlanOptions.allergies, currentProfileData?.foodAllergies) };
+    const updated = replaceMealInPlan(activeMealPlan, dayIndex, mealIndex, liveOptions);
+    if (!updated) { ShowToast(mealPlannerCopy().swapUnavailable, 'error'); return; }
+    activeMealPlan = { ...updated };
+    delete activeMealPlan.id;
+    renderMealPlan();
+    ShowToast(mealPlannerCopy().swapped);
+  };
+
+  window.saveMealPlan = async function() {
+    if (!currentUser || !activeMealPlan || activeMealPlan.id || !activeMealPlanOptions) return;
+    const userId = currentUser.uid;
+    if (!savedMealPlansLoaded) await loadSavedMealPlans();
+    if (currentUser?.uid !== userId || activeMealPlan?.userId !== userId) return;
+    if (!savedMealPlansLoaded) { ShowToast(mealPlannerCopy().loadFirst, 'error'); return; }
+    if (savedMealPlansLoaded && savedMealPlans.length >= 10) { ShowToast(mealPlannerCopy().limitPlans, 'error'); return; }
+    if (activeMealPlan.days.some((day) => day.meals.some((meal) => !mealPlanRecipeAllowed(getMealRecipe(meal.recipeId), activeMealPlanOptions)))) {
+      ShowToast(mealPlannerCopy().changesUnsafe, 'error'); return;
+    }
+    const button = document.querySelector('[data-action="save-meal-plan"]');
+    if (button) button.disabled = true;
+    const { id: ignoredId, ...data } = activeMealPlan;
+    try {
+      const saved = await addDoc(collection(db, 'users', userId, 'mealPlans'), data);
+      if (currentUser?.uid !== userId) return;
+      activeMealPlan = { ...data, id: saved.id };
+      savedMealPlans = [{ ...data, id: saved.id }, ...savedMealPlans].slice(0, 10);
+      savedMealPlansLoaded = true;
+      renderSavedMealPlans();
+      renderMealPlan();
+      ShowToast(mealPlannerCopy().saved);
+    } catch (error) {
+      console.error('Meal plan save diagnostic:', error);
+      const status = document.getElementById('meal-planner-save-status');
+      if (status) status.textContent = mealPlannerCopy().saveFailed;
+      if (button) button.disabled = false;
+    }
+  };
+
+  window.showSavedMealPlan = function(id) {
+    const plan = savedMealPlans.find((item) => item.id === id);
+    if (!plan) return;
+    activeMealPlan = { ...plan, days: plan.days.map((day) => ({ ...day, meals: day.meals.map((meal) => ({ ...meal })) })) };
+    activeMealPlanOptions = { ...plan };
+    renderMealPlan();
+    document.getElementById('meal-planner-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  window.deleteMealPlan = function(id) {
+    if (!savedMealPlans.some((item) => item.id === id)) return;
+    pendingMealPlanDeleteId = id;
+    document.getElementById('meal-planner-delete-modal').style.display = 'flex';
+  };
+
+  window.cancelMealPlanDelete = function() {
+    pendingMealPlanDeleteId = null;
+    document.getElementById('meal-planner-delete-modal').style.display = 'none';
+  };
+
+  window.confirmMealPlanDelete = async function() {
+    if (!currentUser || !pendingMealPlanDeleteId) return;
+    const id = pendingMealPlanDeleteId;
+    const userId = currentUser.uid;
+    const button = document.getElementById('confirm-meal-plan-delete');
+    if (button) button.disabled = true;
+    try {
+      await deleteDoc(doc(db, 'users', userId, 'mealPlans', id));
+      if (currentUser?.uid !== userId) return;
+      savedMealPlans = savedMealPlans.filter((item) => item.id !== id);
+      if (activeMealPlan?.id === id) { activeMealPlan = null; activeMealPlanOptions = null; renderMealPlan(); }
+      renderSavedMealPlans();
+      window.cancelMealPlanDelete();
+      ShowToast(mealPlannerCopy().deleted);
+    } catch (error) {
+      console.error('Meal plan delete diagnostic:', error);
+      ShowToast(mealPlannerCopy().deleteFailed, 'error');
+    } finally { if (button) button.disabled = false; }
+  };
+
+  window.addMealPlanMealToDiary = async function(dayIndex, mealIndex) {
+    if (!currentUser || !activeMealPlan || !activeMealPlanOptions) return;
+    const userId = currentUser.uid;
+    const day = activeMealPlan.days[dayIndex];
+    const meal = day?.meals?.[mealIndex];
+    const item = getMealRecipe(meal?.recipeId);
+    if (!item || !mealPlanRecipeAllowed(item, activeMealPlanOptions)) {
+      ShowToast(mealPlannerCopy().unsafe, 'error'); return;
+    }
+    document.getElementById('food-selected-date').value = day.date;
+    await loadFoodEntriesForSelectedDay();
+    if (currentUser?.uid !== userId || activeMealPlan?.userId !== userId) return;
+    window.openFoodEntryModal();
+    const nutrition = recipeNutrition(item);
+    document.getElementById('food-entry-meal-type').value = meal.slot === 'snack' ? 'snack' : meal.slot;
+    document.getElementById('food-entry-name').value = getMealRecipeName(item, getCurrentLanguage());
+    document.getElementById('food-entry-quantity').value = '1';
+    document.getElementById('food-entry-unit').value = 'porcija';
+    document.getElementById('food-entry-calories').value = nutrition.calories;
+    document.getElementById('food-entry-protein').value = nutrition.proteinG;
+    document.getElementById('food-entry-carbs').value = nutrition.carbsG;
+    document.getElementById('food-entry-fat').value = nutrition.fatG;
+    document.getElementById('food-entry-note').value = mealPlannerCopy().diaryNote;
+    ShowToast(mealPlannerCopy().diaryReview);
+  };
+
   async function setBodyTrackingEnabled(enabled) {
     if (!currentUser) return;
     try {
@@ -4000,6 +5327,7 @@ function renderPendingSyncStatus() {
     const nameInitial = document.getElementById('settings-name-initial');
     const photoSummary = document.getElementById('settings-photo-summary');
     const genderSummary = document.getElementById('settings-gender-summary');
+    const foodGoalsSummary = document.getElementById('settings-food-goals-summary');
     const selectedLanguage = getCurrentLanguage();
     const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch' };
     const themeNames = {
@@ -4013,6 +5341,17 @@ function renderPendingSyncStatus() {
     if (languageSummary) languageSummary.textContent = languageNames[selectedLanguage] || languageNames.sr;
     if (themeSummary) themeSummary.textContent = (themeNames[selectedLanguage] || themeNames.sr)(isLight);
     if (genderSummary) genderSummary.textContent = getGenderLabel();
+    if (foodGoalsSummary) {
+      const goals = getNutritionGoals();
+      const configured = [
+        goals.calories ? `${formatFoodNumber(goals.calories)} kcal` : '',
+        goals.protein ? `P ${formatFoodNumber(goals.protein)} g` : '',
+        goals.carbs ? `UH ${formatFoodNumber(goals.carbs)} g` : '',
+        goals.fat ? `M ${formatFoodNumber(goals.fat)} g` : ''
+      ].filter(Boolean);
+      foodGoalsSummary.textContent = configured.length ? configured.join(' · ') : 'Nisu postavljeni';
+    }
+    renderWeeklyGoalSettingsSummary();
     document.querySelectorAll('input[name="profile-gender-option"]').forEach((input) => {
       input.checked = input.value === getProfileGender();
     });
@@ -4261,7 +5600,7 @@ function renderPendingSyncStatus() {
   }
 
   async function clearLocalUserData(userId) {
-    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v'];
+    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v', 'gym_weekly_goal_v1_', 'gym_food_entries_cache_v1_', 'gym_food_daily_goal_v1_', 'gym_food_favorites_v1_'];
     const matchingKeys = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
@@ -4634,14 +5973,18 @@ function renderPendingSyncStatus() {
   function showLanguageLoading(language) {
     const loader = document.getElementById('language-loading');
     if (!loader) return;
-    const copy = {
-      sr: ['Učitavanje jezika…', 'Pripremamo aplikaciju za tebe.'],
-      en: ['Loading language…', 'Preparing the app for you.'],
-      de: ['Sprache wird geladen…', 'Die App wird vorbereitet.']
-    }[language] || ['Učitavanje jezika…', 'Pripremamo aplikaciju za tebe.'];
-    document.getElementById('language-loading-title').textContent = copy[0];
-    document.getElementById('language-loading-text').textContent = copy[1];
+    const copy = getLoadingCopy(language);
+    document.getElementById('language-loading-title').textContent = copy.title;
+    document.getElementById('language-loading-text').textContent = copy.message;
     loader.hidden = false;
+  }
+
+  function getLoadingCopy(language) {
+    return window.GymLeaderLoadingCopy?.[language] || {
+      sr: { title: 'Učitavanje GymLeadera…', message: 'Pripremamo tvoj trening.' },
+      en: { title: 'Loading GymLeader…', message: 'Getting your workout ready.' },
+      de: { title: 'GymLeader wird geladen…', message: 'Dein Training wird vorbereitet.' }
+    }[language] || { title: 'Učitavanje GymLeadera…', message: 'Pripremamo tvoj trening.' };
   }
 
   function changeAppLanguage(language) {
@@ -4665,6 +6008,15 @@ function renderPendingSyncStatus() {
     };
     document.title = pageTitles[selectedLanguage];
     document.documentElement.lang = selectedLanguage === 'sr' ? 'sr-Latn' : selectedLanguage;
+    const loadingCopy = getLoadingCopy(selectedLanguage);
+    const bootText = document.getElementById('auth-boot-text');
+    const bootScreen = document.getElementById('auth-boot-screen');
+    const loadingTitle = document.getElementById('language-loading-title');
+    const loadingText = document.getElementById('language-loading-text');
+    if (bootText) bootText.textContent = loadingCopy.message;
+    if (bootScreen) bootScreen.setAttribute('aria-label', loadingCopy.title);
+    if (loadingTitle) loadingTitle.textContent = loadingCopy.title;
+    if (loadingText) loadingText.textContent = loadingCopy.message;
     document.querySelectorAll('.language-option').forEach((button) => {
       button.classList.toggle('active', button.dataset.language === selectedLanguage);
       button.setAttribute('aria-pressed', String(button.dataset.language === selectedLanguage));
@@ -4782,6 +6134,7 @@ function renderPendingSyncStatus() {
     document.getElementById('analytics-metric-select')?.addEventListener('change', window.renderAnalyticsChart);
     document.getElementById('analytics-period-select')?.addEventListener('change', window.renderAnalyticsChart);
     document.getElementById('body-metric-select')?.addEventListener('change', renderBodyMeasurements);
+    document.getElementById('food-selected-date')?.addEventListener('change', () => loadFoodEntriesForSelectedDay());
     document.getElementById('body-auto-progress')?.addEventListener('change', (event) => {
       if (event.target?.id !== 'body-manual-metric-select' || !currentUser) return;
       localStorage.setItem(`gym-body-selected-metric-v1-${currentUser.uid}`, event.target.value);
@@ -4796,6 +6149,11 @@ function renderPendingSyncStatus() {
       const input = event.target;
       if (!(input instanceof Element) || !input.matches('.exercise-library-muscle, .exercise-library-equipment, .exercise-library-place')) return;
       renderExerciseLibraryPicker(input.closest('.exercise-library-picker'));
+    });
+    document.addEventListener('change', (event) => {
+      const select = event.target;
+      if (!(select instanceof HTMLSelectElement) || !select.matches('.history-editor-exercise-type')) return;
+      window.changeHistoryWorkoutExerciseType(select.dataset.exerciseIndex, select.value);
     });
 
     document.addEventListener('click', (event) => {
@@ -4825,6 +6183,117 @@ function renderPendingSyncStatus() {
           break;
         case 'export-user-data':
           window.exportUserData();
+          break;
+        case 'open-weekly-goal-settings':
+          window.openWeeklyGoalSettings();
+          break;
+        case 'save-weekly-goal':
+          window.saveWeeklyGoal();
+          break;
+        case 'open-food-entry-modal':
+          window.openFoodEntryModal();
+          break;
+        case 'set-food-library-category':
+          foodLibraryCategory = button.dataset.foodCategory || 'all';
+          renderFoodLibraryPicker();
+          break;
+        case 'select-food-library-item':
+          window.selectFoodLibraryItem(button.dataset.foodLibraryId);
+          break;
+        case 'select-food-favorite':
+          window.selectFoodFavorite(button.dataset.foodFavoriteId);
+          break;
+        case 'save-food-favorite':
+          window.saveFoodFavorite();
+          break;
+        case 'edit-food-entry':
+          window.openFoodEntryForEdit(button.dataset.foodEntryId);
+          break;
+        case 'save-food-entry':
+          window.saveFoodEntry();
+          break;
+        case 'delete-food-entry':
+          window.deleteFoodEntry(button.dataset.foodEntryId);
+          break;
+        case 'confirm-food-entry-delete':
+          window.confirmFoodEntryDelete();
+          break;
+        case 'cancel-food-entry-delete':
+          window.cancelFoodEntryDelete();
+          break;
+        case 'open-history-workout-editor':
+          window.openHistoryWorkoutEditor(button.dataset.workoutId);
+          break;
+        case 'add-history-workout-exercise':
+          window.addHistoryWorkoutExercise();
+          break;
+        case 'remove-history-workout-exercise':
+          window.removeHistoryWorkoutExercise(button.dataset.exerciseIndex);
+          break;
+        case 'add-history-workout-set':
+          window.addHistoryWorkoutSet(button.dataset.exerciseIndex);
+          break;
+        case 'remove-history-workout-set':
+          window.removeHistoryWorkoutSet(button.dataset.exerciseIndex, button.dataset.setIndex);
+          break;
+        case 'change-history-workout-exercise-type':
+          window.changeHistoryWorkoutExerciseType(button.dataset.exerciseIndex, button.value);
+          break;
+        case 'save-history-workout':
+          window.saveHistoryWorkout();
+          break;
+        case 'delete-history-workout':
+          window.deleteHistoryWorkout();
+          break;
+        case 'confirm-history-workout-delete':
+          window.confirmHistoryWorkoutDelete();
+          break;
+        case 'cancel-history-workout-delete':
+          window.cancelHistoryWorkoutDelete();
+          break;
+        case 'open-food-goal-modal':
+          window.openFoodGoalModal();
+          break;
+        case 'save-food-goal':
+          window.saveFoodGoal();
+          break;
+        case 'clear-food-goal':
+          window.clearFoodGoal();
+          break;
+        case 'open-meal-planner':
+          window.openMealPlanner();
+          break;
+        case 'generate-meal-plan':
+          window.generateMealPlan();
+          break;
+        case 'replace-meal-plan-meal':
+          window.replaceMealPlanMeal(Number(button.dataset.dayIndex), Number(button.dataset.mealIndex));
+          break;
+        case 'add-meal-plan-meal-to-diary':
+          window.addMealPlanMealToDiary(Number(button.dataset.dayIndex), Number(button.dataset.mealIndex));
+          break;
+        case 'save-meal-plan':
+          window.saveMealPlan();
+          break;
+        case 'discard-meal-plan':
+          activeMealPlan = null;
+          activeMealPlanOptions = null;
+          renderMealPlan();
+          break;
+        case 'refresh-meal-plans':
+          loadSavedMealPlans(true);
+          break;
+        case 'show-saved-meal-plan':
+          window.showSavedMealPlan(button.dataset.mealPlanId);
+          break;
+        case 'delete-meal-plan':
+          window.deleteMealPlan(button.dataset.mealPlanId);
+          break;
+        case 'cancel-meal-plan-delete':
+          window.cancelMealPlanDelete();
+          break;
+        case 'confirm-meal-plan-delete':
+          window.confirmMealPlanDelete();
           break;
         case 'auth-mode':
           window.toggleAuthMode(button.dataset.mode);
@@ -5186,7 +6655,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    navigator.serviceWorker.register('/sw.js?v=20261001-device-language-01', { scope: '/' })
+    navigator.serviceWorker.register('/sw.js?v=20261001-meal-planner-01', { scope: '/' })
       .then((registration) => registration.update())
       .catch((error) => console.warn('Offline worker nije registrovan:', error));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});

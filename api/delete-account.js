@@ -67,10 +67,11 @@ export default async function handler(req, res) {
 
     // These are all current application records owned by a user. Remove them
     // through Admin SDK so cleanup still works after confirmation and logout.
-    const [workoutsDeleted, routinesDeleted, bodyMeasurementsDeleted] = await Promise.all([
+    const [workoutsDeleted, routinesDeleted, bodyMeasurementsDeleted, foodEntriesDeleted] = await Promise.all([
       deleteOwnedDocuments(db, 'workouts', uid),
       deleteOwnedDocuments(db, 'routines', uid),
-      deleteOwnedDocuments(db, 'bodyMeasurements', uid)
+      deleteOwnedDocuments(db, 'bodyMeasurements', uid),
+      deleteOwnedDocuments(db, 'foodEntries', uid)
     ]);
     const profileRef = db.collection('users').doc(uid);
     await db.recursiveDelete(profileRef);
@@ -90,7 +91,8 @@ export default async function handler(req, res) {
         createdAt: new Date().toISOString(),
         workoutsDeleted,
         routinesDeleted,
-        bodyMeasurementsDeleted
+        bodyMeasurementsDeleted,
+        foodEntriesDeleted
       });
     } catch (feedbackError) {
       feedbackSaved = false;

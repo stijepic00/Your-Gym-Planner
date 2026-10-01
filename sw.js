@@ -1,10 +1,13 @@
-const CACHE_NAME = 'gymleader-app-v52-device-language';
+const CACHE_NAME = 'gymleader-app-v61-meal-planner';
 const APP_SHELL = [
   '/',
   '/index.html',
+  '/language-boot.js',
   '/styles.css',
   '/javascript.js',
   '/exercise-library.js',
+  '/food-library.js',
+  '/meal-planner.js',
   '/translations.js',
   '/manifest.webmanifest',
   '/assets/gymleader-mark-v2.png',
