@@ -1,23 +1,32 @@
-const CACHE_NAME = 'gymleader-app-v61-meal-planner';
+const BUILD = '20261001-offline-startup-v71';
+const CACHE_NAME = `gymleader-app-${BUILD}`;
+
+// Every app-shell file carries the same build identifier in index.html. A new
+// deployment therefore cannot reuse a previous script, stylesheet or logo.
 const APP_SHELL = [
-  '/',
   '/index.html',
-  '/language-boot.js',
-  '/styles.css',
-  '/javascript.js',
-  '/exercise-library.js',
-  '/food-library.js',
-  '/meal-planner.js',
-  '/translations.js',
-  '/manifest.webmanifest',
-  '/assets/gymleader-mark-v2.png',
-  '/assets/gymleader-icon.png',
+  `/language-boot.js?v=${BUILD}`,
+  `/styles.css?v=${BUILD}`,
+  `/javascript.js?v=${BUILD}`,
+  `/translations.js?v=${BUILD}`,
+  `/exercise-library.js?v=${BUILD}`,
+  `/food-library.js?v=${BUILD}`,
+  `/meal-planner.js?v=${BUILD}`,
+  `/manifest.webmanifest?v=${BUILD}`,
+  `/assets/gymleader-mark-v2.png?v=${BUILD}`,
+  `/assets/gymleader-icon.png?v=${BUILD}`,
   '/assets/flag-sr.svg',
   '/assets/flag-en.svg',
   '/assets/flag-de.svg',
   '/assets/gymleader-body-male.svg?v=20260930-20',
   '/assets/gymleader-body-female.svg?v=20260930-20'
 ];
+
+async function saveInCurrentCache(request, response) {
+  if (!response || (!response.ok && response.type !== 'opaque')) return;
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put(request, response.clone());
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -30,28 +39,52 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      ))
+      .then((keys) => Promise.all(keys
+        .filter((key) => key.startsWith('gymleader-app-') && key !== CACHE_NAME)
+        .map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => clients.forEach((client) => client.postMessage({ type: 'GYMLEADER_BUILD_ACTIVE', build: BUILD })))
   );
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('fetch', (event) => {
-  const request = event.request;
+  const { request } = event;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  const isFirebaseModule = url.origin === 'https://www.gstatic.com'
+    && url.pathname.startsWith('/firebasejs/');
+  const isChartModule = url.origin === 'https://cdn.jsdelivr.net'
+    && url.pathname === '/npm/chart.js';
 
-  // The app shell must still open when the network is unavailable.
-  if (request.mode === 'navigate') {
+  // Firebase modules and Chart.js are code dependencies, not user data. Cache
+  // them after a successful online run so the local app can boot offline later.
+  if (isFirebaseModule || isChartModule) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          event.waitUntil(saveInCurrentCache(request, response));
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || Response.error()))
+    );
+    return;
+  }
+
+  if (url.origin !== self.location.origin) return;
+
+  // HTML is always checked against the network. It is only served from cache
+  // while offline, so a normal refresh receives the newest deployment.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then((response) => {
+          event.waitUntil(saveInCurrentCache('/index.html', response));
           return response;
         })
         .catch(() => caches.match('/index.html'))
@@ -59,37 +92,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // When online, always prefer the newest scripts/styles/fonts. The cache is
-  // only the fallback for offline use, so users do not get stuck on old UI.
-  if (['script', 'style', 'font'].includes(request.destination)) {
+  // Versioned build assets use network first and the current cache offline.
+  // Query versions make the browser HTTP cache and service-worker cache agree.
+  const isBuildAsset = url.searchParams.get('v') === BUILD;
+  if (isBuildAsset || ['script', 'style', 'font', 'image', 'manifest'].includes(request.destination)) {
     event.respondWith(
-      fetch(request).then((response) => {
-          if (response.ok || response.type === 'opaque') {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
+      fetch(request)
+        .then((response) => {
+          event.waitUntil(saveInCurrentCache(request, response));
           return response;
-        }).catch(() => caches.match(request, { ignoreSearch: true }).then((cached) => {
-          return cached || Response.error();
         })
-      )
-    );
-    return;
-  }
-
-  // Same-origin images and app files also prefer the network while online.
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      fetch(request).then((response) => {
-          if (response.ok || response.type === 'opaque') {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        }).catch(() => caches.match(request, { ignoreSearch: true }).then((cached) => {
-          return cached || Response.error();
-        })
-      )
+        .catch(() => caches.match(request, { ignoreSearch: false })
+          .then((cached) => cached || Response.error()))
     );
   }
 });

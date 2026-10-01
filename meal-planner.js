@@ -1,4 +1,4 @@
-import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js';
+import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js?v=20261001-offline-startup-v71';
 
 // A small, reviewed recipe set built only from individual catalogue ingredients.
 // Prices are illustrative local estimates in EUR, not shop prices or live rates.

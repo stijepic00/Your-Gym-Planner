@@ -1,8 +1,8 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js';
+  import { TRANSLATIONS } from './translations.js?v=20261001-offline-startup-v71';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261001-offline-startup-v71';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261001-offline-startup-v71';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261001-offline-startup-v71';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -164,10 +164,10 @@
   }
 
   function isProfileComplete(profile = currentProfileData) {
-    if (!profile || !VALID_GENDER_VALUES.has(profile.gender)) return false;
+    if (!profile || !String(profile.fullName || '').trim() || !VALID_GENDER_VALUES.has(profile.gender)) return false;
     const numericRanges = {
       age: [13, 100], heightCm: [100, 250], weightKg: [25, 400],
-      trainingFrequency: [0, 14], sessionMinutes: [10, 300]
+      trainingFrequency: [1, 14], sessionMinutes: [10, 300]
     };
     for (const [field, [min, max]] of Object.entries(numericRanges)) {
       const value = Number(profile[field]);
@@ -194,6 +194,8 @@
       const close = document.getElementById('profile-required-close');
       const button = document.querySelector('[data-action="save-required-profile"], [data-action="save-profile-details"]');
       if (close) close.style.display = 'none';
+      profileWizardState.current = 0;
+      profileWizardState.scope = 'onboarding';
       if (button) { button.dataset.action = 'save-required-profile'; button.textContent = 'Sačuvaj profil i nastavi'; }
       populateRequiredProfileForm();
     }
@@ -231,7 +233,42 @@
     if (input) input.value = '';
   };
 
+  function updateAuthModePresentation() {
+    const language = getCurrentLanguage();
+    const copy = {
+      sr: {
+        loginTitle: 'Prijavi se u GymLeader', registerTitle: 'Napravi GymLeader nalog', current: 'Trenutni ekran',
+        loginPrompt: 'Već imaš GymLeader nalog?', registerPrompt: 'Prvi put koristiš GymLeader?', login: 'Prijava', register: 'Registracija →'
+      },
+      en: {
+        loginTitle: 'Sign in to GymLeader', registerTitle: 'Create a GymLeader account', current: 'Current screen',
+        loginPrompt: 'Already have a GymLeader account?', registerPrompt: 'New to GymLeader?', login: 'Sign in', register: 'Register →'
+      },
+      de: {
+        loginTitle: 'Bei GymLeader anmelden', registerTitle: 'GymLeader-Konto erstellen', current: 'Aktuelle Seite',
+        loginPrompt: 'Du hast schon ein GymLeader-Konto?', registerPrompt: 'Neu bei GymLeader?', login: 'Anmelden', register: 'Registrieren →'
+      }
+    }[language] || {};
+    const isRegister = currentAuthMode === 'register';
+    const title = document.getElementById('auth-title');
+    const login = document.getElementById('tab-btn-login');
+    const register = document.getElementById('tab-btn-register');
+    if (title) title.textContent = isRegister ? (copy.registerTitle || 'Napravi GymLeader nalog') : (copy.loginTitle || 'Prijavi se u GymLeader');
+
+    [[login, !isRegister], [register, isRegister]].forEach(([button, active]) => {
+      if (!button) return;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+      button.setAttribute('aria-disabled', String(active));
+      const label = button.querySelector('.auth-choice-label');
+      const action = button.querySelector('strong');
+      if (label) label.textContent = active ? (copy.current || 'Trenutni ekran') : (button === login ? (copy.loginPrompt || 'Već imaš GymLeader nalog?') : (copy.registerPrompt || 'Prvi put koristiš GymLeader?'));
+      if (action) action.textContent = active ? (button === login ? (copy.login || 'Prijava') : (copy.register || 'Registracija')) : (button === login ? (copy.login || 'Prijava') : (copy.register || 'Registracija →'));
+    });
+  }
+
   window.toggleAuthMode = function(mode) {
+    if (!['login', 'register'].includes(mode) || mode === currentAuthMode) return;
     currentAuthMode = mode;
     const groupName = document.getElementById('group-name');
     const btnSubmit = document.getElementById('auth-submit-btn');
@@ -258,11 +295,9 @@
         passwordInput.autocomplete = 'new-password';
         passwordInput.placeholder = 'Napravi lozinku za GymLeader';
       }
-      if (btnSubmit) btnSubmit.innerText = 'Kreiraj Novi Nalog 🚀';
-      if (tabLogin) tabLogin.classList.remove('is-active');
-      if (tabRegister) tabRegister.classList.add('is-active');
-      if (socialText) socialText.innerText = 'ili napravi nalog jednim klikom:';
-      if (modeHint) modeHint.innerText = 'Napravi besplatan GymLeader nalog za svoje planove i napredak.';
+      if (btnSubmit) btnSubmit.innerText = 'Napravi GymLeader nalog →';
+      if (socialText) socialText.innerText = 'ili napravi GymLeader nalog putem Googlea:';
+      if (modeHint) modeHint.innerText = 'Napravi poseban GymLeader nalog. Email je adresa za nalog, a lozinku biraš samo za GymLeader.';
     } else {
       if (groupName) groupName.style.display = 'none';
       if (confirmGroup) confirmGroup.style.display = 'none';
@@ -273,12 +308,11 @@
         passwordInput.autocomplete = 'current-password';
         passwordInput.placeholder = 'Lozinka za GymLeader';
       }
-      if (btnSubmit) btnSubmit.innerText = 'Prijavi Se na Nalog →';
-      if (tabLogin) tabLogin.classList.add('is-active');
-      if (tabRegister) tabRegister.classList.remove('is-active');
-      if (socialText) socialText.innerText = 'ili se prijavi jednim klikom:';
-      if (modeHint) modeHint.innerText = 'Unesi email i lozinku svog GymLeader naloga.';
+      if (btnSubmit) btnSubmit.innerText = 'Prijavi se u GymLeader →';
+      if (socialText) socialText.innerText = 'ili uđi putem Google naloga:';
+      if (modeHint) modeHint.innerText = 'Za prijavu koristi email adresu povezanu s GymLeaderom i svoju GymLeader lozinku. Gmail lozinka ne radi ovdje.';
     }
+    updateAuthModePresentation();
     updatePasswordRuleState();
     renderRegistrationResume();
   };
@@ -410,62 +444,55 @@
     ShowToast('Nacrt registracije je obrisan.');
   };
 
-window.handleAuthSubmit = async function(e) {
-  if (e && e.preventDefault) e.preventDefault();
-  
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const nameEl = document.getElementById('auth-name');
-  const name = nameEl ? nameEl.value.trim() : '';
-  const errorDiv = document.getElementById('auth-error');
-  
-  if (errorDiv) errorDiv.style.display = 'none';
+  function getFriendlyAuthError(error, mode) {
+    const code = String(error?.code || '');
+    const clientMessage = String(error?.message || '');
+    const knownClientMessages = new Set([
+      'Unesi ispravnu email adresu.',
+      'Unesi ime, prezime ili nadimak.',
+      'Ime ili nadimak može imati najviše 80 karaktera.',
+      'Lozinka mora imati najmanje 8 karaktera, jedno slovo i jedan broj.',
+      'Lozinke se ne podudaraju.',
+      'Unesi email i GymLeader lozinku.'
+    ]);
+    if (knownClientMessages.has(clientMessage)) return clientMessage;
 
-  try {
-    if (currentAuthMode === 'register') {
-      // 1. Generiši nasumični 6-cifreni kod
-      if (password.length < 8) throw new Error('Lozinka mora imati najmanje 8 karaktera.');
-      
-      // 2. Sačuvaj podatke u privremeni objekat
-      pendingVerification = {
-        email,
-        password,
-        name,
-        createdAt: Date.now()
-      };
-
-      // 3. Pošalji kod preko Brevo API-ja
-      await sendVerificationCodeEmail(email);
-
-      // 4. Prikaži modal / polje za unos verifikacionog koda
-      openVerificationModal();
-      ShowToast("Verifikacioni kod je poslat na vaš email! 📩");
-    } else {
-      // Prijava (Login)
-      await signInWithEmailAndPassword(auth, email, password);
-      const form = document.getElementById('auth-form');
-      if (form) form.reset();
+    if (['auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found', 'auth/wrong-password'].includes(code)) {
+      return 'Email ili GymLeader lozinka nisu tačni. Ako nemaš GymLeader nalog, prvo ga napravi.';
     }
-  } catch (error) {
-    console.error("Auth greška:", error);
-    if (errorDiv) {
-      errorDiv.style.display = 'block';
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorDiv.innerText = 'Ovaj e-mail je već registrovan. Prijavite se.';
-          break;
-        case 'auth/weak-password':
-          errorDiv.innerText = 'Lozinka mora imati najmanje 8 karaktera.';
-          break;
-        default:
-          errorDiv.innerText = 'Greška pri registraciji: ' + error.message;
-      }
+    if (['auth/email-already-in-use', 'auth/email-already-exists'].includes(code)) {
+      return 'Ovaj email već koristi GymLeader nalog. Izaberi „Prijavi se“.';
     }
+    if (code === 'auth/invalid-email') return 'Unesi ispravnu email adresu.';
+    if (code === 'auth/weak-password') return 'GymLeader lozinka mora imati najmanje 8 karaktera.';
+    if (['auth/too-many-requests', 'auth/quota-exceeded'].includes(code)) return 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.';
+    if (code === 'auth/network-request-failed') return 'Nema internet veze. Provjeri vezu i pokušaj ponovo.';
+    if (code === 'auth/user-disabled') return 'Ovaj GymLeader nalog je trenutno onemogućen. Pokušaj ponovo kasnije.';
+    if (code === 'auth/operation-not-allowed') return 'Ovaj način ulaska trenutno nije dostupan. Pokušaj ponovo kasnije.';
+    return mode === 'register'
+      ? 'Registraciju trenutno nije moguće završiti. Provjeri podatke i pokušaj ponovo.'
+      : 'Prijava trenutno nije uspjela. Provjeri podatke i pokušaj ponovo.';
   }
-};
 
-  // Registration flow is defined here after the legacy handler so older cached
-  // pages cannot bypass the confirmation and password checks below.
+  function getFriendlyVerificationError(error) {
+    const code = String(error?.code || '');
+    const clientMessage = String(error?.message || '');
+    const knownClientMessages = new Set([
+      'Unesi tačno 6 cifara iz emaila.',
+      'Unesi istu GymLeader lozinku koju si napravio pri registraciji.',
+      'Sigurnosna provjera nije uspjela. Osvježite stranicu i pokušajte ponovo.'
+    ]);
+    if (knownClientMessages.has(clientMessage)) return clientMessage;
+    if (code === 'verification/400') return 'Kod nije tačan ili je istekao. Provjeri ga pa pokušaj ponovo.';
+    if (code === 'verification/409') return 'Ovaj email već koristi GymLeader nalog. Vrati se na prijavu.';
+    if (code === 'verification/429') return 'Previše pogrešnih pokušaja. Sačekaj malo pa pokušaj ponovo.';
+    if (['verification/401', 'verification/403'].includes(code)) return 'Sigurnosna provjera nije uspjela. Osvježi stranicu pa pokušaj ponovo.';
+    if (code.startsWith('auth/')) return getFriendlyAuthError(error, 'register');
+    return 'Potvrdu emaila trenutno nije moguće završiti. Pokušaj ponovo.';
+  }
+
+  // This is the only email/password form handler. It keeps client validation
+  // messages helpful while never exposing Firebase or API error details.
   window.handleAuthSubmit = async function(e) {
     if (e && e.preventDefault) e.preventDefault();
     const email = document.getElementById('auth-email')?.value.trim().toLowerCase() || '';
@@ -498,19 +525,7 @@ window.handleAuthSubmit = async function(e) {
       console.error('Auth greška:', error);
       if (!errorDiv) return;
       errorDiv.style.display = 'block';
-      if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/invalid-login-credentials') {
-        errorDiv.textContent = 'Email ili lozinka nisu tačni. Ako još nemaš GymLeader nalog, prvo se registruj.';
-      } else if (error?.code === 'auth/email-already-in-use') {
-        errorDiv.textContent = 'Ovaj email je već registrovan. Izaberi Prijavi se.';
-      } else if (error?.code === 'auth/too-many-requests') {
-        errorDiv.textContent = 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.';
-      } else if (error?.code === 'auth/network-request-failed') {
-        errorDiv.textContent = 'Nema internet veze. Provjeri vezu i pokušaj ponovo.';
-      } else {
-        errorDiv.textContent = currentAuthMode === 'register'
-          ? 'Registracija trenutno nije uspjela. Provjeri podatke i pokušaj ponovo.'
-          : 'Email ili lozinka nisu tačni. Ako još nemaš GymLeader nalog, prvo se registruj.';
-      }
+      errorDiv.textContent = getFriendlyAuthError(error, currentAuthMode);
     }
   };
 
@@ -525,7 +540,18 @@ window.handleAuthSubmit = async function(e) {
         message: error?.message,
         customData: error?.customData || null
       }));
-      ShowToast('Google prijava trenutno nije uspjela. Pokušaj ponovo.', 'error');
+      const googleMessage = error?.code === 'auth/popup-closed-by-user'
+        ? 'Google prozor je zatvoren prije prijave. Pokušaj ponovo kada budeš spreman/spremna.'
+        : error?.code === 'auth/popup-blocked'
+          ? 'Preglednik je blokirao Google prozor. Dozvoli iskačuće prozore za GymLeader pa pokušaj ponovo.'
+          : error?.code === 'auth/account-exists-with-different-credential'
+            ? 'Ovaj email već koristi drugi način prijave. Pokušaj način kojim si ranije otvorio/la GymLeader nalog.'
+            : error?.code === 'auth/network-request-failed'
+              ? 'Nema internet veze. Provjeri vezu i pokušaj ponovo.'
+              : error?.code === 'auth/too-many-requests'
+                ? 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.'
+                : 'Google prijava trenutno nije uspjela. Pokušaj ponovo.';
+      ShowToast(googleMessage, 'error');
     }
   };
 
@@ -664,7 +690,7 @@ window.handleAuthSubmit = async function(e) {
         status.style.color = 'var(--danger)';
       }
     } finally {
-      if (button) { button.textContent = 'Prihvati i nastavi'; updateLegalAcceptanceButton(); }
+      if (button) { button.textContent = '3. Prihvati i nastavi'; updateLegalAcceptanceButton(); }
     }
   };
 
@@ -834,7 +860,7 @@ window.handleAuthSubmit = async function(e) {
     if (currentUser && userRoutines.length > 0) writeRoutineCache(currentUser.uid, userRoutines);
     const activeRoutines = userRoutines.filter((routine) => routine.isArchived !== true);
     const archivedRoutines = userRoutines.filter((routine) => routine.isArchived === true);
-    const visibleRoutines = sortRoutinesForDisplay(routineEditMode ? userRoutines : activeRoutines);
+    const visibleRoutines = sortRoutinesForDisplay(activeRoutines);
 
     let html = `
       <div class="routine-toolbar">
@@ -880,6 +906,18 @@ window.handleAuthSubmit = async function(e) {
           </div>
         `;
       }).join('');
+    }
+
+    if (routineEditMode && archivedRoutines.length) {
+      html += `
+        <section class="routine-archive-section" aria-label="Arhivirani planovi">
+          <div class="routine-archive-heading"><div><span class="settings-eyebrow">ARHIVA</span><h3>Arhivirani planovi</h3><p>Ovi planovi nisu prikazani među aktivnim treninzima.</p></div></div>
+          ${sortRoutinesForDisplay(archivedRoutines).map(w => {
+            const emoji = w.emoji || getEmojiForRoutine(w.name);
+            const exCount = w.exercises ? w.exercises.length : 0;
+            return `<div class="card flex-between routine-archived-card"><div><h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 4px;">${w.emoji ? `${escapeHtml(emoji)} ` : ''}${escapeHtml(w.name)}</h3><p style="color: var(--text-muted); font-size: 0.85rem;">${exCount} vježbi</p><span class="routine-archived-badge">Arhiviran</span></div><div style="display: flex; gap: 8px; align-items: center;"><button class="btn btn-secondary" style="padding:10px 14px; font-size:0.85rem;" data-action="open-edit-routine" data-routine-id="${escapeHtml(w.id)}">✎ Uredi</button></div></div>`;
+          }).join('')}
+        </section>`;
     }
 
     container.innerHTML = html;
@@ -1050,11 +1088,12 @@ window.handleAuthSubmit = async function(e) {
     if (!routine) return;
     const archived = routine.isArchived !== true;
     const changes = { isArchived: archived, archivedAt: archived ? new Date().toISOString() : '' };
+    updateRoutineInMemory(routineId, changes);
     try {
       await updateDoc(doc(db, 'routines', routineId), changes);
-      updateRoutineInMemory(routineId, changes);
       ShowToast(archived ? 'Plan je arhiviran.' : 'Plan je vraćen među aktivne planove.');
     } catch (error) {
+      updateRoutineInMemory(routineId, { isArchived: routine.isArchived === true, archivedAt: routine.archivedAt || '' });
       ShowToast('Arhiviranje plana nije moguće sačuvati.', 'error');
     }
   };
@@ -1464,45 +1503,69 @@ window.handleAuthSubmit = async function(e) {
   function getSuggestedTrainingDays(frequency) {
     const patterns = {
       1: [1], 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 6],
-      5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6]
+      5: [1, 2, 4, 5, 0], 6: [1, 2, 3, 5, 6, 0], 7: [1, 2, 3, 4, 5, 6, 0]
     };
     return patterns[Math.max(1, Math.min(7, Number(frequency) || 1))] || [1];
   }
 
-  function getGeneratorDayGroups(groups, mode, dayIndex) {
+  function getGeneratorDayGroups(groups, mode, dayIndex, frequency) {
+    const everyGroup = ['legs', 'glutes', 'chest', 'back', 'shoulders', 'arms', 'core'];
+    const source = mode === 'full_body' ? everyGroup : groups;
+    const upper = source.filter((group) => ['chest', 'back', 'shoulders', 'arms'].includes(group));
+    const lower = source.filter((group) => ['legs', 'glutes', 'core'].includes(group));
+
+    if (frequency === 4) {
+      const split = dayIndex % 2 === 0 ? upper : lower;
+      return split.length ? split : source;
+    }
+    if (frequency === 5) {
+      const split = [upper, upper.filter((group) => ['back', 'arms', 'shoulders'].includes(group)), lower, upper, lower];
+      return split[dayIndex] && split[dayIndex].length ? split[dayIndex] : source;
+    }
+    if (frequency >= 6) {
+      const split = [upper, upper.filter((group) => ['back', 'arms', 'shoulders'].includes(group)), lower, ['core'], upper, upper.filter((group) => ['back', 'arms', 'shoulders'].includes(group)), lower];
+      const selected = split[dayIndex] || source;
+      const filtered = selected.filter((group) => source.includes(group));
+      return filtered.length ? filtered : source;
+    }
+
     if (mode === 'full_body') {
       const variants = [
         ['legs', 'chest', 'back', 'core', 'shoulders'],
         ['legs', 'back', 'chest', 'arms', 'core'],
-        ['glutes', 'chest', 'back', 'shoulders', 'arms'],
-        ['legs', 'back', 'chest', 'core', 'arms'],
-        ['legs', 'chest', 'back', 'shoulders', 'core'],
-        ['glutes', 'back', 'chest', 'arms', 'core'],
-        ['legs', 'back', 'chest', 'shoulders', 'arms']
+        ['glutes', 'chest', 'back', 'shoulders', 'arms']
       ];
       return variants[dayIndex % variants.length];
     }
-    const offset = dayIndex % groups.length;
-    return [...groups.slice(offset), ...groups.slice(0, offset)];
+    const offset = dayIndex % source.length;
+    return [...source.slice(offset), ...source.slice(0, offset)];
   }
 
   function buildPersonalizedPlanSuggestions(profile, mode) {
     if (Number(profile?.trainingFrequency) < 1) return [];
     const groups = getGeneratorGroups(mode, profile);
     const exerciseCount = getGeneratorExerciseCount(profile);
-    const suggestedDays = getSuggestedTrainingDays(profile.trainingFrequency);
+    const frequency = Math.max(1, Math.min(7, Number(profile.trainingFrequency) || 1));
+    const suggestedDays = getSuggestedTrainingDays(frequency);
     const usedIds = new Set();
 
     return suggestedDays.map((day, index) => {
-      const planGroups = getGeneratorDayGroups(groups, mode, index);
+      const planGroups = getGeneratorDayGroups(groups, mode, index, frequency);
       const exercises = pickGeneratorExercises(planGroups, profile, exerciseCount, usedIds);
-      const groupTitle = mode === 'full_body'
-        ? `Full body ${String.fromCharCode(65 + index)}`
-        : planGroups.map((group) => generatorGroupLabels[group]).join(' + ');
+      const splitTitles = frequency === 4
+        ? ['Gornji dio A', 'Donji dio A', 'Gornji dio B', 'Donji dio B']
+        : frequency === 5
+          ? ['Gornji dio A', 'Gornji dio B', 'Donji dio A', 'Gornji dio C', 'Donji dio B']
+          : frequency >= 6
+            ? ['Gornji dio A', 'Gornji dio B', 'Donji dio A', 'Trup i kondicija', 'Gornji dio C', 'Gornji dio D', 'Donji dio B']
+            : [];
+      const groupTitle = splitTitles[index] || (mode === 'full_body'
+        ? `Cijelo tijelo ${String.fromCharCode(65 + index)}`
+        : planGroups.map((group) => generatorGroupLabels[group]).join(' + '));
       return {
         id: `generated-${Date.now()}-${index}`,
         emoji: profile.trainingLocation === 'street' ? '🏃' : profile.trainingLocation === 'home' ? '🏠' : '🏋️',
-        name: `Moj plan ${String.fromCharCode(65 + index)} — ${groupTitle}`,
+        name: groupTitle,
         exercises,
         groupTitle,
         scheduleDays: [String(day)]
@@ -1545,7 +1608,7 @@ window.handleAuthSubmit = async function(e) {
     if (!currentUser) return;
     if (!isProfileComplete()) {
       ShowToast('Prvo dovrši Profil i ciljeve da napravimo smislen prijedlog.', 'error');
-      window.openProfileDetailsEditor();
+      window.openProfileDetailsEditor('onboarding');
       return;
     }
     const modal = document.getElementById('plan-generator-modal');
@@ -5042,6 +5105,34 @@ function renderPendingSyncStatus() {
     if (preferenceButton) preferenceButton.hidden = !visible;
   }
 
+  const PROFILE_WIZARD_DRAFT_PREFIX = 'gymleader-profile-wizard-draft:';
+  let profileWizardState = { steps: [], current: 0, onlyMissing: true, scope: 'onboarding' };
+
+  function getProfileWizardDraftKey() {
+    return currentUser?.uid ? `${PROFILE_WIZARD_DRAFT_PREFIX}${currentUser.uid}` : '';
+  }
+
+  function readProfileWizardDraft() {
+    try {
+      const key = getProfileWizardDraftKey();
+      return key ? JSON.parse(localStorage.getItem(key) || 'null') || {} : {};
+    } catch { return {}; }
+  }
+
+  function saveProfileWizardDraft() {
+    try {
+      const key = getProfileWizardDraftKey();
+      if (key) localStorage.setItem(key, JSON.stringify(readRequiredProfileForm()));
+    } catch { /* A local draft is only a convenience. */ }
+  }
+
+  function clearProfileWizardDraft() {
+    try {
+      const key = getProfileWizardDraftKey();
+      if (key) localStorage.removeItem(key);
+    } catch { /* Nothing to clear. */ }
+  }
+
   function ensureProfilePreferenceMarkup(modal) {
     const section = modal?.querySelector('.profile-preferences-section');
     if (!section || section.dataset.ready === 'true') return;
@@ -5071,6 +5162,40 @@ function renderPendingSyncStatus() {
       foodLabel.insertAdjacentHTML('beforebegin', '<div class="profile-preference-heading profile-preference-food-heading"><strong>Ishrana</strong><small>Upiši alergije ili namirnice koje moraš izbjegavati.</small></div>');
     }
     section.dataset.ready = 'true';
+  }
+
+  function ensureProfileWizardMarkup(modal) {
+    const form = modal?.querySelector('.profile-required-form');
+    if (!form || form.dataset.wizardReady === 'true') return;
+    modal.querySelector('.profile-required-content > [data-action="save-required-profile"], .profile-required-content > [data-action="save-profile-details"]')?.remove();
+    form.innerHTML = `
+      <div class="profile-wizard-progress" aria-live="polite"><span id="profile-wizard-step-label"></span><div><i id="profile-wizard-progress-fill"></i></div></div>
+      <section class="profile-wizard-step" data-profile-step="basics">
+        <h4>Osnovni podaci</h4><p>Ovo nam pomaže da ti se GymLeader obraća prirodno.</p>
+        <div class="profile-wizard-field" data-profile-field="name"><label class="settings-label" for="required-profile-name">Ime ili nadimak</label><input id="required-profile-name" class="custom-input" type="text" maxlength="100" autocomplete="name" placeholder="Kako da te zovemo?"><small class="profile-field-error"></small></div>
+        <fieldset class="profile-wizard-field profile-wizard-choice" data-profile-field="gender"><legend>Kako da ti se obraćamo?</legend><div class="gender-options compact-gender-options"><label><input type="radio" name="required-profile-gender" value="male"><span>Muško</span></label><label><input type="radio" name="required-profile-gender" value="female"><span>Žensko</span></label><label><input type="radio" name="required-profile-gender" value="unspecified"><span>Ne želim odgovoriti</span></label></div><small class="profile-field-error"></small></fieldset>
+        <div class="profile-required-two-col"><div class="profile-wizard-field" data-profile-field="age"><label class="settings-label" for="required-profile-age">Godine</label><input id="required-profile-age" class="custom-input" type="number" min="13" max="100" inputmode="numeric" placeholder="npr. 28"><small class="profile-field-error"></small></div><div class="profile-wizard-field" data-profile-field="height"><label class="settings-label" for="required-profile-height">Visina (cm)</label><input id="required-profile-height" class="custom-input" type="number" min="100" max="250" step="0.1" inputmode="decimal" placeholder="npr. 180"><small class="profile-field-error"></small></div></div>
+        <div class="profile-wizard-field" data-profile-field="weight"><label class="settings-label" for="required-profile-weight">Trenutna težina (kg)</label><input id="required-profile-weight" class="custom-input" type="number" min="25" max="400" step="0.1" inputmode="decimal" placeholder="npr. 80"><small class="profile-field-error"></small></div>
+      </section>
+      <section class="profile-wizard-step" data-profile-step="training">
+        <h4>Cilj i način treniranja</h4><p>Izaberi ono što ti trenutno najviše odgovara. Sve možeš promijeniti kasnije.</p>
+        <div class="profile-wizard-field" data-profile-field="goal"><label class="settings-label" for="required-profile-goal">Cilj tjelesne težine</label><select id="required-profile-goal" class="custom-input"><option value="">Izaberi cilj</option><option value="lose_weight">Mršanje</option><option value="maintain">Održavanje težine</option><option value="gain_weight">Povećanje težine</option></select><small class="profile-field-error"></small></div>
+        <div class="profile-wizard-field" data-profile-field="focus"><label class="settings-label" for="required-profile-focus">Fokus treninga</label><select id="required-profile-focus" class="custom-input"><option value="">Izaberi fokus</option><option value="strength">Povećanje snage</option><option value="muscle_progress">Mišićni napredak</option><option value="general_fitness">Opšta kondicija</option></select><small class="profile-field-error"></small></div>
+        <div class="profile-wizard-field" data-profile-field="frequency"><label class="settings-label" for="required-profile-frequency">Koliko puta želiš trenirati sedmično?</label><input id="required-profile-frequency" class="custom-input" type="number" min="1" max="14" inputmode="numeric" placeholder="npr. 3"><small class="profile-field-error"></small></div>
+        <fieldset class="profile-wizard-field profile-wizard-choice" data-profile-field="location"><legend>Gdje treniraš?</legend><div class="gender-options compact-gender-options"><label><input type="radio" name="required-profile-location" value="gym"><span>Teretana</span></label><label><input type="radio" name="required-profile-location" value="home"><span>Kuća</span></label><label><input type="radio" name="required-profile-location" value="street"><span>Street workout</span></label><label><input type="radio" name="required-profile-location" value="other"><span>Drugo</span></label></div><small class="profile-field-error"></small></fieldset>
+        <div class="profile-wizard-field" data-profile-field="experience"><label class="settings-label" for="required-profile-experience">Koliko dugo treniraš?</label><select id="required-profile-experience" class="custom-input"><option value="">Izaberi iskustvo</option><option value="beginner">Početnik — tek počinjem ili treniram kratko</option><option value="intermediate">Srednji nivo — treniram redovno</option><option value="advanced">Napredni nivo — treniram godinama</option></select><small class="profile-field-error"></small></div>
+        <div class="profile-wizard-field" data-profile-field="minutes"><label class="settings-label" for="required-profile-minutes">Koliko minuta obično treniraš?</label><input id="required-profile-minutes" class="custom-input" type="number" min="10" max="300" step="5" inputmode="numeric" placeholder="npr. 60"><small class="profile-field-error"></small></div>
+        <fieldset class="profile-wizard-field profile-wizard-choice" data-profile-field="muscles"><legend>Koje mišićne grupe želiš trenirati?</legend><p class="profile-choice-hint">Izaberi cijelo tijelo ili označi pojedinačne grupe.</p><div class="muscle-full-body"><label><input type="checkbox" name="required-profile-muscles" value="full_body"><span><strong>Cijelo tijelo</strong><small>Odaberi sve mišićne grupe</small></span><i aria-hidden="true">✓</i></label></div><div class="muscle-choice-grid"><label><input type="checkbox" name="required-profile-muscles" value="chest"><span>Grudi</span></label><label><input type="checkbox" name="required-profile-muscles" value="back"><span>Leđa</span></label><label><input type="checkbox" name="required-profile-muscles" value="legs"><span>Noge</span></label><label><input type="checkbox" name="required-profile-muscles" value="shoulders"><span>Ramena</span></label><label><input type="checkbox" name="required-profile-muscles" value="arms"><span>Ruke</span></label><label><input type="checkbox" name="required-profile-muscles" value="glutes"><span>Gluteus</span></label><label><input type="checkbox" name="required-profile-muscles" value="core"><span>Stomak</span></label></div><small class="profile-field-error"></small></fieldset>
+      </section>
+      <section class="profile-wizard-step" data-profile-step="preferences">
+        <h4>Preferencije za buduće prijedloge</h4><p>Odgovori na svako polje ili izaberi „Nemam“. Kasnije će ovo pomoći treningu i ishrani.</p>
+        <div class="profile-wizard-field" data-profile-field="preferred"><label class="settings-label" for="required-profile-preferred-exercises">Vježbe koje preferiraš</label><textarea id="required-profile-preferred-exercises" class="custom-input" rows="2" maxlength="1000" placeholder="npr. čučanj, bench press, zgibovi"></textarea><button class="profile-preference-none" type="button" data-action="set-profile-preference" data-target="required-profile-preferred-exercises" data-value="Nemam posebne vježbe koje želim." data-label="Nemam posebnu želju">＋ Nemam posebnu želju</button><small class="profile-field-error"></small></div>
+        <div class="profile-wizard-field" data-profile-field="avoided"><label class="settings-label" for="required-profile-avoided-exercises">Vježbe koje želiš izbjeći</label><textarea id="required-profile-avoided-exercises" class="custom-input" rows="2" maxlength="1000" placeholder="npr. čučanj ili mrtvo dizanje"></textarea><button class="profile-preference-none" type="button" data-action="set-profile-preference" data-target="required-profile-avoided-exercises" data-value="Nemam vježbi koje izbjegavam." data-label="Nemam vježbi koje izbjegavam">＋ Nemam vježbi koje izbjegavam</button><small class="profile-field-error"></small></div>
+        <div class="profile-wizard-field" data-profile-field="food"><label class="settings-label" for="required-profile-food-allergies">Alergije i hrana koju izbjegavaš</label><textarea id="required-profile-food-allergies" class="custom-input" rows="2" maxlength="1000" placeholder="npr. kikiriki, laktoza, gluten"></textarea><button class="profile-preference-none" type="button" data-action="set-profile-preference" data-target="required-profile-food-allergies" data-value="Nemam alergije ni ograničenja hrane." data-label="Nemam alergije ni ograničenja hrane">＋ Nemam alergije ni ograničenja hrane</button><small class="profile-field-error"></small></div>
+        <p class="profile-modal-help">Ovo nije medicinska zaštita. Prije jela uvijek provjeri sastojke i savjet stručnjaka ako imaš alergiju.</p>
+      </section>
+      <div class="profile-wizard-actions"><button id="profile-wizard-back" class="secondary-btn" data-action="profile-wizard-back" type="button">Nazad</button><button id="profile-wizard-next" class="btn" data-action="profile-wizard-next" type="button">Nastavi</button></div>`;
+    form.dataset.wizardReady = 'true';
   }
 
   function setRequiredProfileGroupVisible(selector, visible) {
@@ -5106,7 +5231,7 @@ function renderPendingSyncStatus() {
       'required-profile-weight': inRange(profile.weightKg, 25, 400),
       'required-profile-goal': present(profile.goal),
       'required-profile-focus': present(profile.trainingFocus),
-      'required-profile-frequency': inRange(profile.trainingFrequency, 0, 14),
+      'required-profile-frequency': inRange(profile.trainingFrequency, 1, 14),
       'required-profile-experience': present(profile.experienceLevel),
       'required-profile-minutes': inRange(profile.sessionMinutes, 10, 300),
       'required-profile-preferred-exercises': present(profile.preferredExercises),
@@ -5126,10 +5251,122 @@ function renderPendingSyncStatus() {
     if (goalNote) goalNote.hidden = checks['required-profile-goal'];
   }
 
+  function getProfileWizardMissingFields(profile) {
+    const present = (value) => value !== undefined && value !== null && String(value).trim() !== '';
+    const inRange = (value, min, max) => Number.isFinite(Number(value)) && Number(value) >= min && Number(value) <= max;
+    return {
+      name: !present(profile.fullName),
+      gender: !VALID_GENDER_VALUES.has(profile.gender),
+      age: !inRange(profile.age, 13, 100), height: !inRange(profile.heightCm, 100, 250), weight: !inRange(profile.weightKg, 25, 400),
+      goal: !present(profile.goal), focus: !present(profile.trainingFocus), frequency: !inRange(profile.trainingFrequency, 1, 14),
+      location: !present(profile.trainingLocation), experience: !present(profile.experienceLevel), minutes: !inRange(profile.sessionMinutes, 10, 300),
+      muscles: !Array.isArray(profile.targetMuscleGroups) || profile.targetMuscleGroups.length === 0,
+      preferred: !present(profile.preferredExercises), avoided: !present(profile.avoidedExercises), food: !present(profile.foodAllergies)
+    };
+  }
+
+  function configureProfileWizard(profile, onlyMissing) {
+    const modal = document.getElementById('profile-required-modal');
+    if (!modal) return;
+    const missing = getProfileWizardMissingFields(profile);
+    const groups = {
+      basics: ['name', 'gender', 'age', 'height', 'weight'],
+      training: ['goal', 'focus', 'frequency', 'location', 'experience', 'minutes', 'muscles'],
+      preferences: ['preferred', 'avoided', 'food']
+    };
+    const scope = profileWizardState.scope || 'onboarding';
+    let stepNames = Object.keys(groups);
+    if (!onlyMissing && scope === 'basics') stepNames = ['basics'];
+    if (!onlyMissing && scope === 'training') stepNames = ['training', 'preferences'];
+    const steps = stepNames.filter((step) => !onlyMissing || groups[step].some((field) => missing[field]));
+    profileWizardState = { steps, current: Math.min(profileWizardState.current || 0, Math.max(0, steps.length - 1)), onlyMissing, scope };
+    modal.querySelectorAll('.profile-wizard-field').forEach((field) => {
+      const fieldName = field.dataset.profileField;
+      field.hidden = onlyMissing && !missing[fieldName];
+      field.classList.remove('has-error');
+      const error = field.querySelector('.profile-field-error');
+      if (error) error.textContent = '';
+    });
+    modal.querySelectorAll('.profile-wizard-step').forEach((step) => {
+      step.hidden = !steps.includes(step.dataset.profileStep) || step.dataset.profileStep !== steps[profileWizardState.current];
+    });
+    renderProfileWizardControls();
+  }
+
+  function renderProfileWizardControls() {
+    const modal = document.getElementById('profile-required-modal');
+    if (!modal) return;
+    const { steps, current } = profileWizardState;
+    const label = modal.querySelector('#profile-wizard-step-label');
+    const fill = modal.querySelector('#profile-wizard-progress-fill');
+    const progress = modal.querySelector('.profile-wizard-progress');
+    const back = modal.querySelector('#profile-wizard-back');
+    const next = modal.querySelector('#profile-wizard-next');
+    const hideSingleSettingsStep = profileRequiredEditMode && steps.length === 1;
+    if (progress) progress.hidden = hideSingleSettingsStep;
+    if (label) label.textContent = `Korak ${current + 1} od ${steps.length}`;
+    if (fill) fill.style.width = `${steps.length ? ((current + 1) / steps.length) * 100 : 100}%`;
+    if (back) back.hidden = current === 0;
+    if (next) next.textContent = current === steps.length - 1
+      ? (profileRequiredEditMode ? 'Sačuvaj promjene' : 'Sačuvaj profil i nastavi')
+      : 'Nastavi';
+  }
+
+  function profileFieldError(field, message) {
+    const modal = document.getElementById('profile-required-modal');
+    const wrapper = modal?.querySelector(`.profile-wizard-field[data-profile-field="${field}"]`);
+    if (!wrapper || wrapper.hidden) return false;
+    wrapper.classList.add('has-error');
+    const error = wrapper.querySelector('.profile-field-error');
+    if (error) error.textContent = message;
+    return true;
+  }
+
+  function validateProfileWizardStep() {
+    const step = profileWizardState.steps[profileWizardState.current];
+    const values = readRequiredProfileForm();
+    const checks = {
+      basics: [['name', values.fullName && values.fullName.length <= 100, 'Unesi ime ili nadimak.'], ['gender', VALID_GENDER_VALUES.has(values.gender), 'Izaberi jednu opciju.'], ['age', Number.isInteger(values.age) && values.age >= 13 && values.age <= 100, 'Unesi godine od 13 do 100.'], ['height', Number.isFinite(values.heightCm) && values.heightCm >= 100 && values.heightCm <= 250, 'Unesi visinu od 100 do 250 cm.'], ['weight', Number.isFinite(values.weightKg) && values.weightKg >= 25 && values.weightKg <= 400, 'Unesi težinu od 25 do 400 kg.']],
+      training: [['goal', ['lose_weight', 'maintain', 'gain_weight'].includes(values.goal), 'Izaberi cilj.'], ['focus', ['strength', 'muscle_progress', 'general_fitness'].includes(values.trainingFocus), 'Izaberi fokus.'], ['frequency', Number.isInteger(values.trainingFrequency) && values.trainingFrequency >= 1 && values.trainingFrequency <= 14, 'Unesi broj od 1 do 14.'], ['location', ['gym', 'home', 'street', 'other'].includes(values.trainingLocation), 'Izaberi mjesto treninga.'], ['experience', ['beginner', 'intermediate', 'advanced'].includes(values.experienceLevel), 'Izaberi iskustvo u treniranju.'], ['minutes', Number.isInteger(values.sessionMinutes) && values.sessionMinutes >= 10 && values.sessionMinutes <= 300, 'Unesi trajanje od 10 do 300 minuta.'], ['muscles', values.targetMuscleGroups.length > 0, 'Izaberi cijelo tijelo ili barem jednu grupu.']],
+      preferences: [['preferred', values.preferredExercises && values.preferredExercises.length <= 1000, 'Upiši odgovor ili izaberi „Nemam“.'], ['avoided', values.avoidedExercises && values.avoidedExercises.length <= 1000, 'Upiši odgovor ili izaberi „Nemam“.'], ['food', values.foodAllergies && values.foodAllergies.length <= 1000, 'Upiši odgovor ili izaberi „Nemam“.']]
+    };
+    const invalid = (checks[step] || []).filter(([field, valid, message]) => !valid && profileFieldError(field, message));
+    if (invalid.length) {
+      const first = document.querySelector('.profile-wizard-field.has-error');
+      first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return false;
+    }
+    return true;
+  }
+
+  window.nextProfileWizardStep = async function() {
+    if (!validateProfileWizardStep()) return;
+    saveProfileWizardDraft();
+    if (profileWizardState.current < profileWizardState.steps.length - 1) {
+      profileWizardState.current += 1;
+      const modal = document.getElementById('profile-required-modal');
+      modal?.querySelectorAll('.profile-wizard-step').forEach((step) => { step.hidden = step.dataset.profileStep !== profileWizardState.steps[profileWizardState.current]; });
+      renderProfileWizardControls();
+      modal?.querySelector('.profile-wizard-step:not([hidden])')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    await window.saveRequiredProfile();
+    renderProfileWizardControls();
+  };
+
+  window.previousProfileWizardStep = function() {
+    if (profileWizardState.current === 0) return;
+    saveProfileWizardDraft();
+    profileWizardState.current -= 1;
+    const modal = document.getElementById('profile-required-modal');
+    modal?.querySelectorAll('.profile-wizard-step').forEach((step) => { step.hidden = step.dataset.profileStep !== profileWizardState.steps[profileWizardState.current]; });
+    renderProfileWizardControls();
+  };
+
   function populateRequiredProfileForm() {
     const modal = document.getElementById('profile-required-modal');
-    ensureProfilePreferenceMarkup(modal);
-    const profile = currentProfileData || {};
+    ensureProfileWizardMarkup(modal);
+    const profile = { ...(currentProfileData || {}), ...readProfileWizardDraft() };
     const values = {
       'required-profile-name': profile.fullName || currentUser?.displayName || '',
       'required-profile-age': profile.age ?? '',
@@ -5145,6 +5382,7 @@ function renderPendingSyncStatus() {
       const input = document.getElementById(id);
       if (input && document.activeElement !== input) input.value = value;
     });
+    updateProfilePreferenceButtons();
     document.querySelectorAll('input[name="required-profile-gender"]').forEach((input) => { input.checked = input.value === profile.gender; });
     document.querySelectorAll('input[name="required-profile-location"]').forEach((input) => { input.checked = input.value === profile.trainingLocation; });
     const goal = document.getElementById('required-profile-goal');
@@ -5158,7 +5396,7 @@ function renderPendingSyncStatus() {
     if (experience) experience.value = profile.experienceLevel || '';
     const muscleGroups = new Set(Array.isArray(profile.targetMuscleGroups) ? profile.targetMuscleGroups : []);
     document.querySelectorAll('input[name="required-profile-muscles"]').forEach((input) => { input.checked = muscleGroups.has(input.value); });
-    updateRequiredProfileFieldVisibility(!profileRequiredEditMode);
+    configureProfileWizard(currentProfileData || {}, !profileRequiredEditMode);
     const title = document.getElementById('profile-required-title');
     const intro = title?.nextElementSibling;
     const preferenceIntro = modal.querySelector('.profile-preferences-section .profile-modal-help');
@@ -5167,27 +5405,60 @@ function renderPendingSyncStatus() {
     if (intro) intro.textContent = profileRequiredEditMode
       ? 'Ovi podaci pomažu da kasnije dobiješ smislen pregled napretka. Možeš ih promijeniti kada želiš.'
       : 'Popuni samo nova polja koja još nemamo. Ostali podaci su već sačuvani.';
+    if (title) title.textContent = profileRequiredEditMode ? 'Uredi svoj profil' : 'Dovrši profil';
+    if (intro) intro.textContent = profileRequiredEditMode
+      ? 'Pregledaj podatke po kratkim koracima. Možeš ih promijeniti kada želiš.'
+      : 'Prikazujemo samo podatke koji još nedostaju.';
+    if (profileRequiredEditMode && profileWizardState.scope === 'basics') {
+      if (title) title.textContent = 'Lični podaci';
+      if (intro) intro.textContent = 'Uredi ime, pol i osnovne podatke o sebi.';
+    }
+    if (profileRequiredEditMode && profileWizardState.scope === 'training') {
+      if (title) title.textContent = 'Ciljevi i treniranje';
+      if (intro) intro.textContent = 'Uredi cilj, način treniranja i prijedloge koje želiš dobiti.';
+    }
   }
 
-  window.openProfileDetailsEditor = function() {
+  window.openProfileDetailsEditor = function(scope = 'basics') {
     if (!currentUser) return;
+    const modal = document.getElementById('profile-required-modal');
     profileRequiredEditMode = true;
+    profileWizardState.current = 0;
+    profileWizardState.scope = scope;
     populateRequiredProfileForm();
     const close = document.getElementById('profile-required-close');
-    const button = document.querySelector('[data-action="save-required-profile"], [data-action="save-profile-details"]');
+    const button = document.getElementById('profile-wizard-next');
     if (close) close.style.display = 'block';
+    if (button) { button.dataset.action = 'profile-wizard-next'; renderProfileWizardControls(); }
     if (button) { button.dataset.action = 'save-profile-details'; button.textContent = 'Sačuvaj promjene'; }
+    if (button) { button.dataset.action = 'profile-wizard-next'; renderProfileWizardControls(); }
     const status = document.getElementById('profile-required-status');
     if (status) { status.textContent = ''; status.style.color = ''; }
     if (modal) modal.style.display = 'flex';
   };
 
+  window.openTrainingGoalsEditor = function() {
+    window.openProfileDetailsEditor('training');
+  };
+
+  function updateProfilePreferenceButtons() {
+    document.querySelectorAll('.profile-preference-none').forEach((button) => {
+      const input = document.getElementById(button.dataset.target || '');
+      const selected = Boolean(input && input.value.trim() === button.dataset.value);
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+      button.textContent = selected ? '✓ Odabrano — klikni za uklanjanje' : `＋ ${button.dataset.label || 'Nemam'}`;
+    });
+  }
+
   window.setProfilePreference = function(targetId, value) {
     const input = document.getElementById(targetId);
     if (!input) return;
-    input.value = value;
+    const selected = input.value.trim() === value;
+    input.value = selected ? '' : value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.focus();
+    updateProfilePreferenceButtons();
+    if (!selected) input.focus();
   };
 
   function readRequiredProfileForm() {
@@ -5215,9 +5486,10 @@ function renderPendingSyncStatus() {
   window.saveRequiredProfile = async function() {
     if (!currentUser) return;
     const status = document.getElementById('profile-required-status');
-    const button = document.querySelector('[data-action="save-required-profile"]');
+    const button = document.getElementById('profile-wizard-next');
     const profileValues = readRequiredProfileForm();
     const errors = [];
+    if (!Number.isInteger(profileValues.trainingFrequency) || profileValues.trainingFrequency < 1) errors.push('izaberi najmanje 1 trening sedmično');
     if (!profileValues.fullName || profileValues.fullName.length > 100) errors.push('ime ili nadimak');
     if (!VALID_GENDER_VALUES.has(profileValues.gender)) errors.push('pol');
     if (!Number.isInteger(profileValues.age) || profileValues.age < 13 || profileValues.age > 100) errors.push('godine (13–100)');
@@ -5248,6 +5520,7 @@ function renderPendingSyncStatus() {
       };
       await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
       currentProfileData = { ...(currentProfileData || {}), ...profile };
+      clearProfileWizardDraft();
       document.getElementById('profile-required-modal').style.display = 'none';
       profileRequiredEditMode = false;
       renderProfileSettings();
@@ -6110,12 +6383,24 @@ function renderPendingSyncStatus() {
     document.getElementById('settings-gender-modal')?.addEventListener('change', () => updateGenderSaveButton('profile-gender-option', 'save-profile-gender'));
     document.getElementById('profile-required-modal')?.addEventListener('change', (event) => {
       const input = event.target;
-      if (!(input instanceof HTMLInputElement) || input.name !== 'required-profile-muscles') return;
-      const all = document.querySelector('input[name="required-profile-muscles"][value="full_body"]');
-      const individual = [...document.querySelectorAll('input[name="required-profile-muscles"]')].filter((item) => item.value !== 'full_body');
-      if (input.value === 'full_body' && input.checked) individual.forEach((item) => { item.checked = true; });
-      if (input.value === 'full_body' && !input.checked) individual.forEach((item) => { item.checked = false; });
-      if (input.value !== 'full_body' && !input.checked && all) all.checked = false;
+      if (input instanceof HTMLInputElement && input.name === 'required-profile-muscles') {
+        const all = document.querySelector('input[name="required-profile-muscles"][value="full_body"]');
+        const individual = [...document.querySelectorAll('input[name="required-profile-muscles"]')].filter((item) => item.value !== 'full_body');
+        if (input.value === 'full_body' && input.checked) individual.forEach((item) => { item.checked = true; });
+        if (input.value === 'full_body' && !input.checked) individual.forEach((item) => { item.checked = false; });
+        if (input.value !== 'full_body' && input.checked && all) all.checked = false;
+        if (input.value !== 'full_body' && !input.checked && all) all.checked = false;
+      }
+      input?.closest?.('.profile-wizard-field')?.classList.remove('has-error');
+      const error = input?.closest?.('.profile-wizard-field')?.querySelector('.profile-field-error');
+      if (error) error.textContent = '';
+      saveProfileWizardDraft();
+    });
+    document.getElementById('profile-required-modal')?.addEventListener('input', (event) => {
+      event.target?.closest?.('.profile-wizard-field')?.classList.remove('has-error');
+      const error = event.target?.closest?.('.profile-wizard-field')?.querySelector('.profile-field-error');
+      if (error) error.textContent = '';
+      saveProfileWizardDraft();
     });
     document.getElementById('plan-generator-modal')?.addEventListener('change', (event) => {
       const input = event.target;
@@ -6424,11 +6709,20 @@ function renderPendingSyncStatus() {
         case 'save-required-profile':
           window.saveRequiredProfile();
           break;
+        case 'profile-wizard-next':
+          window.nextProfileWizardStep();
+          break;
+        case 'profile-wizard-back':
+          window.previousProfileWizardStep();
+          break;
         case 'save-profile-details':
           window.saveProfileDetails();
           break;
         case 'open-profile-details-editor':
           window.openProfileDetailsEditor();
+          break;
+        case 'open-training-goals-editor':
+          window.openTrainingGoalsEditor();
           break;
         case 'set-profile-preference':
           window.setProfilePreference(button.dataset.target || '', button.dataset.value || '');
@@ -6655,8 +6949,27 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    navigator.serviceWorker.register('/sw.js?v=20261001-meal-planner-01', { scope: '/' })
-      .then((registration) => registration.update())
+    const build = '20261001-offline-startup-v71';
+    const reloadKey = `gymleader-sw-reloaded-${build}`;
+    let reloadingForWorker = false;
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadingForWorker || sessionStorage.getItem(reloadKey) === 'true') return;
+      reloadingForWorker = true;
+      sessionStorage.setItem(reloadKey, 'true');
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type !== 'GYMLEADER_BUILD_ACTIVE' || event.data.build !== build) return;
+      sessionStorage.removeItem(reloadKey);
+    });
+
+    navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
+      .then((registration) => {
+        if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        return registration.update();
+      })
       .catch((error) => console.warn('Offline worker nije registrovan:', error));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }
@@ -6762,71 +7075,6 @@ async function sendVerificationCodeEmail(email) {
     throw error;
   }
 }
-// Otvaranje modala za unos koda
-window.openVerificationModal = function() {
-  let modal = document.getElementById('verificationModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'verificationModal';
-    modal.className = 'modal';
-    modal.innerHTML = `
-      <div class="modal-content text-center">
-        <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">🔑 Unesite Verifikacioni Kod</h3>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 14px;">
-          Poslali smo 6-cifreni kod na <strong>${escapeHtml(pendingVerification.email)}</strong>
-        </p>
-        <input type="text" id="verify-code-input" class="custom-input" style="text-align: center; font-size: 1.5rem; letter-spacing: 6px;" maxlength="6" placeholder="000000">
-        <div id="verify-error" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 10px; display: none;"></div>
-        <div style="display: flex; gap: 10px; margin-top: 12px;">
-          <button class="btn" data-action="confirm-verification">Potvrdi i Registruj Se</button>
-          <button class="btn btn-secondary" data-action="close-modal" data-modal-id="verificationModal">Otkaži</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-  modal.style.display = 'flex';
-};
-
-// Potvrda unesenog koda i konačna registracija na Firebase
-window.confirmVerificationCode = async function() {
-  const inputCode = document.getElementById('verify-code-input').value.trim();
-  const verifyError = document.getElementById('verify-error');
-
-  try {
-    const response = await fetch('https://your-gym-planner.vercel.app/api/confirm-verification', {
-      method: 'POST',
-      headers: await getProtectedApiHeaders(),
-      body: JSON.stringify({
-        email: pendingVerification.email,
-        password: pendingVerification.password,
-        name: pendingVerification.name,
-        code: inputCode
-      })
-    });
-    const result = await response.json().catch(() => null);
-
-    if (!response.ok || !result?.customToken) {
-      throw new Error(result?.error || 'Potvrda koda nije uspjela.');
-    }
-
-    await signInWithCustomToken(auth, result.customToken);
-    await auth.currentUser?.getIdToken(true);
-    pendingVerification = { email: '', name: '', password: '' };
-    document.getElementById('verificationModal').style.display = 'none';
-    ShowToast('Registracija uspješna! Dovršimo tvoj profil. 🔥');
-
-    const form = document.getElementById('auth-form');
-    if (form) form.reset();
-  } catch (error) {
-    if (verifyError) {
-      verifyError.innerText = error.message;
-      verifyError.style.display = 'block';
-    }
-  }
-  return;
-};
-
 // The verification dialog can be reopened after a refresh. The password is
 // intentionally never written to localStorage; the user re-enters it only if
 // the browser was closed before confirmation.
@@ -6849,7 +7097,7 @@ window.openVerificationModal = function() {
           <small style="display:block;color:var(--text-muted);font-size:.72rem;margin-top:5px;">Lozinka se ne čuva na uređaju.</small>
         </div>
         <input type="text" id="verify-code-input" class="custom-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" style="text-align:center;font-size:1.5rem;letter-spacing:6px;" maxlength="6" placeholder="000000">
-        <div id="verify-error" style="color:var(--danger);font-size:.85rem;margin:10px 0;display:none;"></div>
+        <div id="verify-error" role="alert" aria-live="assertive" style="color:var(--danger);font-size:.85rem;margin:10px 0;display:none;"></div>
         <div style="display:flex;gap:10px;margin-top:12px;">
           <button class="btn" data-action="confirm-verification">Potvrdi registraciju</button>
           <button class="btn btn-secondary" data-action="close-modal" data-modal-id="verificationModal">Kasnije</button>
@@ -6892,7 +7140,11 @@ window.confirmVerificationCode = async function() {
       })
     });
     const result = await response.json().catch(() => null);
-    if (!response.ok || !result?.customToken) throw new Error(result?.error || 'Potvrda koda nije uspjela.');
+    if (!response.ok || !result?.customToken) {
+      const verificationError = new Error('Email verification failed');
+      verificationError.code = `verification/${response.status || 500}`;
+      throw verificationError;
+    }
 
     await signInWithCustomToken(auth, result.customToken);
     await auth.currentUser?.getIdToken(true);
@@ -6903,7 +7155,7 @@ window.confirmVerificationCode = async function() {
     ShowToast('Registracija uspješna! Dovršimo tvoj profil. 🔥');
     setTimeout(() => window.openOnboardingModal(), 250);
   } catch (error) {
-    if (verifyError) { verifyError.textContent = error.message; verifyError.style.display = 'block'; }
+    if (verifyError) { verifyError.textContent = getFriendlyVerificationError(error); verifyError.style.display = 'block'; }
   }
 };
 

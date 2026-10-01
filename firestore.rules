@@ -1,0 +1,236 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verifiedUser() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function ownsUserId(data) {
+      return verifiedUser() && data.userId == request.auth.uid;
+    }
+
+    function validUserProfile(data) {
+      return data.keys().hasOnly(['fullName', 'email', 'createdAt', 'gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFocus', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups', 'preferredExercises', 'avoidedExercises', 'foodAllergies', 'bodyTrackingEnabled', 'dailyCaloriesGoal', 'dailyProteinGoal', 'dailyCarbsGoal', 'dailyFatGoal', 'termsVersion', 'termsAcceptedAt', 'privacyVersion', 'privacyAcceptedAt'])
+        && data.keys().hasAll(['fullName', 'email', 'createdAt'])
+        && data.fullName is string
+        && data.fullName.size() > 0
+        && data.fullName.size() <= 100
+        && data.email is string
+        && data.email.size() <= 254
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && (!('gender' in data) || (data.gender is string && data.gender in ['male', 'female', 'unspecified']))
+        && (!('age' in data) || (data.age is int && data.age >= 13 && data.age <= 100))
+        && (!('heightCm' in data) || (data.heightCm is number && data.heightCm >= 100 && data.heightCm <= 250))
+        && (!('weightKg' in data) || (data.weightKg is number && data.weightKg >= 25 && data.weightKg <= 400))
+        && (!('goal' in data) || (data.goal is string && data.goal in ['lose_weight', 'maintain', 'gain_weight', 'gain_muscle', 'increase_strength', 'general_fitness']))
+        && (!('trainingFocus' in data) || (data.trainingFocus is string && data.trainingFocus in ['strength', 'muscle_progress', 'general_fitness']))
+        && (!('trainingFrequency' in data) || (data.trainingFrequency is int && data.trainingFrequency >= 0 && data.trainingFrequency <= 14))
+        && (!('trainingLocation' in data) || (data.trainingLocation is string && data.trainingLocation in ['gym', 'home', 'street', 'other']))
+        && (!('experienceLevel' in data) || (data.experienceLevel is string && data.experienceLevel in ['beginner', 'intermediate', 'advanced']))
+        && (!('sessionMinutes' in data) || (data.sessionMinutes is int && data.sessionMinutes >= 10 && data.sessionMinutes <= 300))
+        && (!('targetMuscleGroups' in data) || (data.targetMuscleGroups is list && data.targetMuscleGroups.size() >= 1 && data.targetMuscleGroups.size() <= 12))
+        && (!('preferredExercises' in data) || (data.preferredExercises is string && data.preferredExercises.size() <= 1000))
+        && (!('avoidedExercises' in data) || (data.avoidedExercises is string && data.avoidedExercises.size() <= 1000))
+        && (!('foodAllergies' in data) || (data.foodAllergies is string && data.foodAllergies.size() <= 1000))
+        && (!('bodyTrackingEnabled' in data) || data.bodyTrackingEnabled is bool)
+        && (!('dailyCaloriesGoal' in data) || (data.dailyCaloriesGoal is int && data.dailyCaloriesGoal >= 1 && data.dailyCaloriesGoal <= 10000))
+        && (!('dailyProteinGoal' in data) || (data.dailyProteinGoal is number && data.dailyProteinGoal >= 1 && data.dailyProteinGoal <= 2000))
+        && (!('dailyCarbsGoal' in data) || (data.dailyCarbsGoal is number && data.dailyCarbsGoal >= 1 && data.dailyCarbsGoal <= 2000))
+        && (!('dailyFatGoal' in data) || (data.dailyFatGoal is number && data.dailyFatGoal >= 1 && data.dailyFatGoal <= 2000))
+        && (!('termsVersion' in data) || (data.termsVersion is string && data.termsVersion.size() > 0 && data.termsVersion.size() <= 32))
+        && (!('termsAcceptedAt' in data) || (data.termsAcceptedAt is string && data.termsAcceptedAt.size() <= 40))
+        && (!('privacyVersion' in data) || (data.privacyVersion is string && data.privacyVersion.size() > 0 && data.privacyVersion.size() <= 32))
+        && (!('privacyAcceptedAt' in data) || (data.privacyAcceptedAt is string && data.privacyAcceptedAt.size() <= 40));
+    }
+
+    function validRoutine(data) {
+      return data.keys().hasOnly(['userId', 'emoji', 'name', 'exercises', 'createdAt', 'isArchived', 'isFavorite', 'archivedAt', 'scheduleDays'])
+        && data.keys().hasAll(['userId', 'name', 'exercises', 'createdAt'])
+        && data.userId is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.exercises is list
+        && data.exercises.size() <= 100
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && (!('emoji' in data) || (data.emoji is string && data.emoji.size() <= 16))
+        && (!('isArchived' in data) || data.isArchived is bool)
+        && (!('isFavorite' in data) || data.isFavorite is bool)
+        && (!('archivedAt' in data) || (data.archivedAt is string && data.archivedAt.size() <= 40))
+        && (!('scheduleDays' in data) || (data.scheduleDays is list && data.scheduleDays.size() <= 7 && (data.scheduleDays.size() == 0 || data.scheduleDays[0] is string)));
+    }
+
+    function validWorkout(data) {
+      return data.keys().hasOnly(['userId', 'userEmail', 'name', 'date', 'durationSeconds', 'exercises'])
+        && data.keys().hasAll(['userId', 'name', 'date', 'exercises'])
+        && data.userId is string
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.date is string
+        && data.date.size() <= 40
+        && data.exercises is list
+        && data.exercises.size() > 0
+        && data.exercises.size() <= 50
+        && (!('durationSeconds' in data)
+          || (data.durationSeconds is number && data.durationSeconds >= 0 && data.durationSeconds <= 86400))
+        && (!('userEmail' in data)
+          || data.userEmail == null
+          || (data.userEmail is string && data.userEmail.size() <= 254));
+    }
+
+    function validBodyMeasurement(data) {
+      return data.keys().hasOnly(['userId', 'measuredAt', 'weightKg', 'waistCm', 'chestCm', 'armCm', 'legCm', 'thighCm', 'calfCm', 'hipsCm', 'note'])
+        && data.keys().hasAll(['userId', 'measuredAt'])
+        && data.userId is string
+        && data.measuredAt is string
+        && data.measuredAt.size() > 0
+        && data.measuredAt.size() <= 40
+        && (!('weightKg' in data) || (data.weightKg is number && data.weightKg >= 25 && data.weightKg <= 400))
+        && (!('waistCm' in data) || (data.waistCm is number && data.waistCm >= 30 && data.waistCm <= 250))
+        && (!('chestCm' in data) || (data.chestCm is number && data.chestCm >= 30 && data.chestCm <= 250))
+        && (!('armCm' in data) || (data.armCm is number && data.armCm >= 10 && data.armCm <= 100))
+        && (!('legCm' in data) || (data.legCm is number && data.legCm >= 20 && data.legCm <= 150))
+        && (!('thighCm' in data) || (data.thighCm is number && data.thighCm >= 20 && data.thighCm <= 150))
+        && (!('calfCm' in data) || (data.calfCm is number && data.calfCm >= 15 && data.calfCm <= 100))
+        && (!('hipsCm' in data) || (data.hipsCm is number && data.hipsCm >= 30 && data.hipsCm <= 250))
+        && (('weightKg' in data) || ('waistCm' in data) || ('chestCm' in data) || ('armCm' in data) || ('legCm' in data) || ('thighCm' in data) || ('calfCm' in data) || ('hipsCm' in data))
+        && (!('note' in data) || (data.note is string && data.note.size() <= 500));
+    }
+
+    function validFoodEntry(data) {
+      return data.keys().hasOnly(['userId', 'date', 'mealType', 'name', 'quantity', 'unit', 'calories', 'proteinG', 'carbsG', 'fatG', 'note', 'createdAt'])
+        && data.keys().hasAll(['userId', 'date', 'mealType', 'name', 'quantity', 'unit', 'calories', 'proteinG', 'carbsG', 'fatG', 'createdAt'])
+        && data.userId is string
+        && data.date is string
+        && data.date.size() == 10
+        && data.mealType is string
+        && data.mealType in ['breakfast', 'lunch', 'dinner', 'snack', 'other']
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 120
+        && data.quantity is number
+        && data.quantity >= 0.1
+        && data.quantity <= 10000
+        && data.unit is string
+        && data.unit.size() > 0
+        && data.unit.size() <= 30
+        && data.calories is number
+        && data.calories >= 0
+        && data.calories <= 10000
+        && data.proteinG is number
+        && data.proteinG >= 0
+        && data.proteinG <= 2000
+        && data.carbsG is number
+        && data.carbsG >= 0
+        && data.carbsG <= 2000
+        && data.fatG is number
+        && data.fatG >= 0
+        && data.fatG <= 2000
+        && data.createdAt is string
+        && data.createdAt.size() > 0
+        && data.createdAt.size() <= 40
+        && (!('note' in data) || (data.note is string && data.note.size() <= 500));
+    }
+
+    function validMealPlan(data) {
+      return data.keys().hasOnly(['userId', 'createdAt', 'startDate', 'catalogVersion', 'goal', 'diet', 'people', 'dayCount', 'mealCount', 'budget', 'currency', 'highProtein', 'simpleOnly', 'maxMinutes', 'allergies', 'disliked', 'estimatedCostEur', 'days'])
+        && data.keys().hasAll(['userId', 'createdAt', 'startDate', 'catalogVersion', 'goal', 'diet', 'people', 'dayCount', 'mealCount', 'budget', 'currency', 'highProtein', 'simpleOnly', 'maxMinutes', 'allergies', 'disliked', 'estimatedCostEur', 'days'])
+        && data.userId is string
+        && data.createdAt is string && data.createdAt.size() > 0 && data.createdAt.size() <= 40
+        && data.startDate is string && data.startDate.size() == 10
+        && data.catalogVersion is int && data.catalogVersion == 1
+        && data.goal is string && data.goal in ['lose_weight', 'maintain', 'gain_weight']
+        && data.diet is string && data.diet in ['none', 'vegetarian', 'vegan', 'halal']
+        && data.people is int && data.people >= 1 && data.people <= 10
+        && data.dayCount is int && data.dayCount >= 1 && data.dayCount <= 7
+        && data.mealCount is int && data.mealCount >= 2 && data.mealCount <= 5
+        && data.budget is number && data.budget >= 1 && data.budget <= 1000000
+        && data.currency is string && data.currency in ['EUR', 'BAM', 'RSD']
+        && data.highProtein is bool && data.simpleOnly is bool
+        && data.maxMinutes is int && data.maxMinutes >= 5 && data.maxMinutes <= 180
+        && data.allergies is string && data.allergies.size() <= 1000
+        && data.disliked is string && data.disliked.size() <= 1000
+        && data.estimatedCostEur is number && data.estimatedCostEur >= 0 && data.estimatedCostEur <= 100000
+        && data.days is list && data.days.size() == data.dayCount;
+    }
+
+    match /users/{userId} {
+      allow read: if verifiedUser() && request.auth.uid == userId;
+      allow create: if verifiedUser()
+        && request.auth.uid == userId
+        && validUserProfile(request.resource.data);
+      allow update: if verifiedUser()
+        && request.auth.uid == userId
+        && validUserProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if verifiedUser() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/mealPlans/{planId} {
+      allow read, delete: if verifiedUser() && request.auth.uid == userId;
+      allow create: if verifiedUser()
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && validMealPlan(request.resource.data);
+      allow update: if false;
+    }
+
+    match /routines/{routineId} {
+      allow read, delete: if ownsUserId(resource.data);
+      allow create: if ownsUserId(request.resource.data)
+        && validRoutine(request.resource.data);
+      allow update: if ownsUserId(resource.data)
+        && ownsUserId(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validRoutine(request.resource.data);
+    }
+
+    match /workouts/{workoutId} {
+      allow read, delete: if ownsUserId(resource.data);
+      allow create: if ownsUserId(request.resource.data)
+        && validWorkout(request.resource.data);
+      allow update: if ownsUserId(resource.data)
+        && ownsUserId(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && validWorkout(request.resource.data);
+    }
+
+    match /bodyMeasurements/{measurementId} {
+      allow read, delete: if verifiedUser()
+        && resource.data.userId == request.auth.uid;
+      allow create: if verifiedUser()
+        && request.resource.data.userId == request.auth.uid
+        && validBodyMeasurement(request.resource.data);
+      allow update: if verifiedUser()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && validBodyMeasurement(request.resource.data);
+    }
+
+    match /foodEntries/{entryId} {
+      allow read, delete: if verifiedUser()
+        && resource.data.userId == request.auth.uid;
+      allow create: if verifiedUser()
+        && request.resource.data.userId == request.auth.uid
+        && validFoodEntry(request.resource.data);
+      allow update: if verifiedUser()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validFoodEntry(request.resource.data);
+    }
+
+    // Sve kolekcije koje nisu eksplicitno dozvoljene ostaju zatvorene.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
