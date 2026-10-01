@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gymleader-app-v49-generator-body-finish';
+const CACHE_NAME = 'gymleader-app-v52-device-language';
 const APP_SHELL = [
   '/',
   '/index.html',

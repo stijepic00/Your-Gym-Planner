@@ -812,12 +812,12 @@ window.handleAuthSubmit = async function(e) {
         <button class="btn btn-purple routine-create-button" data-action="open-create-routine">
           ➕ Napravi plan treninga
         </button>
-        ${userRoutines.length > 0 ? `
-          <button class="btn ${routineEditMode ? 'btn-purple' : 'btn-secondary'} routine-edit-button" data-action="toggle-routine-edit-mode">
-            ${routineEditMode ? '✓ Gotovo' : '✎ Uredi planove'}
-          </button>
-        ` : ''}
       </div>
+      ${userRoutines.length > 0 ? `
+        <button class="routine-manage-link" data-action="toggle-routine-edit-mode" type="button">
+          ${routineEditMode ? '✓ Gotovo s uređivanjem' : '✎ Uredi planove'}
+        </button>
+      ` : ''}
     `;
 
     if (visibleRoutines.length === 0) {
@@ -882,8 +882,18 @@ window.handleAuthSubmit = async function(e) {
   function renderNextScheduledRoutine() {
     const container = document.getElementById('next-scheduled-routine');
     if (!container) return;
+    const next = getNextScheduledRoutine();
+    if (!next) { container.hidden = true; container.innerHTML = ''; return; }
+    const { chosen, offset } = next;
+    const today = new Date().getDay();
+    const dayLabel = offset === 0 ? 'Danas' : offset === 1 ? 'Sutra' : routineWeekdayLabels[(today + offset) % 7];
+    container.hidden = false;
+    container.innerHTML = `<div class="next-scheduled-copy"><span class="settings-eyebrow">SLJEDEĆI PLAN</span><h3>${escapeHtml(dayLabel)}: ${chosen.emoji ? `${escapeHtml(chosen.emoji)} ` : ''}${escapeHtml(chosen.name)}</h3><p>Plan iz tvog opcionalnog sedmičnog rasporeda.</p></div><button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(chosen.id)}">Započni ovaj trening →</button>`;
+  }
+
+  function getNextScheduledRoutine() {
     const scheduled = userRoutines.filter((routine) => routine.isArchived !== true && Array.isArray(routine.scheduleDays) && routine.scheduleDays.length);
-    if (!scheduled.length) { container.hidden = true; container.innerHTML = ''; return; }
+    if (!scheduled.length) return null;
     const today = new Date().getDay();
     let chosen = null;
     let offset = 0;
@@ -892,10 +902,7 @@ window.handleAuthSubmit = async function(e) {
       const candidates = scheduled.filter((routine) => routine.scheduleDays.map(String).includes(String(day))).sort((a, b) => Number(b.isFavorite === true) - Number(a.isFavorite === true));
       if (candidates.length) { chosen = candidates[0]; offset = dayOffset; }
     }
-    if (!chosen) { container.hidden = true; container.innerHTML = ''; return; }
-    const dayLabel = offset === 0 ? 'Danas' : offset === 1 ? 'Sutra' : routineWeekdayLabels[(today + offset) % 7];
-    container.hidden = false;
-    container.innerHTML = `<div class="next-scheduled-copy"><span class="settings-eyebrow">SLJEDEĆI PLAN</span><h3>${escapeHtml(dayLabel)}: ${chosen.emoji ? `${escapeHtml(chosen.emoji)} ` : ''}${escapeHtml(chosen.name)}</h3><p>Plan iz tvog opcionalnog sedmičnog rasporeda.</p></div><button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(chosen.id)}">Započni ovaj trening →</button>`;
+    return chosen ? { chosen, offset } : null;
   }
 
   // UČITAVANJE UŽIVO (StreamBuilder / onSnapshot) - Odgovara novim pravilima
@@ -1131,12 +1138,8 @@ window.handleAuthSubmit = async function(e) {
     const picker = document.querySelector('[data-library-picker-for="new-routine-exercises-list"]');
     if (picker) {
       picker.hidden = false;
-      const place = picker.querySelector('.exercise-library-place');
-      if (place && ['gym', 'home', 'street'].includes(currentProfileData?.trainingLocation)) {
-        place.value = currentProfileData.trainingLocation;
-      }
       renderExerciseLibraryPicker(picker);
-      requestAnimationFrame(() => picker.querySelector('.exercise-library-search')?.focus());
+      requestAnimationFrame(() => document.getElementById('newRoutineNameInput')?.focus());
     }
   };
 
@@ -1245,6 +1248,7 @@ window.handleAuthSubmit = async function(e) {
     const equipment = picker.querySelector('.exercise-library-equipment')?.value || '';
     const place = picker.querySelector('.exercise-library-place')?.value || '';
     const language = getCurrentLanguage();
+    const hasSearchOrFilter = Boolean(queryText || muscle || equipment || place);
     const matches = EXERCISE_LIBRARY.filter((item) => {
       const text = normalizeLibrarySearch([...Object.values(item.names), item.instruction, ...item.muscles, ...item.equipment].join(' '));
       return (!queryText || text.includes(queryText))
@@ -1254,6 +1258,11 @@ window.handleAuthSubmit = async function(e) {
     });
     const count = picker.querySelector('.exercise-library-count');
     const results = picker.querySelector('.exercise-library-results');
+    if (!hasSearchOrFilter) {
+      if (count) count.textContent = 'Upiši naziv vježbe ili otvori filtere.';
+      if (results) results.innerHTML = '<p class="exercise-library-empty">Počni pretragom, na primjer: čučanj, bench press ili plank.</p>';
+      return;
+    }
     if (count) count.textContent = matches.length ? `${matches.length} ${matches.length === 1 ? 'vježba' : 'vježbi'} pronađeno` : 'Nema vježbi za ovaj izbor.';
     if (!results) return;
     if (!matches.length) {
@@ -1266,7 +1275,8 @@ window.handleAuthSubmit = async function(e) {
       const tracking = item.measurementType === 'weight_reps' || item.measurementType === 'reps'
         ? `${defaults.repRangeMin}–${defaults.repRangeMax} ponavljanja`
         : item.measurementType === 'seconds' ? `Korak vremena ${defaults.timeIncrement} sek` : `Korak vremena ${defaults.timeIncrement} min`;
-      return `<article class="exercise-library-result"><div><h4>${escapeHtml(getLibraryExerciseName(item, language))}</h4><p class="exercise-library-tags"><span>${escapeHtml(getExerciseLibraryTypeLabel(item.measurementType))}</span><span>${escapeHtml(item.muscles.map(exerciseLibraryLabel).join(' · '))}</span><span>${escapeHtml(item.equipment.map(exerciseLibraryLabel).join(' · '))}</span></p><p>${escapeHtml(item.instruction)}</p><small>${escapeHtml(tracking)} · odmor ${defaults.restSeconds} sek</small></div><button class="btn btn-secondary" type="button" data-action="add-library-exercise" data-exercise-id="${escapeHtml(item.id)}" data-target-list="${escapeHtml(targetList)}">Dodaj</button></article>`;
+      const primaryMuscle = item.muscles[0] ? exerciseLibraryLabel(item.muscles[0]) : 'Cijelo tijelo';
+      return `<article class="exercise-library-result"><div><h4>${escapeHtml(getLibraryExerciseName(item, language))}</h4><p class="exercise-library-tags"><span>${escapeHtml(getExerciseLibraryTypeLabel(item.measurementType))}</span><span>${escapeHtml(primaryMuscle)}</span></p><details class="exercise-library-details"><summary>Detalji</summary><p>${escapeHtml(item.instruction)}</p><small>${escapeHtml(tracking)} · odmor ${defaults.restSeconds} sek · ${escapeHtml(item.equipment.map(exerciseLibraryLabel).join(' · '))}</small></details></div><button class="btn btn-secondary" type="button" data-action="add-library-exercise" data-exercise-id="${escapeHtml(item.id)}" data-target-list="${escapeHtml(targetList)}">Dodaj</button></article>`;
     }).join('');
   }
 
@@ -1587,7 +1597,7 @@ window.handleAuthSubmit = async function(e) {
       <input class="custom-input routine-exercise-name" type="text" maxlength="100" placeholder="Upiši naziv vježbe" value="${escapeHtml(name)}">
       <button type="button" class="routine-remove-exercise" data-action="remove-routine-exercise" aria-label="Ukloni vježbu">×</button>
       <details class="routine-exercise-settings">
-        <summary>Način praćenja i podešavanja</summary>
+        <summary>Dodatne opcije</summary>
         <label class="routine-exercise-type-label">Kako pratiš ovu vježbu?
           <select class="custom-input routine-exercise-type" aria-label="Tip praćenja vježbe">
             <option value="weight_reps" ${measurementType === 'weight_reps' ? 'selected' : ''}>Kilaža i ponavljanja</option>
@@ -2841,6 +2851,7 @@ function renderPendingSyncStatus() {
   function renderDashboard() {
     const greeting = document.getElementById('dashboard-greeting');
     if (greeting) greeting.textContent = getDashboardGreeting();
+    renderDashboardPrimaryAction();
     renderPendingSyncStatus();
     const container = document.getElementById('last-workout-container');
     if (cachedHistory.length === 0) {
@@ -2875,6 +2886,46 @@ function renderPendingSyncStatus() {
       </div>
       ${exercisesHtml}
     `;
+  }
+
+  function renderDashboardPrimaryAction() {
+    const button = document.getElementById('dashboard-primary-action');
+    const help = document.getElementById('dashboard-primary-help');
+    const guide = document.getElementById('dashboard-guide');
+    const comingSoon = document.getElementById('dashboard-coming-soon');
+    const scheduledCard = document.getElementById('next-scheduled-routine');
+    if (!button || !help) return;
+
+    const activePlans = userRoutines.filter((routine) => routine.isArchived !== true);
+    const hasFinishedWorkout = cachedHistory.length > 0;
+    if (guide) guide.hidden = activePlans.length > 0 && hasFinishedWorkout;
+    if (comingSoon) comingSoon.hidden = activePlans.length > 0;
+    // The primary action already names the next scheduled plan. Keeping the
+    // large secondary card hidden here avoids showing the same decision twice.
+    if (scheduledCard) scheduledCard.hidden = true;
+
+    delete button.dataset.routineId;
+    delete button.dataset.tab;
+    if (!activePlans.length) {
+      button.dataset.action = 'open-create-routine';
+      button.textContent = 'Napravi prvi plan';
+      help.textContent = 'Počni sa jednim planom treninga koji želiš ponavljati.';
+      return;
+    }
+
+    const next = getNextScheduledRoutine();
+    if (next?.chosen?.id) {
+      button.dataset.action = 'start-routine';
+      button.dataset.routineId = next.chosen.id;
+      button.textContent = 'Započni sljedeći trening';
+      help.textContent = `Sljedeći plan: ${next.chosen.name}.`;
+      return;
+    }
+
+    button.dataset.action = 'switch-tab';
+    button.dataset.tab = 'workouts';
+    button.textContent = 'Započni trening';
+    help.textContent = 'Izaberi plan koji danas želiš raditi.';
   }
 
   function parseWorkoutsFromText(rawText) {
@@ -3406,6 +3457,8 @@ function renderPendingSyncStatus() {
       { key: 'chestCm', label: 'Grudi', unit: 'cm' },
       { key: 'armCm', label: 'Ruka', unit: 'cm' },
       { key: 'legCm', label: 'Noga', unit: 'cm' },
+      { key: 'thighCm', label: 'Bedro', unit: 'cm' },
+      { key: 'calfCm', label: 'List', unit: 'cm' },
       { key: 'hipsCm', label: 'Kukovi', unit: 'cm' }
     ];
     const formatDelta = (record, unit) => record?.delta == null ? '—' : `${record.delta > 0 ? '+' : ''}${record.delta.toFixed(1)} ${unit}`;
@@ -3431,10 +3484,13 @@ function renderPendingSyncStatus() {
     if (!bodyTrackingEnabled()) { root.innerHTML = '<div class="card body-empty-state">Praćenje tijela je isključeno. Možeš ga uključiti u Podešavanjima.</div>'; }
     else if (!bodyMeasurements.length) { root.innerHTML = '<div class="card body-empty-state">Dodaj prvo mjerenje da bi se ovdje prikazao tvoj napredak.</div>'; }
     else {
+      const hasDetailedLegMeasurements = bodyMeasurements.some((item) => item.thighCm != null || item.calfCm != null);
       const defs = [
         { key:'chestCm', label:'Grudi', side:'left', pos:'chest' }, { key:'armCm', label:'Ruka', side:'right', pos:'arm' },
         { key:'waistCm', label:'Struk', side:'left', pos:'waist' }, { key:'hipsCm', label:'Kukovi', side:'right', pos:'hips' },
-        { key:'legCm', label:'Noga', side:'left', pos:'legs' }
+        ...(hasDetailedLegMeasurements
+          ? [{ key:'thighCm', label:'Bedro', side:'left', pos:'thigh' }, { key:'calfCm', label:'List', side:'right', pos:'calf' }]
+          : [{ key:'legCm', label:'Noga', side:'left', pos:'legs' }])
       ];
       const delta = (key, days=null) => {
         const rows=bodyMeasurements.filter(x=>x[key]!=null&&x[key]!==''&&Number.isFinite(Number(x[key]))&&x.measuredAt).sort((a,b)=>String(b.measuredAt).localeCompare(String(a.measuredAt)));
@@ -3469,7 +3525,8 @@ function renderPendingSyncStatus() {
         const values = [
           item.weightKg != null && `Težina ${item.weightKg} kg`, item.waistCm != null && `struk ${item.waistCm} cm`,
           item.chestCm != null && `grudi ${item.chestCm} cm`, item.armCm != null && `ruka ${item.armCm} cm`,
-          item.legCm != null && `noga ${item.legCm} cm`, item.hipsCm != null && `kukovi ${item.hipsCm} cm`
+          item.legCm != null && `noga ${item.legCm} cm`, item.thighCm != null && `bedro ${item.thighCm} cm`,
+          item.calfCm != null && `list ${item.calfCm} cm`, item.hipsCm != null && `kukovi ${item.hipsCm} cm`
         ].filter(Boolean).join(' · ');
         return `<li class="body-measurement-item"><div class="body-measurement-item-copy"><strong>${escapeHtml(formatDateClean(item.measuredAt))}</strong><span>${escapeHtml(values || 'Bez unesenih vrijednosti')}${item.note ? `<small>${escapeHtml(item.note)}</small>` : ''}</span></div><div class="body-measurement-actions" ${bodyMeasurementsEditMode ? '' : 'hidden'}><button class="btn btn-secondary" type="button" data-action="edit-body-measurement" data-measurement-id="${escapeHtml(item.id)}">Uredi</button><button class="btn btn-danger" type="button" data-action="delete-body-measurement" data-measurement-id="${escapeHtml(item.id)}">Obriši</button></div></li>`;
       }).join('')
@@ -3482,7 +3539,7 @@ function renderPendingSyncStatus() {
     if (!canvas || typeof Chart === 'undefined') return;
     if (bodyChartInstance) bodyChartInstance.destroy();
     const metric = document.getElementById('body-metric-select')?.value || 'weightKg';
-    const labels = { weightKg: 'Težina (kg)', waistCm: 'Struk (cm)', chestCm: 'Grudi (cm)', armCm: 'Ruka (cm)', legCm: 'Noga (cm)', hipsCm: 'Kukovi (cm)' };
+    const labels = { weightKg: 'Težina (kg)', waistCm: 'Struk (cm)', chestCm: 'Grudi (cm)', armCm: 'Ruka (cm)', legCm: 'Noga (cm)', thighCm: 'Bedro (cm)', calfCm: 'List (cm)', hipsCm: 'Kukovi (cm)' };
     const entries = [...bodyMeasurements].reverse().filter((item) => item[metric] != null);
     const values = entries.map((item) => Number(item[metric]));
     const changeSummary = document.getElementById('body-change-summary');
@@ -3513,7 +3570,7 @@ function renderPendingSyncStatus() {
     if (item?.id?.startsWith('local-')) {
       const cachedItem = item;
       await loadBodyMeasurements({ force: true });
-      const keys = ['measuredAt', 'weightKg', 'waistCm', 'chestCm', 'armCm', 'legCm', 'hipsCm', 'note'];
+      const keys = ['measuredAt', 'weightKg', 'waistCm', 'chestCm', 'armCm', 'legCm', 'thighCm', 'calfCm', 'hipsCm', 'note'];
       item = bodyMeasurements.find((measurement) => keys.every((key) => (measurement[key] ?? '') === (cachedItem[key] ?? '')));
     }
     return item && !item.id?.startsWith('local-') ? item : null;
@@ -3524,7 +3581,7 @@ function renderPendingSyncStatus() {
     const item = await resolveBodyMeasurementRecord(measurementId);
     if (!item) { ShowToast('Ovo mjerenje nije pronađeno.', 'error'); return; }
     editingBodyMeasurementId = item.id;
-    const fields = { weightKg: 'body-weight', waistCm: 'body-waist', chestCm: 'body-chest', armCm: 'body-arm', legCm: 'body-leg', hipsCm: 'body-hips' };
+    const fields = { weightKg: 'body-weight', waistCm: 'body-waist', chestCm: 'body-chest', armCm: 'body-arm', legCm: 'body-leg', thighCm: 'body-thigh', calfCm: 'body-calf', hipsCm: 'body-hips' };
     document.getElementById('body-measured-at').value = item.measuredAt || '';
     Object.entries(fields).forEach(([key, id]) => { document.getElementById(id).value = item[key] ?? ''; });
     document.getElementById('body-note').value = item.note || '';
@@ -3537,10 +3594,10 @@ function renderPendingSyncStatus() {
 
   window.saveBodyMeasurement = async function() {
     if (!currentUser || !bodyTrackingEnabled()) return;
-    const fields = { weightKg: 'body-weight', waistCm: 'body-waist', chestCm: 'body-chest', armCm: 'body-arm', legCm: 'body-leg', hipsCm: 'body-hips' };
+    const fields = { weightKg: 'body-weight', waistCm: 'body-waist', chestCm: 'body-chest', armCm: 'body-arm', legCm: 'body-leg', thighCm: 'body-thigh', calfCm: 'body-calf', hipsCm: 'body-hips' };
     const date = document.getElementById('body-measured-at')?.value || '';
     const data = { userId: currentUser.uid, measuredAt: date, note: document.getElementById('body-note')?.value.trim() || '' };
-    const bounds = { weightKg: [25, 400], waistCm: [30, 250], chestCm: [30, 250], armCm: [10, 100], legCm: [20, 150], hipsCm: [30, 250] };
+    const bounds = { weightKg: [25, 400], waistCm: [30, 250], chestCm: [30, 250], armCm: [10, 100], legCm: [20, 150], thighCm: [20, 150], calfCm: [15, 100], hipsCm: [30, 250] };
     for (const [key, id] of Object.entries(fields)) {
       const raw = document.getElementById(id)?.value.trim();
       if (!raw) continue;
@@ -4589,16 +4646,25 @@ function renderPendingSyncStatus() {
 
   function changeAppLanguage(language) {
     const selectedLanguage = ['sr', 'en', 'de'].includes(language) ? language : 'sr';
-    if (selectedLanguage === getCurrentLanguage()) return;
     localStorage.setItem('gym-language', selectedLanguage);
+    localStorage.setItem('gym-language-source', 'manual');
+    if (selectedLanguage === getCurrentLanguage()) {
+      applyLanguage(selectedLanguage);
+      return;
+    }
     showLanguageLoading(selectedLanguage);
     window.setTimeout(() => window.location.reload(), 360);
   }
 
   function applyLanguage(language) {
     const selectedLanguage = ['sr', 'en', 'de'].includes(language) ? language : 'sr';
+    const pageTitles = {
+      sr: 'GymLeader | Planiraj trening i prati napredak',
+      en: 'GymLeader | Plan your workouts and track progress',
+      de: 'GymLeader | Plane dein Training und verfolge deinen Fortschritt'
+    };
+    document.title = pageTitles[selectedLanguage];
     document.documentElement.lang = selectedLanguage === 'sr' ? 'sr-Latn' : selectedLanguage;
-    localStorage.setItem('gym-language', selectedLanguage);
     document.querySelectorAll('.language-option').forEach((button) => {
       button.classList.toggle('active', button.dataset.language === selectedLanguage);
       button.setAttribute('aria-pressed', String(button.dataset.language === selectedLanguage));
@@ -4623,9 +4689,37 @@ function renderPendingSyncStatus() {
   function initializeAppearanceSettings() {
     applyTheme(localStorage.getItem('gym-theme') || 'dark');
     renderLanguageFlagIcons();
-    applyLanguage(localStorage.getItem('gym-language') || 'sr');
+    const savedLanguage = localStorage.getItem('gym-language');
+    let initialLanguage;
+    if (['sr', 'en', 'de'].includes(savedLanguage)) {
+      initialLanguage = savedLanguage;
+      // Before the source marker existed, a saved value may have come from an
+      // explicit choice. Preserve it instead of guessing from the device.
+      if (!localStorage.getItem('gym-language-source')) {
+        localStorage.setItem('gym-language-source', 'manual');
+      }
+    } else {
+      initialLanguage = getInitialLanguageFromDevice();
+      localStorage.setItem('gym-language', initialLanguage);
+      localStorage.setItem('gym-language-source', 'device');
+    }
+    applyLanguage(initialLanguage);
     localizeSubtree();
     observeLocalization();
+  }
+
+  function getInitialLanguageFromDevice() {
+    const preferredLanguages = Array.isArray(navigator.languages) && navigator.languages.length
+      ? navigator.languages
+      : [navigator.language].filter(Boolean);
+    for (const preference of preferredLanguages) {
+      const baseLanguage = String(preference || '').trim().toLowerCase().replace(/_/g, '-').split('-')[0];
+      if (baseLanguage === 'sr') return 'sr';
+      if (baseLanguage === 'en') return 'en';
+      if (baseLanguage === 'de') return 'de';
+      if (['hr', 'bs', 'cnr'].includes(baseLanguage)) return 'sr';
+    }
+    return 'en';
   }
 
   function showConfirm(message) {
@@ -5092,7 +5186,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    navigator.serviceWorker.register('/sw.js?v=20260930-generator-body-finish-01', { scope: '/' })
+    navigator.serviceWorker.register('/sw.js?v=20261001-device-language-01', { scope: '/' })
       .then((registration) => registration.update())
       .catch((error) => console.warn('Offline worker nije registrovan:', error));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
