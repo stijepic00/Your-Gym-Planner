@@ -1236,6 +1236,7 @@ nav {
     .exercise-library-result .btn { align-self: center; min-height: 38px; padding: 8px 11px; font-size: .76rem; }
     .exercise-library-empty { margin: 0; padding: 16px 8px; color: var(--text-muted); font-size: .8rem; line-height: 1.45; text-align: center; }
     .plan-generator-modal-content, .plan-creation-choice-content, #createRoutineModal .modal-content, #editRoutineModal .modal-content { width: min(640px, calc(100vw - 28px)); max-width: 640px; max-height: min(90vh, 820px); overflow-y: auto; }
+    .plan-generator-modal-content { width: min(980px,calc(100vw - 40px)); max-width: 980px; padding: clamp(22px,3vw,38px); }
     .plan-creation-choice-content { padding: 26px; }
     .plan-creation-choice-content h3 { margin: 5px 38px 8px 0; font-size: 1.25rem; }
     .plan-creation-choice-actions { display: grid; gap: 10px; margin-top: 18px; }
@@ -1249,18 +1250,38 @@ nav {
     .plan-generator-mode legend { padding: 0 5px; color: var(--text-main); font-size: .8rem; font-weight: 800; }
     .plan-generator-mode label { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 10px; border-radius: 9px; background: color-mix(in srgb,var(--bg-input) 65%,transparent); color: var(--text-main); cursor: pointer; font-size: .84rem; }
     .plan-generator-mode input { accent-color: var(--accent-primary); }
+    .plan-generator-mode[hidden], .plan-generator-muscles[hidden] { display: none !important; }
+    .plan-generator-muscles { margin: 10px 0; padding: 12px; border: 1px solid color-mix(in srgb,var(--accent-primary) 32%,var(--bg-card-border)); border-radius: 13px; }
+    .plan-generator-muscles legend { padding: 0 5px; color: var(--text-main); font-size: .8rem; font-weight: 800; }
+    .plan-generator-muscle-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+    .plan-generator-muscle-grid label { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: color-mix(in srgb,var(--bg-input) 65%,transparent); color: var(--text-main); cursor: pointer; font-size: .8rem; }
+    .plan-generator-muscle-grid label:has(input:checked) { border-color: var(--accent-cyan); background: color-mix(in srgb,var(--accent-primary) 16%,var(--bg-input)); }
+    .plan-generator-muscle-grid input { accent-color: var(--accent-primary); }
     .plan-generator-profile-summary { margin: 0 0 14px; color: var(--text-muted); font-size: .78rem; line-height: 1.45; }
-    .plan-generator-results { display: grid; gap: 11px; margin-top: 16px; }
+    .plan-generator-results { position: relative; display: grid; gap: 18px; margin-top: 20px; padding: 0 16px; }
     .plan-generator-results[hidden] { display: none !important; }
-    .plan-generator-pagination { display: grid; grid-template-columns: 42px 1fr 42px; align-items: center; gap: 8px; }
-    .plan-generator-pagination span { color: var(--text-main); font-size: .8rem; font-weight: 800; text-align: center; }
-    .plan-generator-pagination .btn { min-height: 38px; padding: 8px; }
-    .plan-generator-suggestion { padding: 14px; border: 1px solid color-mix(in srgb,var(--accent-cyan) 30%,var(--bg-card-border)); border-radius: 15px; background: linear-gradient(145deg,color-mix(in srgb,var(--accent-primary) 9%,var(--bg-card)),var(--bg-card)); }
-    .plan-generator-suggestion h4 { margin: 3px 0 4px; color: var(--text-main); font-size: 1rem; }
-    .plan-generator-suggestion p { margin: 0; color: var(--text-muted); font-size: .75rem; }
-    .plan-generator-suggestion ol { display: grid; gap: 8px; margin: 13px 0; padding-left: 21px; }
-    .plan-generator-suggestion li { padding-left: 2px; color: var(--text-main); font-size: .82rem; }
-    .plan-generator-suggestion li small { display: block; margin-top: 3px; color: var(--text-muted); font-size: .7rem; }
+    .plan-generator-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px; margin-top: 14px; color: var(--text-muted); font-size: .72rem; }
+    .plan-generator-pagination strong { color: var(--text-main); font-size: .74rem; }
+    .plan-generator-dots { display: inline-flex; align-items: center; gap: 5px; }
+    .plan-generator-dots i { display: block; width: 6px; height: 6px; border-radius: 999px; background: color-mix(in srgb,var(--text-muted) 45%,transparent); }
+    .plan-generator-dots i.is-active { width: 17px; background: var(--accent-cyan); }
+    .plan-generator-suggestion { position: relative; padding: 32px 40px; border: 1px solid color-mix(in srgb,var(--accent-cyan) 56%,var(--bg-card-border)); border-radius: 26px; background: radial-gradient(circle at 50% 35%,color-mix(in srgb,var(--accent-primary) 12%,transparent),transparent 58%),linear-gradient(145deg,color-mix(in srgb,var(--accent-primary) 9%,var(--bg-card)),var(--bg-card)); touch-action: pan-y; }
+    .plan-generator-suggestion-content { min-width: 0; }
+    .plan-generator-carousel-navigation { position: absolute; z-index: 3; top: 290px; right: 16px; left: 16px; display: flex; align-items: center; justify-content: space-between; height: 46px; pointer-events: none; }
+    .plan-generator-carousel-arrow { position: relative; z-index: 1; display: grid; place-items: center; width: 46px !important; min-width: 46px; height: 46px; min-height: 46px; padding: 0 0 4px !important; border: 2px solid var(--accent-primary) !important; border-radius: 50%; background: color-mix(in srgb,var(--bg-card) 92%,#07111f) !important; color: #fff !important; font-size: 2.35rem; font-weight: 300; line-height: .55; box-shadow: 0 7px 18px rgba(0,0,0,.32), inset 0 0 0 1px color-mix(in srgb,var(--accent-cyan) 16%,transparent); pointer-events: auto; }
+    .plan-generator-carousel-arrow:hover:not(:disabled), .plan-generator-carousel-arrow:focus-visible { border-color: var(--accent-cyan) !important; background: color-mix(in srgb,var(--accent-primary) 22%,var(--bg-card)) !important; }
+    .plan-generator-carousel-arrow.is-previous { transform: translateX(-65%); }
+    .plan-generator-carousel-arrow.is-next { transform: translateX(65%); }
+    .plan-generator-carousel-arrow.is-previous:hover:not(:disabled), .plan-generator-carousel-arrow.is-previous:focus-visible { transform: translateX(-65%) scale(1.05); }
+    .plan-generator-carousel-arrow.is-next:hover:not(:disabled), .plan-generator-carousel-arrow.is-next:focus-visible { transform: translateX(65%) scale(1.05); }
+    .plan-generator-suggestion .settings-eyebrow { font-size: .82rem; letter-spacing: .12em; }
+    .plan-generator-suggestion h4 { margin: 5px 0 7px; color: var(--text-main); font-size: clamp(1.45rem,3vw,2rem); line-height: 1.2; }
+    .plan-generator-suggestion p { margin: 0; color: var(--text-muted); font-size: 1rem; line-height: 1.5; }
+    .plan-generator-suggestion ol { display: grid; gap: 17px; margin: 25px 0 20px; padding: 0; list-style: none; counter-reset: generated-exercise; }
+    .plan-generator-suggestion li { position: relative; min-height: 48px; padding-left: 59px; color: var(--text-main); font-size: 1.15rem; line-height: 1.35; counter-increment: generated-exercise; }
+    .plan-generator-suggestion li::before { content: counter(generated-exercise); position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: color-mix(in srgb,var(--accent-primary) 19%,var(--bg-input)); color: var(--text-main); font-size: 1.05rem; font-weight: 900; }
+    .plan-generator-suggestion li strong { display: block; overflow-wrap: anywhere; word-break: break-word; font-size: 1em; }
+    .plan-generator-suggestion li small { display: block; margin-top: 5px; color: var(--text-muted); font-size: .92rem; line-height: 1.45; }
     .plan-generator-more-exercises { color: var(--text-muted) !important; font-weight: 800; }
     .plan-generator-suggestion .btn { width: 100%; }
     .plan-generator-save-all { width: 100%; min-height: 48px; border-color: color-mix(in srgb,var(--accent-cyan) 48%,var(--border-color)); }
@@ -1275,8 +1296,26 @@ nav {
     .profile-preference-heading[hidden] { display: none !important; }
     .plan-generator-empty { margin: 0; padding: 15px; border: 1px solid var(--bg-card-border); border-radius: 12px; color: var(--text-muted); font-size: .82rem; line-height: 1.45; text-align: center; }
     .plan-generator-warning { margin: 0; padding: 12px; border: 1px solid color-mix(in srgb,var(--accent-gold) 42%,var(--bg-card-border)); border-radius: 12px; color: var(--text-muted); font-size: .8rem; line-height: 1.45; }
-    .plan-generator-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    .plan-generator-actions .btn { width: auto; flex: 1 1 150px; }
+    .plan-generator-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+    .plan-generator-actions .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 68px; padding: 12px; border-color: var(--accent-primary); color: var(--accent-cyan); font-size: .92rem; }
+    .plan-generator-actions .btn:last-child { grid-column: 1 / -1; color: #fff; }
+    @media (max-width: 600px) {
+      .plan-generator-muscle-grid { grid-template-columns: 1fr; }
+      .plan-generator-modal-content { width: calc(100vw - 14px); padding: 18px 10px; }
+      .plan-generator-results { padding: 0; gap: 14px; }
+      .plan-generator-suggestion { padding: 64px 18px 22px; border-radius: 20px; }
+      .plan-generator-carousel-navigation { top: 230px; right: 0; left: 0; height: 38px; }
+      .plan-generator-carousel-arrow { width: 38px !important; min-width: 38px; height: 38px; min-height: 38px; border-width: 2px !important; font-size: 2rem; }
+      .plan-generator-suggestion .settings-eyebrow { font-size: .74rem; }
+      .plan-generator-suggestion h4 { font-size: 1.35rem; }
+      .plan-generator-suggestion p { font-size: .92rem; }
+      .plan-generator-suggestion ol { gap: 15px; margin: 21px 0 18px; }
+      .plan-generator-suggestion li { min-height: 43px; padding-left: 50px; font-size: 1.04rem; }
+      .plan-generator-suggestion li::before { width: 36px; height: 36px; font-size: .92rem; }
+      .plan-generator-suggestion li small { margin-top: 4px; font-size: .83rem; }
+      .plan-generator-actions { gap: 8px; }
+      .plan-generator-actions .btn { min-height: 54px; font-size: .78rem; }
+    }
     .cardio-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 12px 0; }
     .cardio-input-grid label { color: var(--text-muted); font-size: .72rem; font-weight: 800; }
     .cardio-input-grid .custom-input { margin-top: 5px; }

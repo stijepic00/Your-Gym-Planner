@@ -882,3 +882,31 @@ const PROFILE_QUESTION_TRANSLATIONS = {
   }
 };
 for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], PROFILE_QUESTION_TRANSLATIONS[language]);
+
+const PROFILE_VALUE_TRANSLATIONS = {
+  en: {
+    'Muško': 'Male', 'Žensko': 'Female', 'Ne želim odgovoriti': 'Prefer not to say',
+    'Mršanje': 'Weight loss', 'Održavanje težine': 'Maintain weight', 'Povećanje težine': 'Weight gain',
+    'Povećanje snage': 'Build strength', 'Mišićni napredak': 'Muscle progress', 'Opšta kondicija': 'General fitness',
+    'Teretana': 'Gym', 'Kod kuće': 'At home', 'Street workout': 'Street workout', 'Drugo': 'Other',
+    'Početnik': 'Beginner', 'Srednji nivo': 'Intermediate', 'Napredni nivo': 'Advanced',
+    'Cijelo tijelo': 'Full body', 'Grudi': 'Chest', 'Leđa': 'Back', 'Noge': 'Legs', 'Ramena': 'Shoulders', 'Ruke': 'Arms', 'Gluteus': 'Glutes', 'Stomak': 'Core',
+    'Šta želiš trenirati?': 'What do you want to train?', 'Moje odabrane mišićne grupe': 'My selected muscle groups',
+    'Odaberi mišićne grupe': 'Choose muscle groups', 'Odaberi barem jednu mišićnu grupu.': 'Choose at least one muscle group.',
+    'Izaberi cijelo tijelo ili odabrane mišićne grupe prije generisanja.': 'Choose full body or selected muscle groups before generating.',
+    'Prethodni plan': 'Previous plan', 'Sljedeći plan': 'Next plan'
+  },
+  de: {
+    'Muško': 'Männlich', 'Žensko': 'Weiblich', 'Ne želim odgovoriti': 'Keine Angabe',
+    'Mršanje': 'Abnehmen', 'Održavanje težine': 'Gewicht halten', 'Povećanje težine': 'Gewicht erhöhen',
+    'Povećanje snage': 'Kraft aufbauen', 'Mišićni napredak': 'Muskelaufbau', 'Opšta kondicija': 'Allgemeine Fitness',
+    'Teretana': 'Fitnessstudio', 'Kod kuće': 'Zu Hause', 'Street workout': 'Street Workout', 'Drugo': 'Andere',
+    'Početnik': 'Anfänger', 'Srednji nivo': 'Mittelstufe', 'Napredni nivo': 'Fortgeschritten',
+    'Cijelo tijelo': 'Ganzkörper', 'Grudi': 'Brust', 'Leđa': 'Rücken', 'Noge': 'Beine', 'Ramena': 'Schultern', 'Ruke': 'Arme', 'Gluteus': 'Gesäß', 'Stomak': 'Rumpf',
+    'Šta želiš trenirati?': 'Was möchtest du trainieren?', 'Moje odabrane mišićne grupe': 'Meine ausgewählten Muskelgruppen',
+    'Odaberi mišićne grupe': 'Muskelgruppen auswählen', 'Odaberi barem jednu mišićnu grupu.': 'Wähle mindestens eine Muskelgruppe aus.',
+    'Izaberi cijelo tijelo ili odabrane mišićne grupe prije generisanja.': 'Wähle vor dem Erstellen Ganzkörper oder ausgewählte Muskelgruppen.',
+    'Prethodni plan': 'Vorheriger Plan', 'Sljedeći plan': 'Nächster Plan'
+  }
+};
+for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], PROFILE_VALUE_TRANSLATIONS[language]);

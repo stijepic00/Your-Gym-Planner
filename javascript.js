@@ -1,8 +1,8 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261002-first-visit-modal-v86';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261002-first-visit-modal-v86';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261002-first-visit-modal-v86';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261002-first-visit-modal-v86';
+  import { TRANSLATIONS } from './translations.js?v=20261002-static-carousel-arrows-v94';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261002-static-carousel-arrows-v94';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261002-static-carousel-arrows-v94';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261002-static-carousel-arrows-v94';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -176,6 +176,14 @@
     return `${greeting}, ${name}!`;
   }
 
+  function getOnboardingGreeting() {
+    const language = getCurrentLanguage();
+    const fullName = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || (language === 'en' ? 'there' : language === 'de' ? 'Nutzer' : 'korisniče');
+    const firstName = String(fullName).trim().split(/\s+/)[0] || fullName;
+    const greeting = language === 'en' ? 'Welcome' : language === 'de' ? 'Willkommen' : genderText('Dobrodošao', 'Dobrodošla', 'Dobro došao/la');
+    return `${greeting}, ${firstName}!`;
+  }
+
   function getNewUserOnboardingKey(userId = currentUser?.uid) {
     return userId ? `gymleader-new-user-onboarding-v1:${userId}` : '';
   }
@@ -242,10 +250,6 @@
   function hideAuthBootScreen() {
     document.getElementById('auth-boot-screen')?.classList.add('is-hidden');
   }
-
-  // Firebase normally resolves quickly; this fallback prevents a network issue
-  // from leaving the boot screen visible forever.
-  window.setTimeout(hideAuthBootScreen, 7000);
 
   const defaultWorkouts = [
     { id: 'custom-extra', name: 'Poseban / Kardio Dan', emoji: '⚡', exercises: [] }
@@ -1578,6 +1582,23 @@
     return groups.length ? groups : ['legs', 'chest', 'back', 'shoulders', 'arms', 'core'];
   }
 
+  function profileUsesFullBody(profile) {
+    return Array.isArray(profile?.targetMuscleGroups) && profile.targetMuscleGroups.includes('full_body');
+  }
+
+  function getProfileValueLabel(value) {
+    const labels = {
+      male: 'Muško', female: 'Žensko', unspecified: 'Ne želim odgovoriti',
+      lose_weight: 'Mršanje', maintain: 'Održavanje težine', gain_weight: 'Povećanje težine',
+      strength: 'Povećanje snage', muscle_progress: 'Mišićni napredak', general_fitness: 'Opšta kondicija',
+      gym: 'Teretana', home: 'Kod kuće', street: 'Street workout', other: 'Drugo',
+      beginner: 'Početnik', intermediate: 'Srednji nivo', advanced: 'Napredni nivo',
+      full_body: 'Cijelo tijelo', chest: 'Grudi', back: 'Leđa', legs: 'Noge', shoulders: 'Ramena', arms: 'Ruke', glutes: 'Gluteus', core: 'Stomak'
+    };
+    const label = labels[value] || value || '';
+    return translateUiText(label);
+  }
+
   const COMMON_GYM_EQUIPMENT = new Set(['bodyweight', 'dumbbells', 'barbell', 'bench', 'incline_bench', 'rack', 'cable_machine', 'machine', 'leg_press_machine']);
 
   function getGymEquipmentPriority(item) {
@@ -1674,22 +1695,80 @@
     return patterns[Math.max(1, Math.min(7, Number(frequency) || 1))] || [1];
   }
 
-  function getGeneratorDayGroups(groups, mode, dayIndex, frequency) {
-    const everyGroup = ['legs', 'glutes', 'chest', 'back', 'shoulders', 'arms', 'core'];
-    const source = mode === 'full_body' ? everyGroup : groups;
-    const upper = source.filter((group) => ['chest', 'back', 'shoulders', 'arms'].includes(group));
-    const lower = source.filter((group) => ['legs', 'glutes'].includes(group));
-    const recovery = source.filter((group) => ['core', 'cardio'].includes(group));
-    if (frequency <= 3) return source;
-
+  function getGeneratorLayoutSlots(frequency) {
     const layouts = {
       4: ['upper', 'lower', 'upper', 'lower'],
       5: ['upper', 'lower', 'upper', 'lower', 'upper'],
       6: ['upper', 'lower', 'recovery', 'upper', 'lower', 'recovery'],
       7: ['upper', 'lower', 'recovery', 'upper', 'lower', 'recovery', 'recovery']
     };
-    const slot = (layouts[frequency] || layouts[7])[dayIndex];
-    return slot === 'upper' ? upper : slot === 'lower' ? lower : recovery;
+    return layouts[frequency] || Array.from({ length: frequency }, () => 'full');
+  }
+
+  function getGeneratorGroupsForSlot(groups, mode, slot) {
+    const everyGroup = ['legs', 'glutes', 'chest', 'back', 'shoulders', 'arms', 'core'];
+    const source = mode === 'full_body' ? everyGroup : groups;
+    const upper = source.filter((group) => ['chest', 'back', 'shoulders', 'arms'].includes(group));
+    const lower = source.filter((group) => ['legs', 'glutes'].includes(group));
+    const recovery = source.filter((group) => ['core', 'cardio'].includes(group));
+    if (slot === 'upper') return upper;
+    if (slot === 'lower') return lower;
+    if (slot === 'recovery') return recovery;
+    return source;
+  }
+
+  function buildGeneratorDaySchedule(groups, mode, days, frequency) {
+    const slots = getGeneratorLayoutSlots(frequency).map((slot) => (
+      getGeneratorGroupsForSlot(groups, mode, slot).length ? slot : 'full'
+    ));
+    if (slots.length < 2) return slots.map((slot) => ({ slot, groups: getGeneratorGroupsForSlot(groups, mode, slot) }));
+    const uniquePermutations = [];
+    const counts = new Map();
+    slots.forEach((slot) => counts.set(slot, (counts.get(slot) || 0) + 1));
+    const buildPermutation = (current) => {
+      if (current.length === slots.length) {
+        uniquePermutations.push([...current]);
+        return;
+      }
+      counts.forEach((count, slot) => {
+        if (!count) return;
+        counts.set(slot, count - 1);
+        current.push(slot);
+        buildPermutation(current);
+        current.pop();
+        counts.set(slot, count);
+      });
+    };
+    buildPermutation([]);
+    const majorGroups = new Set(['legs', 'glutes', 'chest', 'back', 'shoulders', 'arms']);
+    const areConsecutiveDays = (first, second) => {
+      const distance = (Number(first) - Number(second) + 7) % 7;
+      return distance === 1 || distance === 6;
+    };
+    const scorePermutation = (permutation) => {
+      let score = 0;
+      for (let first = 0; first < days.length; first += 1) {
+        for (let second = first + 1; second < days.length; second += 1) {
+          if (!areConsecutiveDays(days[first], days[second])) continue;
+          const firstGroups = getGeneratorGroupsForSlot(groups, mode, permutation[first]);
+          const secondGroups = new Set(getGeneratorGroupsForSlot(groups, mode, permutation[second]));
+          const majorOverlap = firstGroups.filter((group) => majorGroups.has(group) && secondGroups.has(group)).length;
+          if (majorOverlap) score += majorOverlap * 10;
+          else if (permutation[first] === permutation[second]) score += 1;
+        }
+      }
+      return score;
+    };
+    let best = uniquePermutations[0] || slots;
+    let bestScore = scorePermutation(best);
+    uniquePermutations.slice(1).forEach((permutation) => {
+      const score = scorePermutation(permutation);
+      if (score < bestScore) {
+        best = permutation;
+        bestScore = score;
+      }
+    });
+    return best.map((slot) => ({ slot, groups: getGeneratorGroupsForSlot(groups, mode, slot) }));
   }
 
   function buildPersonalizedPlanSuggestions(profile, mode) {
@@ -1698,18 +1777,15 @@
     const exerciseCount = getGeneratorExerciseCount(profile);
     const frequency = Math.max(1, Math.min(7, Number(profile.trainingFrequency) || 1));
     const suggestedDays = getSuggestedTrainingDays(frequency);
+    const daySchedule = buildGeneratorDaySchedule(groups, mode, suggestedDays, frequency);
     const usedIds = new Set();
     let skippedDays = 0;
     let shortenedDays = 0;
-    const titles = {
-      4: ['Gornji dio A', 'Donji dio A', 'Gornji dio B', 'Donji dio B'],
-      5: ['Gornji dio A', 'Donji dio A', 'Gornji dio B', 'Donji dio B', 'Gornji dio C'],
-      6: ['Gornji dio A', 'Donji dio A', 'Trup i kondicija', 'Gornji dio B', 'Donji dio B', 'Trup i kondicija'],
-      7: ['Gornji dio A', 'Donji dio A', 'Trup i kondicija', 'Gornji dio B', 'Donji dio B', 'Trup i kondicija', 'Kardio i oporavak']
-    };
+    const regionCounts = { upper: 0, lower: 0, recovery: 0, full: 0 };
 
     const plans = suggestedDays.map((day, index) => {
-      const planGroups = getGeneratorDayGroups(groups, mode, index, frequency);
+      const scheduleEntry = daySchedule[index] || { slot: 'full', groups };
+      const planGroups = scheduleEntry.groups;
       if (!planGroups.length) {
         skippedDays += 1;
         return null;
@@ -1720,9 +1796,12 @@
         return null;
       }
       if (exercises.length < exerciseCount) shortenedDays += 1;
-      const groupTitle = titles[frequency]?.[index] || (mode === 'full_body'
-        ? `Cijelo tijelo ${String.fromCharCode(65 + index)}`
-        : planGroups.map((group) => generatorGroupLabels[group]).join(' + '));
+      const slotIndex = regionCounts[scheduleEntry.slot]++;
+      const groupTitle = scheduleEntry.slot === 'upper' ? `Gornji dio ${String.fromCharCode(65 + slotIndex)}`
+        : scheduleEntry.slot === 'lower' ? `Donji dio ${String.fromCharCode(65 + slotIndex)}`
+        : scheduleEntry.slot === 'recovery' ? (slotIndex ? 'Kardio i oporavak' : 'Trup i kondicija')
+        : mode === 'full_body' ? `Cijelo tijelo ${String.fromCharCode(65 + slotIndex)}`
+        : planGroups.map((group) => generatorGroupLabels[group]).join(' + ');
       return {
         id: `generated-${Date.now()}-${index}`,
         emoji: profile.trainingLocation === 'street' ? '🏃' : profile.trainingLocation === 'home' ? '🏠' : '🏋️',
@@ -1749,6 +1828,39 @@
     return `Prijedlog za ${location} · oko ${duration} min · cilj: ${goal} · fokus: ${focus}${mode === 'selected_muscles' ? ' · koristi tvoje odabrane mišićne grupe' : ' · cijelo tijelo'}.`;
   }
 
+  function getSelectedGeneratorMuscles() {
+    return [...document.querySelectorAll('input[name="plan-generator-muscle"]:checked')].map((input) => input.value);
+  }
+
+  function updatePlanGeneratorConfiguration(clearResults = true) {
+    const mode = profileUsesFullBody(currentProfileData)
+      ? 'full_body'
+      : (document.querySelector('input[name="plan-generator-mode"]:checked')?.value || '');
+    const selectedMuscles = getSelectedGeneratorMuscles();
+    const muscleFieldset = document.getElementById('plan-generator-muscles');
+    const summary = document.getElementById('plan-generator-mode-help');
+    const submit = document.getElementById('plan-generator-submit');
+    if (muscleFieldset) muscleFieldset.hidden = mode !== 'selected_muscles';
+    const configurationComplete = Boolean(mode) && (mode !== 'selected_muscles' || selectedMuscles.length > 0);
+    if (submit) submit.disabled = !configurationComplete;
+    if (summary) {
+      if (!mode) summary.textContent = 'Izaberi cijelo tijelo ili odabrane mišićne grupe prije generisanja.';
+      else if (mode === 'selected_muscles' && !selectedMuscles.length) summary.textContent = 'Odaberi barem jednu mišićnu grupu.';
+      else {
+        const profile = mode === 'selected_muscles' ? { ...currentProfileData, targetMuscleGroups: selectedMuscles } : currentProfileData;
+        summary.textContent = describeGeneratorProfile(profile, mode);
+      }
+    }
+    if (clearResults) {
+      const results = document.getElementById('plan-generator-results');
+      if (results) { results.hidden = true; results.innerHTML = ''; }
+      generatedPlanSuggestions = [];
+      generatedPlanWarning = '';
+      generatedPlanViewIndex = 0;
+    }
+    return { mode, selectedMuscles, configurationComplete };
+  }
+
   function renderGeneratedPlanSuggestions() {
     const results = document.getElementById('plan-generator-results');
     if (!results) return;
@@ -1760,20 +1872,33 @@
     generatedPlanViewIndex = Math.max(0, Math.min(generatedPlanViewIndex, generatedPlanSuggestions.length - 1));
     const plan = generatedPlanSuggestions[generatedPlanViewIndex];
     const totalPlans = generatedPlanSuggestions.length;
-    const saveAllButton = `<button class="btn plan-generator-save-all" type="button" data-action="save-all-generated-plans" ${generatedPlanSaveInProgress ? 'disabled' : ''}>Sačuvaj sve planove</button>`;
+    const saveAllButton = `<button class="btn btn-secondary plan-generator-save-all" type="button" data-action="save-all-generated-plans" ${generatedPlanSaveInProgress ? 'disabled' : ''}>Sačuvaj sve planove</button>`;
     const warning = generatedPlanWarning ? `<p class="plan-generator-warning">${escapeHtml(translateUiText(generatedPlanWarning))}</p>` : '';
     const estimatedMinutes = Number(currentProfileData?.sessionMinutes) || 60;
-    const exercisePreview = plan.exercises.slice(0, 4);
-    const extraExerciseCount = plan.exercises.length - exercisePreview.length;
-    results.innerHTML = `${warning}<div class="plan-generator-pagination"><button class="btn btn-secondary" type="button" data-action="view-previous-generated-plan" aria-label="Prethodni plan" ${generatedPlanViewIndex === 0 || generatedPlanSaveInProgress ? 'disabled' : ''}>←</button><span>Plan ${generatedPlanViewIndex + 1} od ${totalPlans}</span><button class="btn btn-secondary" type="button" data-action="view-next-generated-plan" aria-label="Sljedeći plan" ${generatedPlanViewIndex === totalPlans - 1 || generatedPlanSaveInProgress ? 'disabled' : ''}>→</button></div>${saveAllButton}
+    const exercises = plan.exercises;
+    const dots = Array.from({ length: totalPlans }, (_, index) => `<i class="${index === generatedPlanViewIndex ? 'is-active' : ''}"></i>`).join('');
+    const language = getCurrentLanguage();
+    const planPosition = language === 'en' ? `Plan ${generatedPlanViewIndex + 1} of ${totalPlans}`
+      : language === 'de' ? `Plan ${generatedPlanViewIndex + 1} von ${totalPlans}`
+      : `Plan ${generatedPlanViewIndex + 1} od ${totalPlans}`;
+    const previousPlanLabel = translateUiText('Prethodni plan');
+    const nextPlanLabel = translateUiText('Sljedeći plan');
+    results.innerHTML = `${warning}
+      <div class="plan-generator-carousel-navigation" aria-label="${escapeHtml(translateUiText('Navigacija prijedloga planova'))}">
+        <button class="btn btn-secondary plan-generator-carousel-arrow is-previous" type="button" data-action="view-previous-generated-plan" aria-label="${escapeHtml(previousPlanLabel)}" ${totalPlans < 2 || generatedPlanSaveInProgress ? 'disabled' : ''}>‹</button>
+        <button class="btn btn-secondary plan-generator-carousel-arrow is-next" type="button" data-action="view-next-generated-plan" aria-label="${escapeHtml(nextPlanLabel)}" ${totalPlans < 2 || generatedPlanSaveInProgress ? 'disabled' : ''}>›</button>
+      </div>
       <article class="plan-generator-suggestion">
-        <div class="plan-generator-suggestion-heading"><div><span class="settings-eyebrow">${escapeHtml(translateUiText(routineWeekdayLabels[Number(plan.scheduleDays?.[0])] || 'PRIJEDLOG'))}</span><h4>${escapeHtml(plan.emoji)} ${escapeHtml(getRoutineDisplayName(plan.name))}</h4><p>Fokus: ${escapeHtml(getRoutineDisplayName(plan.groupTitle))} · ${escapeHtml(plan.exercises.length)} ${escapeHtml(translateUiText('vježbi'))} · oko ${estimatedMinutes} min</p></div></div>
-        <ol>${exercisePreview.map((exercise) => {
+        <div class="plan-generator-suggestion-content">
+          <div class="plan-generator-suggestion-heading"><div><span class="settings-eyebrow">${escapeHtml(translateUiText(routineWeekdayLabels[Number(plan.scheduleDays?.[0])] || 'PRIJEDLOG'))}</span><h4>${escapeHtml(plan.emoji)} ${escapeHtml(getRoutineDisplayName(plan.name))}</h4><p>Fokus: ${escapeHtml(getRoutineDisplayName(plan.groupTitle))} · ${escapeHtml(plan.exercises.length)} ${escapeHtml(translateUiText('vježbi'))} · oko ${estimatedMinutes} min</p></div></div>
+          <ol>${exercises.map((exercise) => {
           const reps = ['weight_reps', 'reps'].includes(exercise.measurementType) ? `${exercise.setCount} serije × ${exercise.repRangeMin}–${exercise.repRangeMax}` : exercise.measurementType === 'seconds' ? `${exercise.setCount} serije · trajanje` : 'kardio';
           return `<li><strong>${escapeHtml(exercise.name)}</strong><small>${escapeHtml(reps)} · odmor ${escapeHtml(exercise.restSeconds)} sek</small></li>`;
-        }).join('')}${extraExerciseCount > 0 ? `<li class="plan-generator-more-exercises">+ još ${extraExerciseCount} vježb${extraExerciseCount === 1 ? 'a' : 'e'}</li>` : ''}</ol>
-        <div class="plan-generator-actions"><button class="btn btn-secondary" type="button" data-action="regenerate-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>↻ Generiši ponovo</button><button class="btn btn-secondary" type="button" data-action="edit-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>Uredi ovaj plan</button><button class="btn" type="button" data-action="save-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>Sačuvaj ovaj plan</button></div>
+          }).join('')}</ol>
+          <div class="plan-generator-pagination" aria-live="polite"><span class="plan-generator-dots" aria-hidden="true">${dots}</span><strong>${escapeHtml(planPosition)}</strong></div>
+        </div>
       </article>
+      <div class="plan-generator-actions"><button class="btn btn-secondary" type="button" data-action="regenerate-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>↻ Generiši ponovo</button><button class="btn btn-secondary" type="button" data-action="edit-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>✎ Uredi ovaj plan</button><button class="btn" type="button" data-action="save-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>Sačuvaj ovaj plan</button></div>${saveAllButton}
     `;
   }
 
@@ -1790,14 +1915,19 @@
     }
     const modal = document.getElementById('plan-generator-modal');
     const results = document.getElementById('plan-generator-results');
-    const summary = document.getElementById('plan-generator-mode-help');
     if (results) { results.hidden = true; results.innerHTML = ''; }
-    if (summary) summary.textContent = describeGeneratorProfile(currentProfileData, 'full_body');
+    const mustUseFullBody = profileUsesFullBody(currentProfileData);
+    const generatorModeFieldset = document.querySelector('.plan-generator-mode');
+    if (generatorModeFieldset) generatorModeFieldset.hidden = mustUseFullBody;
+    document.querySelectorAll('input[name="plan-generator-mode"]').forEach((input) => { input.checked = false; });
+    document.querySelectorAll('input[name="plan-generator-muscle"]').forEach((input) => { input.checked = false; });
+    const fullBodyInput = document.querySelector('input[name="plan-generator-mode"][value="full_body"]');
+    if (mustUseFullBody && fullBodyInput) fullBodyInput.checked = true;
     generatedPlanSuggestions = [];
     generatedPlanWarning = '';
     generatedPlanViewIndex = 0;
+    updatePlanGeneratorConfiguration(false);
     modal?.style.setProperty('display', 'flex');
-    window.generatePersonalizedPlans();
   };
 
   window.generatePersonalizedPlans = function() {
@@ -1805,15 +1935,22 @@
       ShowToast('U Profilu i ciljevima postavi barem jedan trening sedmično da napravimo raspored.', 'error');
       return;
     }
-    const mode = document.querySelector('input[name="plan-generator-mode"]:checked')?.value || 'full_body';
-    generatedPlanSuggestions = buildPersonalizedPlanSuggestions(currentProfileData || {}, mode);
+    const configuration = updatePlanGeneratorConfiguration(false);
+    if (!configuration.configurationComplete) {
+      ShowToast(configuration.mode === 'selected_muscles' ? 'Odaberi barem jednu mišićnu grupu.' : 'Prvo izaberi šta želiš trenirati.', 'error');
+      return;
+    }
+    const generatorProfile = configuration.mode === 'selected_muscles'
+      ? { ...(currentProfileData || {}), targetMuscleGroups: configuration.selectedMuscles }
+      : (currentProfileData || {});
+    generatedPlanSuggestions = buildPersonalizedPlanSuggestions(generatorProfile, configuration.mode);
     generatedPlanViewIndex = 0;
     renderGeneratedPlanSuggestions();
   };
 
   window.viewGeneratedPlan = function(direction) {
     if (!generatedPlanSuggestions.length || generatedPlanSaveInProgress) return;
-    generatedPlanViewIndex = Math.max(0, Math.min(generatedPlanViewIndex + direction, generatedPlanSuggestions.length - 1));
+    generatedPlanViewIndex = (generatedPlanViewIndex + direction + generatedPlanSuggestions.length) % generatedPlanSuggestions.length;
     renderGeneratedPlanSuggestions();
   };
 
@@ -3461,7 +3598,11 @@ function renderPendingSyncStatus() {
     const streak = getWeeklyStreak(counts, goal, currentWeekStart, thisWeekCount);
     let message;
     if (remaining === 0) message = copy.achieved;
-    else if (thisWeekCount === 0) message = now.getDay() === 1 ? copy.newWeek : copy.none;
+    else if (thisWeekCount === 0) {
+      message = now.getDay() === 1 ? copy.newWeek : (language === 'sr'
+        ? genderText('Još nisi trenirao ove sedmice.', 'Još nisi trenirala ove sedmice.', 'Još nisi trenirao/la ove sedmice.')
+        : copy.none);
+    }
     else message = copy.remaining(remaining);
 
     const progress = Math.min(100, Math.round((thisWeekCount / goal) * 100));
@@ -5693,7 +5834,7 @@ function renderPendingSyncStatus() {
     const container = document.getElementById('profile-wizard-review');
     if (!container || profileWizardState.steps[profileWizardState.current] !== 'review') return;
     const values = readRequiredProfileForm();
-    const rows = [['Ime', values.fullName], ['Godine', values.age], ['Visina', values.heightCm ? `${values.heightCm} cm` : ''], ['Težina', values.weightKg ? `${values.weightKg} kg` : ''], ['Cilj', values.goal], ['Fokus', values.trainingFocus], ['Treninga sedmično', values.trainingFrequency], ['Mjesto', values.trainingLocation], ['Iskustvo', values.experienceLevel], ['Trajanje', values.sessionMinutes ? `${values.sessionMinutes} min` : ''], ['Mišići', values.targetMuscleGroups.join(', ')]].filter(([, value]) => String(value || '').trim());
+    const rows = [['Ime', values.fullName], ['Godine', values.age], ['Visina', values.heightCm ? `${values.heightCm} cm` : ''], ['Težina', values.weightKg ? `${values.weightKg} kg` : ''], ['Cilj', getProfileValueLabel(values.goal)], ['Fokus', getProfileValueLabel(values.trainingFocus)], ['Treninga sedmično', values.trainingFrequency], ['Mjesto', getProfileValueLabel(values.trainingLocation)], ['Iskustvo', getProfileValueLabel(values.experienceLevel)], ['Trajanje', values.sessionMinutes ? `${values.sessionMinutes} min` : ''], ['Mišići', values.targetMuscleGroups.map(getProfileValueLabel).join(', ')]].filter(([, value]) => String(value || '').trim());
     container.innerHTML = rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
   }
 
@@ -6792,15 +6933,28 @@ function renderPendingSyncStatus() {
     });
     document.getElementById('plan-generator-modal')?.addEventListener('change', (event) => {
       const input = event.target;
-      if (!(input instanceof HTMLInputElement) || input.name !== 'plan-generator-mode') return;
-      const summary = document.getElementById('plan-generator-mode-help');
-      const results = document.getElementById('plan-generator-results');
-      if (summary) summary.textContent = describeGeneratorProfile(currentProfileData, input.value);
-      if (results) { results.hidden = true; results.innerHTML = ''; }
-      generatedPlanSuggestions = [];
-      generatedPlanWarning = '';
-      generatedPlanViewIndex = 0;
+      if (!(input instanceof HTMLInputElement) || !['plan-generator-mode', 'plan-generator-muscle'].includes(input.name)) return;
+      if (profileUsesFullBody(currentProfileData)) {
+        const fullBodyInput = document.querySelector('input[name="plan-generator-mode"][value="full_body"]');
+        if (fullBodyInput) fullBodyInput.checked = true;
+      }
+      updatePlanGeneratorConfiguration(true);
     });
+
+    const generatorResults = document.getElementById('plan-generator-results');
+    let generatorSwipeStart = null;
+    generatorResults?.addEventListener('touchstart', (event) => {
+      if (event.target?.closest?.('button, input, textarea, select, a') || event.touches.length !== 1) return;
+      generatorSwipeStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    }, { passive: true });
+    generatorResults?.addEventListener('touchend', (event) => {
+      if (!generatorSwipeStart || event.changedTouches.length !== 1) return;
+      const deltaX = event.changedTouches[0].clientX - generatorSwipeStart.x;
+      const deltaY = event.changedTouches[0].clientY - generatorSwipeStart.y;
+      generatorSwipeStart = null;
+      if (Math.abs(deltaX) < 50 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.25) return;
+      window.viewGeneratedPlan(deltaX < 0 ? 1 : -1);
+    }, { passive: true });
 
     setupTouchReorder();
 
@@ -7378,22 +7532,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261002-first-visit-modal-v86';
-    const reloadKey = `gymleader-sw-reloaded-${build}`;
-    let reloadingForWorker = false;
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloadingForWorker || sessionStorage.getItem(reloadKey) === 'true') return;
-      reloadingForWorker = true;
-      sessionStorage.setItem(reloadKey, 'true');
-      window.location.reload();
-    });
-
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type !== 'GYMLEADER_BUILD_ACTIVE' || event.data.build !== build) return;
-      sessionStorage.removeItem(reloadKey);
-    });
-
+    const build = '20261002-static-carousel-arrows-v94';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
@@ -7635,7 +7774,7 @@ function renderOnboardingStep() {
     ['other', '✨', 'Nešto drugo']
   ];
   const steps = [
-    `<div class="onboarding-icon">🏋️</div><span class="onboarding-step-label">KORAK 1 OD 4</span><h3>${escapeHtml(getDashboardGreeting())}</h3><p>GymLeader ti pomaže da napraviš svoje planove, pratiš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>`,
+    `<div class="onboarding-icon">🏋️</div><span class="onboarding-step-label">KORAK 1 OD 4</span><h3>${escapeHtml(getOnboardingGreeting())}</h3><p>GymLeader ti pomaže da napraviš svoje planove, pratiš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>`,
     '<div class="onboarding-icon">📋</div><span class="onboarding-step-label">KORAK 2 OD 4</span><h3>Kako počinješ?</h3><div class="onboarding-mini-list"><div><b>1.</b><span><strong>Napravi plan</strong><small>Nazovi ga, na primjer, Noge ili Dan A.</small></span></div><div><b>2.</b><span><strong>Pokreni trening</strong><small>Upiši serije, kilaže, ponavljanja ili sekunde.</small></span></div><div><b>3.</b><span><strong>Sačuvaj rezultat</strong><small>Sljedeći put vidiš prošle podatke i PR.</small></span></div></div>',
     '<div class="onboarding-icon">🎯</div><span class="onboarding-step-label">KORAK 3 OD 4</span><h3>Šta najčešće treniraš?</h3><p>Ovo samo pomaže da ti prvi plan bude smislenije pripremljen. Možeš ga kasnije promijeniti.</p><div class="onboarding-context-grid">' + contextOptions.map(([value, icon, label]) => `<button type="button" class="onboarding-context ${onboardingContext === value ? 'is-selected' : ''}" data-action="onboarding-context" data-context="${value}"><span>${icon}</span><strong>${label}</strong></button>`).join('') + '</div>',
     `<div class="onboarding-icon">🚀</div><span class="onboarding-step-label">KORAK 4 OD 4</span><h3>${genderText('Spreman si za prvi plan', 'Spremna si za prvi plan', 'Spreman/na si za prvi plan')}</h3><p>Jedan plan predstavlja jedan trening koji možeš ponavljati više puta. Dodaj vježbe jednu po jednu i izaberi način praćenja.</p>`

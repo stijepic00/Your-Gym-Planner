@@ -1,4 +1,4 @@
-const BUILD = '20261002-first-visit-modal-v86';
+const BUILD = '20261002-static-carousel-arrows-v94';
 const CACHE_NAME = `gymleader-app-${BUILD}`;
 
 // Every app-shell file carries the same build identifier in index.html. A new
