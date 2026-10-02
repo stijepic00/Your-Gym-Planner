@@ -68,11 +68,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" href="assets/gymleader-icon.png?v=20261002-registration-check-v75">
-  <link rel="apple-touch-icon" href="assets/gymleader-icon.png?v=20261002-registration-check-v75">
-  <link rel="manifest" href="manifest.webmanifest?v=20261002-registration-check-v75">
+  <link rel="icon" type="image/png" href="assets/gymleader-icon.png?v=20261002-first-visit-modal-v86">
+  <link rel="apple-touch-icon" href="assets/gymleader-icon.png?v=20261002-first-visit-modal-v86">
+  <link rel="manifest" href="manifest.webmanifest?v=20261002-first-visit-modal-v86">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261002-registration-check-v75">
+  <link rel="stylesheet" href="styles.css?v=20261002-first-visit-modal-v86">
 
 </head>
 <body>
@@ -83,18 +83,18 @@
   <div class="auth-boot-orbit auth-boot-orbit-one"><span></span></div>
   <div class="auth-boot-orbit auth-boot-orbit-two"><span></span></div>
   <div class="auth-boot-card">
-    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261002-registration-check-v75" alt=""></div>
+    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261002-first-visit-modal-v86" alt=""></div>
     <div class="auth-boot-wordmark"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></div>
     <div class="auth-boot-progress"><span></span></div>
     <p id="auth-boot-text">Pripremamo tvoj trening.</p>
     <button id="auth-boot-retry" class="auth-boot-retry" type="button" hidden>Pokušaj ponovo</button>
   </div>
 </div>
-<script src="language-boot.js?v=20261002-registration-check-v75"></script>
+<script src="language-boot.js?v=20261002-first-visit-modal-v86"></script>
 
 <header>
     <button type="button" class="gymleader-brand" aria-label="GymLeader početna strana" data-action="go-home">
-      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261002-registration-check-v75" alt=""></span>
+      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261002-first-visit-modal-v86" alt=""></span>
       <span class="gymleader-brand-copy"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></span>
     </button>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
@@ -103,7 +103,7 @@
 </header>
 
 <aside id="pwa-install-banner" class="pwa-install-banner" hidden aria-live="polite">
-  <img src="assets/gymleader-icon.png?v=20261002-registration-check-v75" alt="GymLeader" class="pwa-install-icon">
+  <img src="assets/gymleader-icon.png?v=20261002-first-visit-modal-v86" alt="GymLeader" class="pwa-install-icon">
   <div class="pwa-install-copy"><strong>Otvori GymLeader kao aplikaciju</strong><span>Dodaj prečicu na početni ekran i otvaraj trening jednim dodirom.</span></div>
   <button class="pwa-install-button" data-action="install-app" type="button">Instaliraj</button>
   <button class="pwa-install-dismiss" data-action="dismiss-install" type="button" aria-label="Kasnije">×</button>
@@ -115,7 +115,7 @@
       <div class="card auth-card">
         <div class="auth-welcome">
           <div class="auth-brand-lockup" aria-label="GymLeader">
-            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261002-registration-check-v75" alt=""></span>
+            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261002-first-visit-modal-v86" alt=""></span>
             <span>Gym<span>Leader</span></span>
           </div>
           <h1 id="auth-title">Prijavi se u GymLeader</h1>
@@ -485,6 +485,21 @@
     </div>
 </main>
 
+<div id="first-visit-modal" class="first-visit-modal" hidden>
+  <section id="first-visit-card" class="first-visit-card" role="dialog" aria-modal="true" aria-labelledby="first-visit-title" aria-describedby="first-visit-description">
+    <button class="first-visit-dismiss" data-action="dismiss-first-visit" type="button" aria-label="Kasnije">×</button>
+    <span class="first-visit-icon" aria-hidden="true">👋</span>
+    <span class="settings-eyebrow">DOBRO DOŠAO U GYMLEADER</span>
+    <h2 id="first-visit-title">Da li si ovdje prvi put?</h2>
+    <p id="first-visit-description">Nikad ranije nisi koristio/la GymLeader na ovom uređaju?</p>
+    <div class="first-visit-actions">
+      <button class="btn first-visit-register" data-action="first-visit-register" type="button"><span aria-hidden="true">✨</span><span><strong>Da, prvi put sam ovdje</strong><small>Napravi svoj GymLeader nalog</small></span><span class="first-visit-arrow" aria-hidden="true">→</span></button>
+      <button class="btn btn-secondary first-visit-login" data-action="first-visit-login" type="button"><span aria-hidden="true">🔐</span><span><strong>Već imam GymLeader nalog</strong><small>Nastavi prijavom na svoj nalog</small></span><span class="first-visit-arrow" aria-hidden="true">→</span></button>
+    </div>
+    <button class="first-visit-later" data-action="dismiss-first-visit" type="button">Kasnije</button>
+  </section>
+</div>
+
 <nav id="bottom-nav" style="display: none;">
     <button class="nav-item active" data-action="switch-tab" data-tab="dashboard">
       <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Početna
@@ -523,13 +538,27 @@
   </div>
 </div>
 
-<!-- Personalizovani prijedlog plana: prijedlog se uvijek prvo uređuje, pa tek onda čuva. -->
+<div id="plan-creation-choice-modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="plan-creation-choice-title">
+  <div class="modal-content plan-creation-choice-content">
+    <button class="modal-close" data-action="close-modal" data-modal-id="plan-creation-choice-modal" aria-label="Zatvori" type="button">×</button>
+    <span class="settings-eyebrow">NOVI PLAN</span>
+    <h3 id="plan-creation-choice-title">Kako želiš napraviti plan?</h3>
+    <p class="profile-modal-help">Možeš dobiti prijedlog prema svom profilu ili jednostavno unijeti vlastiti plan.</p>
+    <div class="plan-creation-choice-actions">
+      <button class="plan-creation-choice" data-action="choose-plan-generator" type="button"><strong>✦ Preporuči mi plan</strong><span>GymLeader koristi tvoje ciljeve, iskustvo i preferencije.</span></button>
+      <button class="plan-creation-choice" data-action="choose-manual-plan" type="button"><strong>✎ Unijet ću svoj plan</strong><span>Dodaj naziv i vježbe koje želiš raditi.</span></button>
+    </div>
+    <button class="btn btn-secondary plan-creation-cancel" data-action="close-modal" data-modal-id="plan-creation-choice-modal" type="button">Otkaži</button>
+  </div>
+</div>
+
+<!-- Personalizovani prijedlog plana. -->
 <div id="plan-generator-modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="plan-generator-title">
   <div class="modal-content plan-generator-modal-content">
     <button class="modal-close" data-action="close-modal" data-modal-id="plan-generator-modal" aria-label="Zatvori" type="button">×</button>
     <span class="settings-eyebrow">PLAN PO TVOM PROFILU</span>
     <h3 id="plan-generator-title">Predloži plan treninga</h3>
-    <p class="profile-modal-help">GymLeader koristi tvoj cilj, fokus, raspoloživo vrijeme, iskustvo i mjesto treninga. Prijedlog je polazna tačka koju uvijek možeš urediti prije čuvanja.</p>
+    <p class="profile-modal-help">GymLeader koristi tvoj cilj, fokus, raspoloživo vrijeme, iskustvo i mjesto treninga da napravi prijedlog koji možeš odmah sačuvati.</p>
     <fieldset class="plan-generator-mode" aria-describedby="plan-generator-mode-help">
       <legend>Šta želiš trenirati?</legend>
       <label><input type="radio" name="plan-generator-mode" value="full_body" checked><span>Cijelo tijelo</span></label>
@@ -541,36 +570,28 @@
   </div>
 </div>
 
-<!-- Modal za kreiranje plana sa emoji sistemom -->
+<!-- Jednostavan ručni unos plana -->
 <div id="createRoutineModal" class="modal" style="display: none;">
   <div class="modal-content">
     <button type="button" class="modal-close" data-action="close-modal" data-modal-id="createRoutineModal" aria-label="Zatvori">&times;</button>
     <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 8px;">➕ Napravi plan treninga</h3>
-    <p class="routine-builder-intro">Nazovi plan, dodaj vježbe i sačuvaj. Ostalo možeš urediti kasnije.</p>
+    <p class="routine-builder-intro">Nazovi plan, pronađi vježbe i sačuvaj.</p>
     
     <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Kako ćeš nazvati ovaj trening?</label>
     <input type="text" id="newRoutineNameInput" class="custom-input" maxlength="120" placeholder="npr. Gornji dio, Noge ili Street workout">
     
     <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; display: block; margin: 10px 0 6px 0;">Pronađi vježbe</label>
-    <p class="routine-builder-help">Prvo pretraži biblioteku. Ako vježbe nema, možeš je dodati ručno.</p>
+    <p class="routine-builder-help">Upiši naziv i odaberi vježbu iz biblioteke.</p>
     <section class="exercise-library-picker exercise-library-picker-primary" data-library-picker-for="new-routine-exercises-list">
       <input class="custom-input exercise-library-search" type="search" placeholder="Pretraži vježbe, npr. čučanj" aria-label="Pretraži vježbe">
-      <details class="exercise-library-filter-details"><summary>Filteri</summary><div class="exercise-library-controls"><select class="custom-input exercise-library-muscle" aria-label="Mišićna grupa"></select><select class="custom-input exercise-library-equipment" aria-label="Oprema"></select><select class="custom-input exercise-library-place" aria-label="Mjesto treninga"><option value="">Svako mjesto</option><option value="gym">Teretana</option><option value="home">Kuća</option><option value="street">Street workout</option></select></div></details>
       <p class="exercise-library-count" aria-live="polite"></p><div class="exercise-library-results"></div>
     </section>
     <label class="routine-added-exercises-label" for="new-routine-exercises-list">Dodane vježbe</label>
     <div id="new-routine-exercises-list" class="routine-exercise-builder"></div>
-    <details class="routine-optional-details"><summary>Dodatne opcije (nije obavezno)</summary>
-      <label class="routine-emoji-optional" for="newRoutineEmojiInput">Emoji plana (opcionalno)</label>
-      <div class="routine-emoji-picker"><input type="text" id="newRoutineEmojiInput" class="custom-input" maxlength="8" placeholder="Bez emojija"><div class="routine-emoji-quick"><button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🏋️">🏋️</button><button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="💪">💪</button><button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🏃">🏃</button><button type="button" class="emoji-btn-quick" data-action="set-routine-emoji" data-emoji="🦵">🦵</button></div><button type="button" class="btn btn-secondary routine-emoji-clear" data-action="clear-routine-emoji">Očisti</button></div>
-      <fieldset class="routine-schedule-fieldset"><legend>Raspored sedmice (opcionalno)</legend><p>Izaberi dane ako želiš. Možeš koristiti plan i bez rasporeda.</p><div class="routine-schedule-options"><label><input type="checkbox" name="new-routine-schedule" value="0"><span>Nedjelja</span></label><label><input type="checkbox" name="new-routine-schedule" value="1"><span>Ponedjeljak</span></label><label><input type="checkbox" name="new-routine-schedule" value="2"><span>Utorak</span></label><label><input type="checkbox" name="new-routine-schedule" value="3"><span>Srijeda</span></label><label><input type="checkbox" name="new-routine-schedule" value="4"><span>Četvrtak</span></label><label><input type="checkbox" name="new-routine-schedule" value="5"><span>Petak</span></label><label><input type="checkbox" name="new-routine-schedule" value="6"><span>Subota</span></label></div></fieldset>
-    </details>
-    <button type="button" class="btn btn-secondary routine-add-exercise" data-action="add-routine-exercise">+ Ne nalaziš vježbu? Dodaj ručno</button>
-    <details class="routine-import-details"><summary>Već imaš plan zapisan u tekstu?</summary><p>Možeš zalijepiti plan iz Notes-a i urediti ga prije čuvanja.</p><button type="button" class="btn btn-secondary routine-text-import-button" data-action="open-import-modal">📋 Dodaj plan iz teksta</button></details>
+    <button type="button" class="btn btn-secondary routine-text-import-button" data-action="open-import-modal">📋 Dodaj plan iz teksta</button>
 
     <div style="display: flex; gap: 10px; margin-top: 12px;">
       <button class="btn" data-action="submit-new-routine">Sačuvaj plan</button>
-      <button id="return-to-generated-plans-button" class="btn btn-secondary" data-action="return-to-generated-plans" type="button" hidden>← Nazad na prijedloge</button>
       <button class="btn btn-secondary" data-action="close-modal" data-modal-id="createRoutineModal">Otkaži</button>
     </div>
   </div>
@@ -614,7 +635,7 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20261002-registration-check-v75"></script>
+<script type="module" src="javascript.js?v=20261002-first-visit-modal-v86"></script>
 </body>
 </html>
 

@@ -2,6 +2,22 @@
 // are intentionally never translated.
 export const TRANSLATIONS = {
   en: {
+    'DOBRO DOŠAO U GYMLEADER': 'WELCOME TO GYMLEADER',
+    'Nikad ranije nisi koristio/la GymLeader na ovom uređaju?': 'Have you never used GymLeader on this device before?',
+    'Napravi svoj GymLeader nalog': 'Create your GymLeader account',
+    'Nastavi prijavom na svoj nalog': 'Continue by signing in to your account',
+    'Kasnije': 'Maybe later',
+    'Počni sa jednim planom treninga koji želiš ponavljati.': 'Start with one workout plan you want to repeat.',
+    'Izaberi plan koji danas želiš raditi.': 'Choose the workout plan you want to do today.',
+    'Prazan trening - sam dodaj vježbe': 'Empty workout — add your own exercises',
+    'Raspored:': 'Schedule:',
+    'Arhiviran': 'Archived',
+    'vježba': 'exercise',
+    'vježbi': 'exercises',
+    'Gornji dio A': 'Upper body A', 'Gornji dio B': 'Upper body B', 'Gornji dio C': 'Upper body C', 'Gornji dio D': 'Upper body D',
+    'Donji dio A': 'Lower body A', 'Donji dio B': 'Lower body B', 'Cijelo tijelo A': 'Full body A', 'Cijelo tijelo B': 'Full body B', 'Cijelo tijelo C': 'Full body C',
+    'Trup i kondicija': 'Core and conditioning', 'grudi': 'chest', 'leđa': 'back', 'noge': 'legs', 'ramena': 'shoulders', 'ruke': 'arms', 'gluteus': 'glutes', 'stomak': 'core', 'kardio': 'cardio',
+    'Nedjelja': 'Sunday', 'Ponedjeljak': 'Monday', 'Utorak': 'Tuesday', 'Srijeda': 'Wednesday', 'Četvrtak': 'Thursday', 'Petak': 'Friday', 'Subota': 'Saturday', 'PRIJEDLOG': 'SUGGESTION',
     'Početna strana': 'Home',
     'Prijava / Registracija 🔑': 'Log in / Register 🔑',
     'Odjava 🔒': 'Log out 🔒',
@@ -282,6 +298,22 @@ export const TRANSLATIONS = {
     ,'Profil je ažuriran.': 'Profile updated.'
   },
   de: {
+    'DOBRO DOŠAO U GYMLEADER': 'WILLKOMMEN BEI GYMLEADER',
+    'Nikad ranije nisi koristio/la GymLeader na ovom uređaju?': 'Hast du GymLeader auf diesem Gerät noch nie benutzt?',
+    'Napravi svoj GymLeader nalog': 'Erstelle dein GymLeader-Konto',
+    'Nastavi prijavom na svoj nalog': 'Melde dich bei deinem Konto an',
+    'Kasnije': 'Später',
+    'Počni sa jednim planom treninga koji želiš ponavljati.': 'Beginne mit einem Trainingsplan, den du wiederholen möchtest.',
+    'Izaberi plan koji danas želiš raditi.': 'Wähle den Trainingsplan, den du heute machen möchtest.',
+    'Prazan trening - sam dodaj vježbe': 'Leeres Training — füge eigene Übungen hinzu',
+    'Raspored:': 'Trainingsplan:',
+    'Arhiviran': 'Archiviert',
+    'vježba': 'Übung',
+    'vježbi': 'Übungen',
+    'Gornji dio A': 'Oberkörper A', 'Gornji dio B': 'Oberkörper B', 'Gornji dio C': 'Oberkörper C', 'Gornji dio D': 'Oberkörper D',
+    'Donji dio A': 'Unterkörper A', 'Donji dio B': 'Unterkörper B', 'Cijelo tijelo A': 'Ganzkörper A', 'Cijelo tijelo B': 'Ganzkörper B', 'Cijelo tijelo C': 'Ganzkörper C',
+    'Trup i kondicija': 'Core und Kondition', 'grudi': 'Brust', 'leđa': 'Rücken', 'noge': 'Beine', 'ramena': 'Schultern', 'ruke': 'Arme', 'gluteus': 'Gesäß', 'stomak': 'Bauch', 'kardio': 'Cardio',
+    'Nedjelja': 'Sonntag', 'Ponedjeljak': 'Montag', 'Utorak': 'Dienstag', 'Srijeda': 'Mittwoch', 'Četvrtak': 'Donnerstag', 'Petak': 'Freitag', 'Subota': 'Samstag', 'PRIJEDLOG': 'VORSCHLAG',
     'Početna strana': 'Startseite',
     'Prijava / Registracija 🔑': 'Anmelden / Registrieren 🔑',
     'Odjava 🔒': 'Abmelden 🔒',
@@ -378,7 +410,7 @@ export const TRANSLATIONS = {
     'Imate nesačuvan trening u toku!': 'Du hast ein unvollständiges Training!',
     'Podaci su bezbjedno sačuvani u memoriji telefona.': 'Deine Daten sind sicher auf diesem Gerät gespeichert.',
     'Nastavi Trening →': 'Training fortsetzen →',
-    'SYSTEM ONLINE ⚡': 'SYSTEM ONLINE ⚡',
+    'SYSTEM ONLINE ⚡': 'SYSTEM AKTIV ⚡',
     'Spreman za trening?': 'Bereit fürs Training?',
     'Šta želiš trenirati danas?': 'Was möchtest du heute trainieren?',
     'GymLeader ti pomaže da sačuvaš svoje planove, upišeš kilaže i ponavljanja i vidiš napredak iz treninga u trening.': 'GymLeader hilft dir, Pläne zu speichern, Gewichte und Wiederholungen einzutragen und deinen Fortschritt zu sehen.',
@@ -642,3 +674,211 @@ const MEAL_PLANNER_TRANSLATIONS = {
   }
 };
 for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], MEAL_PLANNER_TRANSLATIONS[language]);
+
+const PLAN_CREATION_TRANSLATIONS = {
+  en: {
+    'NOVI PLAN': 'NEW PLAN',
+    'Kako želiš napraviti plan?': 'How would you like to create your plan?',
+    'Možeš dobiti prijedlog prema svom profilu ili jednostavno unijeti vlastiti plan.': 'Get a suggestion based on your profile or simply enter your own plan.',
+    '✦ Preporuči mi plan': '✦ Recommend a plan',
+    'GymLeader koristi tvoje ciljeve, iskustvo i preferencije.': 'GymLeader uses your goals, experience and preferences.',
+    '✎ Unijet ću svoj plan': '✎ I will enter my own plan',
+    'Dodaj naziv i vježbe koje želiš raditi.': 'Add a name and the exercises you want to do.',
+    'GymLeader koristi tvoj cilj, fokus, raspoloživo vrijeme, iskustvo i mjesto treninga da napravi prijedlog koji možeš odmah sačuvati.': 'GymLeader uses your goal, focus, available time, experience and training location to create a suggestion you can save right away.',
+    'Nazovi plan, pronađi vježbe i sačuvaj.': 'Name your plan, find exercises and save it.',
+    'Upiši naziv i odaberi vježbu iz biblioteke.': 'Type a name and choose an exercise from the library.',
+    'Nema rezultata. Upiši svoju vježbu i dodaj je u plan.': 'No results. Type your own exercise and add it to the plan.',
+    'Dodaj svoju vježbu': 'Add your own exercise',
+    'Sačuvaj ovaj plan': 'Save this plan',
+    'Plan je sačuvan u tvojim planovima treninga.': 'The plan has been saved to your workout plans.'
+  },
+  de: {
+    'NOVI PLAN': 'NEUER PLAN',
+    'Kako želiš napraviti plan?': 'Wie möchtest du deinen Plan erstellen?',
+    'Možeš dobiti prijedlog prema svom profilu ili jednostavno unijeti vlastiti plan.': 'Du kannst einen Vorschlag anhand deines Profils erhalten oder deinen eigenen Plan eingeben.',
+    '✦ Preporuči mi plan': '✦ Empfiehl mir einen Plan',
+    'GymLeader koristi tvoje ciljeve, iskustvo i preferencije.': 'GymLeader verwendet deine Ziele, Erfahrung und Präferenzen.',
+    '✎ Unijet ću svoj plan': '✎ Ich gebe meinen eigenen Plan ein',
+    'Dodaj naziv i vježbe koje želiš raditi.': 'Füge einen Namen und die Übungen hinzu, die du machen möchtest.',
+    'GymLeader koristi tvoj cilj, fokus, raspoloživo vrijeme, iskustvo i mjesto treninga da napravi prijedlog koji možeš odmah sačuvati.': 'GymLeader verwendet dein Ziel, deinen Fokus, deine verfügbare Zeit, Erfahrung und deinen Trainingsort, um einen Vorschlag zu erstellen, den du sofort speichern kannst.',
+    'Nazovi plan, pronađi vježbe i sačuvaj.': 'Benenne deinen Plan, finde Übungen und speichere ihn.',
+    'Upiši naziv i odaberi vježbu iz biblioteke.': 'Gib einen Namen ein und wähle eine Übung aus der Bibliothek.',
+    'Nema rezultata. Upiši svoju vježbu i dodaj je u plan.': 'Keine Ergebnisse. Gib deine eigene Übung ein und füge sie dem Plan hinzu.',
+    'Dodaj svoju vježbu': 'Eigene Übung hinzufügen',
+    'Sačuvaj ovaj plan': 'Diesen Plan speichern',
+    'Plan je sačuvan u tvojim planovima treninga.': 'Der Plan wurde in deinen Trainingsplänen gespeichert.'
+  }
+};
+for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], PLAN_CREATION_TRANSLATIONS[language]);
+
+const DASHBOARD_AND_GENERATED_PLAN_TRANSLATIONS = {
+  en: {
+    'Počni sa jednim planom treninga koji želiš ponavljati.': 'Start with one workout plan you want to repeat.',
+    'Izaberi plan koji danas želiš raditi.': 'Choose the workout plan you want to do today.',
+    '➕ Napravi prvi plan': '➕ Create your first plan',
+    'vježbi': 'exercises',
+    'Gornji dio A': 'Upper body A', 'Gornji dio B': 'Upper body B', 'Gornji dio C': 'Upper body C', 'Gornji dio D': 'Upper body D',
+    'Donji dio A': 'Lower body A', 'Donji dio B': 'Lower body B', 'Cijelo tijelo A': 'Full body A', 'Cijelo tijelo B': 'Full body B',
+    'Trup i kondicija': 'Core and conditioning', 'grudi': 'chest', 'leđa': 'back', 'noge': 'legs', 'ramena': 'shoulders', 'ruke': 'arms', 'gluteus': 'glutes', 'stomak': 'core', 'kardio': 'cardio',
+    'Nedjelja': 'Sunday', 'Ponedjeljak': 'Monday', 'Utorak': 'Tuesday', 'Srijeda': 'Wednesday', 'Četvrtak': 'Thursday', 'Petak': 'Friday', 'Subota': 'Saturday', 'PRIJEDLOG': 'SUGGESTION'
+  },
+  de: {
+    'Počni sa jednim planom treninga koji želiš ponavljati.': 'Beginne mit einem Trainingsplan, den du wiederholen möchtest.',
+    'Izaberi plan koji danas želiš raditi.': 'Wähle den Trainingsplan, den du heute machen möchtest.',
+    '➕ Napravi prvi plan': '➕ Erstelle deinen ersten Plan',
+    'vježbi': 'Übungen',
+    'Gornji dio A': 'Oberkörper A', 'Gornji dio B': 'Oberkörper B', 'Gornji dio C': 'Oberkörper C', 'Gornji dio D': 'Oberkörper D',
+    'Donji dio A': 'Unterkörper A', 'Donji dio B': 'Unterkörper B', 'Cijelo tijelo A': 'Ganzkörper A', 'Cijelo tijelo B': 'Ganzkörper B',
+    'Trup i kondicija': 'Core und Kondition', 'grudi': 'Brust', 'leđa': 'Rücken', 'noge': 'Beine', 'ramena': 'Schultern', 'ruke': 'Arme', 'gluteus': 'Gesäß', 'stomak': 'Bauch', 'kardio': 'Cardio',
+    'Nedjelja': 'Sonntag', 'Ponedjeljak': 'Montag', 'Utorak': 'Dienstag', 'Srijeda': 'Mittwoch', 'Četvrtak': 'Donnerstag', 'Petak': 'Freitag', 'Subota': 'Samstag', 'PRIJEDLOG': 'VORSCHLAG'
+  }
+};
+for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], DASHBOARD_AND_GENERATED_PLAN_TRANSLATIONS[language]);
+
+const REMAINING_SECTION_TRANSLATIONS = {
+  en: {
+    'USKORO': 'COMING SOON',
+    '↪ Odjavi se': '↪ Log out',
+    'Ovdje čuvaš svoje planove.': 'This is where you keep your plans.',
+    'Jedan plan = jedan trening koji ponavljaš.': 'One plan = one workout you repeat.',
+    'Nazovi ga kako želiš, dodaj svoje vježbe i pokreni ga kad si spreman.': 'Give it any name, add your exercises, and start it when you are ready.',
+    '✦ Predloži plan za mene': '✦ Recommend a plan for me',
+    'TVOJ NAPREDAK': 'YOUR PROGRESS',
+    'Napredak': 'Progress',
+    'Izaberi šta želiš pregledati.': 'Choose what you want to review.',
+    'Ishrana': 'Nutrition',
+    'Brzo zabilježi obroke, kalorije i makronutrijente.': 'Quickly log meals, calories, and macronutrients.',
+    'Istorija treninga': 'Workout history',
+    'Pregledaj završene treninge i rezultate.': 'Review completed workouts and results.',
+    'Grafici vježbi': 'Exercise charts',
+    'Prati kilaže, ponavljanja i lične rekorde.': 'Track weights, reps, and personal records.',
+    'Moje tijelo': 'My body',
+    'Opcionalno prati težinu i obime kroz vrijeme.': 'Optionally track your weight and measurements over time.',
+    'Ime, pol, godine i osnovni podaci': 'Name, gender, age, and basic details',
+    'Mjerenja i napredak': 'Measurements and progress',
+    'Težina i mjere tijela': 'Weight and body measurements',
+    'Ciljevi i treniranje': 'Goals and training',
+    'Podaci za personalizaciju': 'Personalization details',
+    'Cilj, iskustvo, mjesto i broj treninga': 'Goal, experience, location, and workout frequency',
+    'Sedmični cilj': 'Weekly goal',
+    'Izaberi svoj sedmični cilj': 'Choose your weekly goal',
+    'Ciljevi ishrane': 'Nutrition goals',
+    'Nisu postavljeni': 'Not set',
+    'Opcionalni dnevni kalorijski i makro ciljevi': 'Optional daily calorie and macro goals',
+    'Email adresa': 'Email address',
+    'Sigurnost naloga': 'Account security',
+    'Lozinka i pristup': 'Password and access',
+    'Promijeni GymLeader lozinku': 'Change your GymLeader password',
+    'Odjavi se ili trajno ukloni nalog i povezane podatke.': 'Sign out or permanently delete your account and associated data.',
+    'Pravila i privatnost': 'Terms and privacy',
+    'Pravila korištenja': 'Terms of use',
+    'Pročitaj kako GymLeader koristi podatke': 'Read how GymLeader uses your data'
+  },
+  de: {
+    'USKORO': 'DEMNÄCHST',
+    '↪ Odjavi se': '↪ Abmelden',
+    'Ovdje čuvaš svoje planove.': 'Hier bewahrst du deine Pläne auf.',
+    'Jedan plan = jedan trening koji ponavljaš.': 'Ein Plan = ein Training, das du wiederholst.',
+    'Nazovi ga kako želiš, dodaj svoje vježbe i pokreni ga kad si spreman.': 'Benenne ihn beliebig, füge deine Übungen hinzu und starte ihn, wenn du bereit bist.',
+    '✦ Predloži plan za mene': '✦ Empfiehl mir einen Plan',
+    'TVOJ NAPREDAK': 'DEIN FORTSCHRITT',
+    'Napredak': 'Fortschritt',
+    'Izaberi šta želiš pregledati.': 'Wähle aus, was du ansehen möchtest.',
+    'Ishrana': 'Ernährung',
+    'Brzo zabilježi obroke, kalorije i makronutrijente.': 'Erfasse schnell Mahlzeiten, Kalorien und Makronährstoffe.',
+    'Istorija treninga': 'Trainingsverlauf',
+    'Pregledaj završene treninge i rezultate.': 'Sieh dir abgeschlossene Trainings und Ergebnisse an.',
+    'Grafici vježbi': 'Übungsdiagramme',
+    'Prati kilaže, ponavljanja i lične rekorde.': 'Verfolge Gewichte, Wiederholungen und persönliche Rekorde.',
+    'Moje tijelo': 'Mein Körper',
+    'Opcionalno prati težinu i obime kroz vrijeme.': 'Verfolge optional dein Gewicht und deine Maße im Zeitverlauf.',
+    'Ime, pol, godine i osnovni podaci': 'Name, Geschlecht, Alter und Basisdaten',
+    'Mjerenja i napredak': 'Messungen und Fortschritt',
+    'Težina i mjere tijela': 'Gewicht und Körpermaße',
+    'Ciljevi i treniranje': 'Ziele und Training',
+    'Podaci za personalizaciju': 'Angaben zur Personalisierung',
+    'Cilj, iskustvo, mjesto i broj treninga': 'Ziel, Erfahrung, Ort und Trainingshäufigkeit',
+    'Sedmični cilj': 'Wochenziel',
+    'Izaberi svoj sedmični cilj': 'Wähle dein Wochenziel',
+    'Ciljevi ishrane': 'Ernährungsziele',
+    'Nisu postavljeni': 'Nicht festgelegt',
+    'Opcionalni dnevni kalorijski i makro ciljevi': 'Optionale tägliche Kalorien- und Makroziele',
+    'Email adresa': 'E-Mail-Adresse',
+    'Sigurnost naloga': 'Kontosicherheit',
+    'Lozinka i pristup': 'Passwort und Zugriff',
+    'Promijeni GymLeader lozinku': 'GymLeader-Passwort ändern',
+    'Odjavi se ili trajno ukloni nalog i povezane podatke.': 'Melde dich ab oder lösche dein Konto und die zugehörigen Daten dauerhaft.',
+    'Pravila i privatnost': 'Nutzungsbedingungen und Datenschutz',
+    'Pravila korištenja': 'Nutzungsbedingungen',
+    'Pročitaj kako GymLeader koristi podatke': 'Lies, wie GymLeader Daten verwendet'
+  }
+};
+for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], REMAINING_SECTION_TRANSLATIONS[language]);
+
+const GENERATOR_RECOVERY_TRANSLATIONS = {
+  en: {
+    'Kardio i oporavak': 'Cardio and recovery',
+    'Odabrane mišićne grupe, izbjegnute vježbe ili dostupna oprema ne dopuštaju pun raspored za svaki izabrani dan. Prikazani su samo planovi za koje postoji dovoljno odgovarajućih vježbi.': 'Your selected muscle groups, avoided exercises, or available equipment do not allow a complete schedule for every chosen day. Only plans with enough suitable exercises are shown.'
+  },
+  de: {
+    'Kardio i oporavak': 'Cardio und Erholung',
+    'Odabrane mišićne grupe, izbjegnute vježbe ili dostupna oprema ne dopuštaju pun raspored za svaki izabrani dan. Prikazani su samo planovi za koje postoji dovoljno odgovarajućih vježbi.': 'Deine ausgewählten Muskelgruppen, vermiedenen Übungen oder verfügbaren Geräte erlauben keinen vollständigen Plan für jeden gewählten Tag. Es werden nur Pläne mit genügend passenden Übungen angezeigt.'
+  }
+};
+for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], GENERATOR_RECOVERY_TRANSLATIONS[language]);
+
+const PROFILE_QUESTION_TRANSLATIONS = {
+  en: {
+    'Da li si ovdje prvi put?': 'Is this your first time here?',
+    'Nikad ranije nisi koristio/la GymLeader na ovom uređaju?': 'Have you never used GymLeader on this device before?',
+    'Da, prvi put sam ovdje': 'Yes, this is my first time',
+    'Već imam GymLeader nalog': 'I already have a GymLeader account',
+    'Kako da te zovemo?': 'What should we call you?',
+    'Kako da ti se obraćamo?': 'How should we address you?',
+    'Koliko imaš godina?': 'How old are you?',
+    'Kolika je tvoja visina i težina?': 'What are your height and weight?',
+    'Šta želiš postići?': 'What do you want to achieve?',
+    'Na čemu želiš raditi?': 'What would you like to focus on?',
+    'Koliko puta sedmično želiš trenirati?': 'How many times a week would you like to train?',
+    'Gdje treniraš?': 'Where do you train?',
+    'Kakvo je tvoje iskustvo?': 'What is your experience level?',
+    'Koliko obično traje tvoj trening?': 'How long is your usual workout?',
+    'Koje mišićne grupe želiš trenirati?': 'Which muscle groups would you like to train?',
+    'Koje vježbe voliš raditi?': 'Which exercises do you enjoy?',
+    'Koje vježbe želiš izbjeći?': 'Which exercises would you like to avoid?',
+    'Imaš li alergije ili ograničenja hrane?': 'Do you have any allergies or dietary restrictions?',
+    'Nazad': 'Back', 'Dalje': 'Next', 'Sačuvaj sve planove': 'Save all plans',
+    'Smršati': 'Lose weight', 'Održavati težinu': 'Maintain weight', 'Dobiti na težini': 'Gain weight',
+    'Povećanje snage': 'Build strength', 'Mišićni napredak': 'Muscle progress', 'Opšta kondicija': 'General fitness',
+    'Početnik': 'Beginner', 'Srednji nivo': 'Intermediate', 'Napredni nivo': 'Advanced',
+    'Kod kuće': 'At home', 'Drugo': 'Other', 'Cijelo tijelo': 'Full body',
+    'Nemam posebnu želju': 'No special preference', 'Nemam vježbi koje izbjegavam': 'No exercises to avoid', 'Nemam alergije ni ograničenja hrane': 'No allergies or dietary restrictions'
+  },
+  de: {
+    'Da li si ovdje prvi put?': 'Bist du zum ersten Mal hier?',
+    'Nikad ranije nisi koristio/la GymLeader na ovom uređaju?': 'Hast du GymLeader auf diesem Gerät noch nie benutzt?',
+    'Da, prvi put sam ovdje': 'Ja, ich bin zum ersten Mal hier',
+    'Već imam GymLeader nalog': 'Ich habe bereits ein GymLeader-Konto',
+    'Kako da te zovemo?': 'Wie sollen wir dich nennen?',
+    'Kako da ti se obraćamo?': 'Wie sollen wir dich ansprechen?',
+    'Koliko imaš godina?': 'Wie alt bist du?',
+    'Kolika je tvoja visina i težina?': 'Wie groß und schwer bist du?',
+    'Šta želiš postići?': 'Was möchtest du erreichen?',
+    'Na čemu želiš raditi?': 'Woran möchtest du arbeiten?',
+    'Koliko puta sedmično želiš trenirati?': 'Wie oft pro Woche möchtest du trainieren?',
+    'Gdje treniraš?': 'Wo trainierst du?',
+    'Kakvo je tvoje iskustvo?': 'Welche Erfahrung hast du?',
+    'Koliko obično traje tvoj trening?': 'Wie lange dauert dein Training normalerweise?',
+    'Koje mišićne grupe želiš trenirati?': 'Welche Muskelgruppen möchtest du trainieren?',
+    'Koje vježbe voliš raditi?': 'Welche Übungen machst du gern?',
+    'Koje vježbe želiš izbjeći?': 'Welche Übungen möchtest du vermeiden?',
+    'Imaš li alergije ili ograničenja hrane?': 'Hast du Allergien oder Ernährungseinschränkungen?',
+    'Nazad': 'Zurück', 'Dalje': 'Weiter', 'Sačuvaj sve planove': 'Alle Pläne speichern',
+    'Smršati': 'Abnehmen', 'Održavati težinu': 'Gewicht halten', 'Dobiti na težini': 'Zunehmen',
+    'Povećanje snage': 'Kraft aufbauen', 'Mišićni napredak': 'Muskelaufbau', 'Opšta kondicija': 'Allgemeine Fitness',
+    'Početnik': 'Anfänger', 'Srednji nivo': 'Mittelstufe', 'Napredni nivo': 'Fortgeschritten',
+    'Kod kuće': 'Zu Hause', 'Drugo': 'Andere', 'Cijelo tijelo': 'Ganzkörper',
+    'Nemam posebnu želju': 'Keine besondere Präferenz', 'Nemam vježbi koje izbjegavam': 'Keine Übungen vermeiden', 'Nemam alergije ni ograničenja hrane': 'Keine Allergien oder Einschränkungen'
+  }
+};
+for (const language of ['en', 'de']) Object.assign(TRANSLATIONS[language], PROFILE_QUESTION_TRANSLATIONS[language]);
