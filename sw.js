@@ -1,4 +1,4 @@
-const BUILD = '20261001-offline-startup-v71';
+const BUILD = '20261002-registration-check-v75';
 const CACHE_NAME = `gymleader-app-${BUILD}`;
 
 // Every app-shell file carries the same build identifier in index.html. A new
@@ -65,12 +65,10 @@ self.addEventListener('fetch', (event) => {
   // Firebase modules and Chart.js are code dependencies, not user data. Cache
   // them after a successful online run so the local app can boot offline later.
   if (isFirebaseModule || isChartModule) {
+    const networkResponse = fetch(request);
+    event.waitUntil(networkResponse.then((response) => saveInCurrentCache(request, response)).catch(() => undefined));
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          event.waitUntil(saveInCurrentCache(request, response));
-          return response;
-        })
+      networkResponse
         .catch(() => caches.match(request).then((cached) => cached || Response.error()))
     );
     return;
@@ -81,12 +79,10 @@ self.addEventListener('fetch', (event) => {
   // HTML is always checked against the network. It is only served from cache
   // while offline, so a normal refresh receives the newest deployment.
   if (request.mode === 'navigate') {
+    const networkResponse = fetch(request, { cache: 'no-store' });
+    event.waitUntil(networkResponse.then((response) => saveInCurrentCache('/index.html', response)).catch(() => undefined));
     event.respondWith(
-      fetch(request, { cache: 'no-store' })
-        .then((response) => {
-          event.waitUntil(saveInCurrentCache('/index.html', response));
-          return response;
-        })
+      networkResponse
         .catch(() => caches.match('/index.html'))
     );
     return;
@@ -96,12 +92,10 @@ self.addEventListener('fetch', (event) => {
   // Query versions make the browser HTTP cache and service-worker cache agree.
   const isBuildAsset = url.searchParams.get('v') === BUILD;
   if (isBuildAsset || ['script', 'style', 'font', 'image', 'manifest'].includes(request.destination)) {
+    const networkResponse = fetch(request);
+    event.waitUntil(networkResponse.then((response) => saveInCurrentCache(request, response)).catch(() => undefined));
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          event.waitUntil(saveInCurrentCache(request, response));
-          return response;
-        })
+      networkResponse
         .catch(() => caches.match(request, { ignoreSearch: false })
           .then((cached) => cached || Response.error()))
     );

@@ -68,11 +68,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" href="assets/gymleader-icon.png?v=20261001-offline-startup-v71">
-  <link rel="apple-touch-icon" href="assets/gymleader-icon.png?v=20261001-offline-startup-v71">
-  <link rel="manifest" href="manifest.webmanifest?v=20261001-offline-startup-v71">
+  <link rel="icon" type="image/png" href="assets/gymleader-icon.png?v=20261002-registration-check-v75">
+  <link rel="apple-touch-icon" href="assets/gymleader-icon.png?v=20261002-registration-check-v75">
+  <link rel="manifest" href="manifest.webmanifest?v=20261002-registration-check-v75">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261001-offline-startup-v71">
+  <link rel="stylesheet" href="styles.css?v=20261002-registration-check-v75">
 
 </head>
 <body>
@@ -83,28 +83,27 @@
   <div class="auth-boot-orbit auth-boot-orbit-one"><span></span></div>
   <div class="auth-boot-orbit auth-boot-orbit-two"><span></span></div>
   <div class="auth-boot-card">
-    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261001-offline-startup-v71" alt=""></div>
+    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261002-registration-check-v75" alt=""></div>
     <div class="auth-boot-wordmark"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></div>
     <div class="auth-boot-progress"><span></span></div>
     <p id="auth-boot-text">Pripremamo tvoj trening.</p>
     <button id="auth-boot-retry" class="auth-boot-retry" type="button" hidden>Pokušaj ponovo</button>
   </div>
 </div>
-<script src="language-boot.js?v=20261001-offline-startup-v71"></script>
+<script src="language-boot.js?v=20261002-registration-check-v75"></script>
 
 <header>
     <button type="button" class="gymleader-brand" aria-label="GymLeader početna strana" data-action="go-home">
-      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261001-offline-startup-v71" alt=""></span>
+      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261002-registration-check-v75" alt=""></span>
       <span class="gymleader-brand-copy"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></span>
     </button>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
       <span id="user-email-display" class="user-pill" style="display:none;"></span>
-      <button id="login-modal-btn" style="background: var(--primary); border: none; color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 800; cursor: pointer;" data-action="switch-tab" data-tab="login">Prijava / Registracija 🔑</button>
     </div>
 </header>
 
 <aside id="pwa-install-banner" class="pwa-install-banner" hidden aria-live="polite">
-  <img src="assets/gymleader-icon.png?v=20261001-offline-startup-v71" alt="GymLeader" class="pwa-install-icon">
+  <img src="assets/gymleader-icon.png?v=20261002-registration-check-v75" alt="GymLeader" class="pwa-install-icon">
   <div class="pwa-install-copy"><strong>Otvori GymLeader kao aplikaciju</strong><span>Dodaj prečicu na početni ekran i otvaraj trening jednim dodirom.</span></div>
   <button class="pwa-install-button" data-action="install-app" type="button">Instaliraj</button>
   <button class="pwa-install-dismiss" data-action="dismiss-install" type="button" aria-label="Kasnije">×</button>
@@ -116,27 +115,25 @@
       <div class="card auth-card">
         <div class="auth-welcome">
           <div class="auth-brand-lockup" aria-label="GymLeader">
-            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261001-offline-startup-v71" alt=""></span>
+            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261002-registration-check-v75" alt=""></span>
             <span>Gym<span>Leader</span></span>
           </div>
           <h1 id="auth-title">Prijavi se u GymLeader</h1>
           <p>Sačuvaj planove, prati kilaže i vidi svoj napredak iz treninga u trening.</p>
         </div>
 
-        <div class="auth-choice-grid" aria-label="Izaberi način ulaska">
-          <button id="tab-btn-register" class="auth-choice" data-action="auth-mode" data-mode="register" type="button" aria-pressed="false" aria-disabled="false">
-            <span class="auth-choice-icon">✨</span>
-            <span class="auth-choice-label">Prvi put koristiš GymLeader?</span>
-            <strong>Registracija →</strong>
+        <div class="auth-choice-grid" aria-label="Izaberi da li praviš ili već imaš GymLeader nalog">
+          <button id="tab-btn-register" class="auth-choice" data-action="auth-mode" data-mode="register" type="button" aria-pressed="false">
+            <span class="auth-choice-icon" aria-hidden="true">✨</span>
+            <span class="auth-choice-label">Prvi put si ovdje? Nemaš GymLeader nalog?</span>
+            <strong>Napravi nalog →</strong>
           </button>
-          <button id="tab-btn-login" class="auth-choice is-active" data-action="auth-mode" data-mode="login" type="button" aria-pressed="true" aria-disabled="true">
-            <span class="auth-choice-icon">👋</span>
-            <span class="auth-choice-label">Trenutni ekran</span>
-            <strong>Prijava</strong>
+          <button id="tab-btn-login" class="auth-choice is-active" data-action="auth-mode" data-mode="login" type="button" aria-pressed="true">
+            <span class="auth-choice-icon" aria-hidden="true">👋</span>
+            <span class="auth-choice-label">Već imaš GymLeader nalog?</span>
+            <strong>Prijavi se →</strong>
           </button>
         </div>
-
-        <p id="auth-mode-hint" class="auth-mode-hint">Za prijavu koristi email adresu povezanu s GymLeaderom i svoju GymLeader lozinku. Gmail lozinka ne radi ovdje.</p>
 
         <form id="auth-form" novalidate>
           <div id="group-name" style="display: none; margin-bottom: 16px;">
@@ -173,23 +170,18 @@
             <span data-password-rule="number">✓ Najmanje jedan broj</span>
           </div>
 
-          <p class="auth-password-note"><strong>GymLeader lozinka je posebna lozinka za ovu aplikaciju.</strong> Ne unosi lozinku svog Gmaila ili drugog email naloga.</p>
+          <p class="auth-password-note">Unesi lozinku svog GymLeader naloga.</p>
 
           <div id="auth-login-actions" class="auth-login-actions">
             <button type="button" class="auth-inline-link auth-forgot-link" data-action="open-forgot-password">Zaboravio/la sam lozinku</button>
-            <button type="button" class="auth-inline-link" data-action="auth-mode" data-mode="register">Nemaš GymLeader nalog? Napravi ga</button>
           </div>
 
           <div id="auth-error" role="alert" aria-live="assertive" style="color: #ff4d4d; font-size: 0.85rem; margin-bottom: 12px; display: none;"></div>
 
           <button type="submit" id="auth-submit-btn" class="btn btn-purple" style="width: 100%; padding: 12px; font-size: 1rem;">
-            Prijavi Se →
+            Prijavi se u GymLeader →
           </button>
         </form>
-
-        <button id="auth-back-to-login" class="auth-inline-link" type="button" data-action="auth-mode" data-mode="login" style="display: none;">
-          Već imaš GymLeader nalog? Vrati se na prijavu
-        </button>
 
         <div id="registration-resume" class="auth-resume" style="display: none;" aria-live="polite">
           <strong>Nastavak registracije</strong>
@@ -225,7 +217,6 @@
         <h2 style="margin: 10px 0 6px 0; font-size: 1.5rem; font-weight: 900;">Šta želiš trenirati danas?</h2>
         <p id="dashboard-primary-help" style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 14px;">Izaberi plan koji danas želiš raditi.</p>
         <button id="dashboard-primary-action" class="btn" data-action="switch-tab" data-tab="workouts">Započni trening</button>
-        <div id="next-scheduled-routine" class="card next-scheduled-routine" hidden></div>
       </div>
 
       <div id="weekly-goal-card" class="weekly-goal-card card" hidden aria-live="polite"></div>
@@ -623,7 +614,7 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20261001-offline-startup-v71"></script>
+<script type="module" src="javascript.js?v=20261002-registration-check-v75"></script>
 </body>
 </html>
 

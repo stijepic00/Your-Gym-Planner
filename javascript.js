@@ -1,8 +1,8 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261001-offline-startup-v71';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261001-offline-startup-v71';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261001-offline-startup-v71';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261001-offline-startup-v71';
+  import { TRANSLATIONS } from './translations.js?v=20261002-registration-check-v75';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261002-registration-check-v75';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261002-registration-check-v75';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261002-registration-check-v75';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -136,8 +136,14 @@
   const BODY_MEASUREMENTS_CACHE_TTL_MS = 15 * 60 * 1000;
   const FOOD_ENTRIES_CACHE_TTL_MS = 10 * 60 * 1000;
   const LEGAL_DOCUMENT_VERSION = '2026-09-29';
+  const LEGAL_ACCEPTANCE_CACHE_PREFIX = 'gym_legal_acceptance_v1_';
+  const PENDING_SYNC_RETRY_MIN_MS = 5000;
+  const PENDING_SYNC_RETRY_MAX_MS = 60000;
   let deferredInstallPrompt = null;
   const PWA_INSTALL_DISMISSED_KEY = 'gymleader-install-dismissed-v1';
+  let pendingSyncRetryTimer = null;
+  let pendingSyncRetryDelayMs = PENDING_SYNC_RETRY_MIN_MS;
+  let pendingSyncInProgress = false;
 
   const VALID_GENDER_VALUES = new Set(['male', 'female', 'unspecified']);
   const REQUIRED_PROFILE_FIELDS = ['gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups', 'preferredExercises', 'avoidedExercises', 'foodAllergies'];
@@ -237,34 +243,54 @@
     const language = getCurrentLanguage();
     const copy = {
       sr: {
-        loginTitle: 'Prijavi se u GymLeader', registerTitle: 'Napravi GymLeader nalog', current: 'Trenutni ekran',
-        loginPrompt: 'Već imaš GymLeader nalog?', registerPrompt: 'Prvi put koristiš GymLeader?', login: 'Prijava', register: 'Registracija →'
+        loginTitle: 'Prijavi se u GymLeader', registerTitle: 'Napravi GymLeader nalog',
+        loginPrompt: 'Već imaš GymLeader nalog?', loginAction: 'Prijavi se →',
+        registerPrompt: 'Prvi put si ovdje? Nemaš GymLeader nalog?', registerAction: 'Napravi nalog →',
+        loginSubmit: 'Prijavi se u GymLeader →', registerSubmit: 'Registruj GymLeader nalog →',
+        loginSocial: 'ili prijavi se sa svojim Google nalogom:', registerSocial: 'ili napravi GymLeader nalog putem Googlea:',
+        verificationSent: 'Poslali smo šestocifreni kod na tvoju email adresu. Provjeri i Spam/Neželjenu poštu.',
+        passwordHint: 'Unesi lozinku svog GymLeader naloga.'
       },
       en: {
-        loginTitle: 'Sign in to GymLeader', registerTitle: 'Create a GymLeader account', current: 'Current screen',
-        loginPrompt: 'Already have a GymLeader account?', registerPrompt: 'New to GymLeader?', login: 'Sign in', register: 'Register →'
+        loginTitle: 'Sign in to GymLeader', registerTitle: 'Create a GymLeader account',
+        loginPrompt: 'Already have a GymLeader account?', loginAction: 'Sign in →',
+        registerPrompt: 'First time here? Don’t have a GymLeader account?', registerAction: 'Create an account →',
+        loginSubmit: 'Sign in to GymLeader →', registerSubmit: 'Create a GymLeader account →',
+        loginSocial: 'or sign in with your Google account:', registerSocial: 'or create a GymLeader account with Google:',
+        verificationSent: 'We sent a six-digit code to your email address. Check your Spam/Junk folder too.',
+        passwordHint: 'Enter your GymLeader account password.'
       },
       de: {
-        loginTitle: 'Bei GymLeader anmelden', registerTitle: 'GymLeader-Konto erstellen', current: 'Aktuelle Seite',
-        loginPrompt: 'Du hast schon ein GymLeader-Konto?', registerPrompt: 'Neu bei GymLeader?', login: 'Anmelden', register: 'Registrieren →'
+        loginTitle: 'Bei GymLeader anmelden', registerTitle: 'GymLeader-Konto erstellen',
+        loginPrompt: 'Du hast bereits ein GymLeader-Konto?', loginAction: 'Anmelden →',
+        registerPrompt: 'Zum ersten Mal hier? Noch kein GymLeader-Konto?', registerAction: 'Konto erstellen →',
+        loginSubmit: 'Bei GymLeader anmelden →', registerSubmit: 'GymLeader-Konto erstellen →',
+        loginSocial: 'oder melde dich mit deinem Google-Konto an:', registerSocial: 'oder erstelle ein GymLeader-Konto mit Google:',
+        verificationSent: 'Wir haben einen sechsstelligen Code an deine E-Mail-Adresse gesendet. Prüfe auch den Spam-Ordner.',
+        passwordHint: 'Gib das Passwort deines GymLeader-Kontos ein.'
       }
     }[language] || {};
     const isRegister = currentAuthMode === 'register';
     const title = document.getElementById('auth-title');
-    const login = document.getElementById('tab-btn-login');
-    const register = document.getElementById('tab-btn-register');
     if (title) title.textContent = isRegister ? (copy.registerTitle || 'Napravi GymLeader nalog') : (copy.loginTitle || 'Prijavi se u GymLeader');
-
-    [[login, !isRegister], [register, isRegister]].forEach(([button, active]) => {
-      if (!button) return;
-      button.classList.toggle('is-active', active);
-      button.setAttribute('aria-pressed', String(active));
-      button.setAttribute('aria-disabled', String(active));
-      const label = button.querySelector('.auth-choice-label');
-      const action = button.querySelector('strong');
-      if (label) label.textContent = active ? (copy.current || 'Trenutni ekran') : (button === login ? (copy.loginPrompt || 'Već imaš GymLeader nalog?') : (copy.registerPrompt || 'Prvi put koristiš GymLeader?'));
-      if (action) action.textContent = active ? (button === login ? (copy.login || 'Prijava') : (copy.register || 'Registracija')) : (button === login ? (copy.login || 'Prijava') : (copy.register || 'Registracija →'));
+    const loginCard = document.getElementById('tab-btn-login');
+    const registerCard = document.getElementById('tab-btn-register');
+    const submit = document.getElementById('auth-submit-btn');
+    const socialText = document.getElementById('social-auth-text');
+    const passwordHint = document.querySelector('.auth-password-note');
+    [[loginCard, !isRegister, copy.loginPrompt, copy.loginAction], [registerCard, isRegister, copy.registerPrompt, copy.registerAction]].forEach(([card, active, prompt, action]) => {
+      if (!card) return;
+      card.classList.toggle('is-active', active);
+      card.setAttribute('aria-pressed', String(active));
+      const label = card.querySelector('.auth-choice-label');
+      const actionLabel = card.querySelector('strong');
+      if (label && prompt) label.textContent = prompt;
+      if (actionLabel && action) actionLabel.textContent = action;
     });
+    if (submit) submit.textContent = isRegister ? (copy.registerSubmit || 'Registruj GymLeader nalog →') : (copy.loginSubmit || 'Prijavi se u GymLeader →');
+    if (socialText) socialText.textContent = isRegister ? (copy.registerSocial || 'ili napravi GymLeader nalog putem Googlea:') : (copy.loginSocial || 'ili prijavi se sa svojim Google nalogom:');
+    if (passwordHint) passwordHint.textContent = copy.passwordHint || 'Unesi lozinku svog GymLeader naloga.';
+    return copy;
   }
 
   window.toggleAuthMode = function(mode) {
@@ -272,14 +298,10 @@
     currentAuthMode = mode;
     const groupName = document.getElementById('group-name');
     const btnSubmit = document.getElementById('auth-submit-btn');
-    const tabLogin = document.getElementById('tab-btn-login');
-    const tabRegister = document.getElementById('tab-btn-register');
     const errorDiv = document.getElementById('auth-error');
     const socialText = document.getElementById('social-auth-text');
-    const modeHint = document.getElementById('auth-mode-hint');
     const confirmGroup = document.getElementById('group-confirm-password');
     const passwordRules = document.getElementById('register-password-rules');
-    const backToLogin = document.getElementById('auth-back-to-login');
     const loginActions = document.getElementById('auth-login-actions');
     const passwordInput = document.getElementById('auth-password');
 
@@ -289,28 +311,24 @@
       if (groupName) groupName.style.display = 'block';
       if (confirmGroup) confirmGroup.style.display = 'block';
       if (passwordRules) passwordRules.style.display = 'flex';
-      if (backToLogin) backToLogin.style.display = 'block';
       if (loginActions) loginActions.style.display = 'none';
       if (passwordInput) {
         passwordInput.autocomplete = 'new-password';
         passwordInput.placeholder = 'Napravi lozinku za GymLeader';
       }
-      if (btnSubmit) btnSubmit.innerText = 'Napravi GymLeader nalog →';
+      if (btnSubmit) btnSubmit.innerText = 'Registruj GymLeader nalog →';
       if (socialText) socialText.innerText = 'ili napravi GymLeader nalog putem Googlea:';
-      if (modeHint) modeHint.innerText = 'Napravi poseban GymLeader nalog. Email je adresa za nalog, a lozinku biraš samo za GymLeader.';
     } else {
       if (groupName) groupName.style.display = 'none';
       if (confirmGroup) confirmGroup.style.display = 'none';
       if (passwordRules) passwordRules.style.display = 'none';
-      if (backToLogin) backToLogin.style.display = 'none';
       if (loginActions) loginActions.style.display = 'block';
       if (passwordInput) {
         passwordInput.autocomplete = 'current-password';
         passwordInput.placeholder = 'Lozinka za GymLeader';
       }
       if (btnSubmit) btnSubmit.innerText = 'Prijavi se u GymLeader →';
-      if (socialText) socialText.innerText = 'ili uđi putem Google naloga:';
-      if (modeHint) modeHint.innerText = 'Za prijavu koristi email adresu povezanu s GymLeaderom i svoju GymLeader lozinku. Gmail lozinka ne radi ovdje.';
+      if (socialText) socialText.innerText = 'ili prijavi se sa svojim Google nalogom:';
     }
     updateAuthModePresentation();
     updatePasswordRuleState();
@@ -514,7 +532,6 @@
         await sendVerificationCodeEmail(email);
         saveRegistrationDraft({ email, name });
         openVerificationModal();
-        ShowToast('Verifikacioni kod je poslat na tvoj email. 📩');
         return;
       }
 
@@ -526,6 +543,14 @@
       if (!errorDiv) return;
       errorDiv.style.display = 'block';
       errorDiv.textContent = getFriendlyAuthError(error, currentAuthMode);
+      if (currentAuthMode === 'register' && error?.code === 'auth/email-already-in-use') {
+        const loginButton = document.createElement('button');
+        loginButton.type = 'button';
+        loginButton.className = 'auth-inline-link';
+        loginButton.textContent = 'Prijavi se sa postojećim GymLeader nalogom';
+        loginButton.addEventListener('click', () => window.toggleAuthMode('login'));
+        errorDiv.appendChild(loginButton);
+      }
     }
   };
 
@@ -641,10 +666,58 @@
     if (button) button.disabled = !(terms && privacy);
   }
 
+  function getLegalAcceptanceCacheKey(userId) {
+    return `${LEGAL_ACCEPTANCE_CACHE_PREFIX}${userId}`;
+  }
+
+  function hasAcceptedCurrentLegalVersion(profile) {
+    return profile?.termsVersion === LEGAL_DOCUMENT_VERSION
+      && profile?.privacyVersion === LEGAL_DOCUMENT_VERSION;
+  }
+
+  function readLegalAcceptanceCache(userId) {
+    if (!userId) return false;
+    try {
+      const cached = JSON.parse(localStorage.getItem(getLegalAcceptanceCacheKey(userId)) || 'null');
+      return cached?.userId === userId
+        && cached?.termsVersion === LEGAL_DOCUMENT_VERSION
+        && cached?.privacyVersion === LEGAL_DOCUMENT_VERSION;
+    } catch {
+      return false;
+    }
+  }
+
+  function writeLegalAcceptanceCache(userId, profile) {
+    if (!userId || !hasAcceptedCurrentLegalVersion(profile)) return;
+    try {
+      localStorage.setItem(getLegalAcceptanceCacheKey(userId), JSON.stringify({
+        userId,
+        termsVersion: LEGAL_DOCUMENT_VERSION,
+        privacyVersion: LEGAL_DOCUMENT_VERSION,
+        cachedAt: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Lokalna potvrda pravila nije mogla biti sačuvana:', error);
+    }
+  }
+
+  function clearLegalAcceptanceCache(userId) {
+    if (!userId) return;
+    try {
+      localStorage.removeItem(getLegalAcceptanceCacheKey(userId));
+    } catch (error) {
+      console.warn('Lokalna potvrda pravila nije mogla biti uklonjena:', error);
+    }
+  }
+
   function showLegalAcceptanceIfRequired() {
     if (!currentUser) return;
-    const accepted = currentProfileData?.termsVersion === LEGAL_DOCUMENT_VERSION
-      && currentProfileData?.privacyVersion === LEGAL_DOCUMENT_VERSION;
+    // A failed Firestore read while offline must not turn a previously accepted
+    // document into a new required consent flow. The cache is scoped to this UID
+    // and is used only while the profile cannot be read at all.
+    const accepted = profileReadSucceeded
+      ? hasAcceptedCurrentLegalVersion(currentProfileData)
+      : readLegalAcceptanceCache(currentUser.uid);
     const modal = document.getElementById('legal-acceptance-modal');
     if (!modal) return;
     if (accepted) {
@@ -681,6 +754,7 @@
       };
       await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
       currentProfileData = { ...(currentProfileData || {}), ...profile };
+      writeLegalAcceptanceCache(currentUser.uid, currentProfileData);
       document.getElementById('legal-acceptance-modal').style.display = 'none';
       ShowToast('Hvala — možeš nastaviti u GymLeader.');
     } catch (error) {
@@ -695,7 +769,6 @@
   };
 
   onAuthStateChanged(auth, async (user) => {
-    const loginBtn = document.getElementById('login-modal-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const bottomNav = document.getElementById('bottom-nav');
     const mailDisplay = document.getElementById('user-email-display');
@@ -713,7 +786,6 @@
       currentUser = user;
       
       if (bottomNav) bottomNav.style.display = 'flex';
-      if (loginBtn) loginBtn.style.display = 'none';
       if (logoutBtn) logoutBtn.style.display = 'inline-block';
       
       if (mailDisplay) {
@@ -721,6 +793,11 @@
           const userDoc = await getDoc(doc(db, "users", user.uid));
           profileReadSucceeded = true;
           currentProfileData = userDoc.exists() ? userDoc.data() : null;
+          if (hasAcceptedCurrentLegalVersion(currentProfileData)) {
+            writeLegalAcceptanceCache(user.uid, currentProfileData);
+          } else if (navigator.onLine) {
+            clearLegalAcceptanceCache(user.uid);
+          }
           if (userDoc.exists() && userDoc.data().fullName) {
             mailDisplay.innerText = userDoc.data().fullName;
           } else {
@@ -765,7 +842,6 @@
       if (bottomNav) bottomNav.style.display = 'none';
       if (logoutBtn) logoutBtn.style.display = 'none';
       if (mailDisplay) mailDisplay.style.display = 'none';
-      if (loginBtn) loginBtn.style.display = 'inline-block';
       switchTab('login');
     }
     hideAuthBootScreen();
@@ -958,7 +1034,7 @@
     const today = new Date().getDay();
     const dayLabel = offset === 0 ? 'Danas' : offset === 1 ? 'Sutra' : routineWeekdayLabels[(today + offset) % 7];
     container.hidden = false;
-    container.innerHTML = `<div class="next-scheduled-copy"><span class="settings-eyebrow">SLJEDEĆI PLAN</span><h3>${escapeHtml(dayLabel)}: ${chosen.emoji ? `${escapeHtml(chosen.emoji)} ` : ''}${escapeHtml(chosen.name)}</h3><p>Plan iz tvog opcionalnog sedmičnog rasporeda.</p></div><button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(chosen.id)}">Započni ovaj trening →</button>`;
+    container.innerHTML = `<div class="next-scheduled-copy"><span class="settings-eyebrow">SLJEDEĆI PLAN</span><h3>${escapeHtml(dayLabel)}: ${chosen.emoji ? `${escapeHtml(chosen.emoji)} ` : ''}${escapeHtml(chosen.name)}</h3><p>Plan iz tvog opcionalnog sedmičnog rasporeda.</p></div>`;
   }
 
   function getNextScheduledRoutine() {
@@ -2741,16 +2817,42 @@
     const localCopy = { ...workoutData, _localId: workoutId, _syncStatus: 'pending' };
     cachedHistory = [localCopy, ...cachedHistory.filter((item) => item._localId !== workoutId)].slice(0, 30);
     writeHistoryCache(currentUser.uid, cachedHistory);
+    schedulePendingWorkoutSync();
+  }
+
+  function hasPendingWorkoutsForCurrentUser() {
+    return Boolean(currentUser) && pendingWorkoutsMemory.some((item) => item.userId === currentUser.uid);
+  }
+
+  function clearPendingWorkoutSyncRetry() {
+    if (pendingSyncRetryTimer) {
+      window.clearTimeout(pendingSyncRetryTimer);
+      pendingSyncRetryTimer = null;
+    }
+    pendingSyncRetryDelayMs = PENDING_SYNC_RETRY_MIN_MS;
+  }
+
+  function schedulePendingWorkoutSync(delayMs = pendingSyncRetryDelayMs) {
+    if (!currentUser || !navigator.onLine || !hasPendingWorkoutsForCurrentUser() || pendingSyncRetryTimer) return;
+    pendingSyncRetryTimer = window.setTimeout(async () => {
+      pendingSyncRetryTimer = null;
+      await syncPendingWorkouts();
+    }, Math.max(0, delayMs));
   }
 
   async function syncPendingWorkouts() {
-    if (!currentUser || !navigator.onLine) return;
+    if (!currentUser || !navigator.onLine || pendingSyncInProgress) return;
     const queue = pendingWorkoutsMemory.filter((item) => item.userId === currentUser.uid);
-    if (queue.length === 0) return;
+    if (queue.length === 0) {
+      clearPendingWorkoutSyncRetry();
+      return;
+    }
+    pendingSyncInProgress = true;
     renderPendingSyncStatus();
 
     const remaining = [];
     let syncedCount = 0;
+    try {
     for (const item of queue) {
       item.status = 'syncing';
       await savePendingWorkouts(currentUser.uid, queue);
@@ -2767,10 +2869,19 @@
       }
     }
     await savePendingWorkouts(currentUser.uid, remaining);
+    if (remaining.length && navigator.onLine) {
+      pendingSyncRetryDelayMs = Math.min(pendingSyncRetryDelayMs * 2, PENDING_SYNC_RETRY_MAX_MS);
+      schedulePendingWorkoutSync();
+    } else if (remaining.length === 0) {
+      clearPendingWorkoutSyncRetry();
+    }
     renderPendingSyncStatus();
     if (syncedCount > 0) {
       await loadCloudData();
       ShowToast(remaining.length ? `Sinhronizovano: ${syncedCount}. Čeka još: ${remaining.length}.` : 'Trening sinhronizovan sa Cloudom.');
+    }
+    } finally {
+      pendingSyncInProgress = false;
     }
   }
 
@@ -3943,14 +4054,15 @@ function renderPendingSyncStatus() {
     }
   };
 
-  window.ShowToast = function(message, type = 'success') {
+  window.ShowToast = function(message, type = 'success', placement = 'center') {
     let toast = document.getElementById('custom-toast');
     if (!toast) {
       toast = document.createElement('div');
       toast.id = 'custom-toast';
-      toast.className = 'toast-notification';
+    toast.className = 'toast-notification';
       document.body.appendChild(toast);
     }
+    toast.classList.toggle('toast-notification-top', placement === 'top');
     toast.innerText = translateUiText(String(message));
     toast.style.borderColor = type === 'error' ? 'var(--danger)' : 'var(--primary)';
     toast.style.boxShadow = type === 'error' ? '0 20px 40px rgba(0,0,0,0.6), 0 0 25px rgba(239, 68, 68, 0.4)' : '0 20px 40px rgba(0,0,0,0.6), 0 0 25px var(--primary-glow)';
@@ -5873,7 +5985,7 @@ function renderPendingSyncStatus() {
   }
 
   async function clearLocalUserData(userId) {
-    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v', 'gym_weekly_goal_v1_', 'gym_food_entries_cache_v1_', 'gym_food_daily_goal_v1_', 'gym_food_favorites_v1_'];
+    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v', 'gym_legal_acceptance_v1_', 'gym_weekly_goal_v1_', 'gym_food_entries_cache_v1_', 'gym_food_daily_goal_v1_', 'gym_food_favorites_v1_'];
     const matchingKeys = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
@@ -6373,7 +6485,10 @@ function renderPendingSyncStatus() {
     };
     document.getElementById('auth-email')?.addEventListener('input', saveRegistrationProgress);
     document.getElementById('auth-name')?.addEventListener('input', saveRegistrationProgress);
-    window.addEventListener('online', syncPendingWorkouts);
+    window.addEventListener('online', () => {
+      clearPendingWorkoutSyncRetry();
+      schedulePendingWorkoutSync(0);
+    });
 
     document.getElementById('delete-account-modal')?.addEventListener('input', updateDeleteAccountButton);
     document.getElementById('delete-account-modal')?.addEventListener('change', updateDeleteAccountButton);
@@ -6949,7 +7064,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261001-offline-startup-v71';
+    const build = '20261002-registration-check-v75';
     const reloadKey = `gymleader-sw-reloaded-${build}`;
     let reloadingForWorker = false;
 
@@ -7056,7 +7171,9 @@ async function sendVerificationCodeEmail(email) {
     if (!response.ok) {
       const errorMsg = result?.error?.message || result?.error || result?.message || rawResponse;
       console.error(`Server Vratio Grešku (${response.status}):`, errorMsg);
-      throw new Error(`Slanje koda nije uspjelo (${response.status}): ${typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg)}`);
+      const requestError = new Error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
+      if (response.status === 409 || result?.code === 'ACCOUNT_EXISTS') requestError.code = 'auth/email-already-in-use';
+      throw requestError;
     }
 
     if (!result) {
@@ -7088,9 +7205,9 @@ window.openVerificationModal = function() {
       <div class="modal-content text-center">
         <h3 style="font-size:1.2rem;font-weight:800;margin-bottom:8px;">🔑 Potvrdi email</h3>
         <p style="color:var(--text-muted);font-size:.85rem;line-height:1.45;margin-bottom:10px;">
-          Poslali smo 6-cifreni kod na <strong id="verification-email-label"></strong>.
           Kod važi 10 minuta. Ako zatvoriš aplikaciju, registraciju možeš nastaviti na ovom uređaju.
         </p>
+        <p id="verification-info" class="verification-info" role="status" aria-live="polite"></p>
         <div id="verification-password-wrap" style="display:none;text-align:left;margin-bottom:10px;">
           <label style="display:block;font-weight:700;font-size:.82rem;margin-bottom:6px;">GymLeader lozinka</label>
           <input type="password" id="verify-password-input" class="custom-input" autocomplete="new-password" placeholder="Ponovo unesi lozinku">
@@ -7106,8 +7223,11 @@ window.openVerificationModal = function() {
     `;
     document.body.appendChild(modal);
   }
-  const emailLabel = document.getElementById('verification-email-label');
-  if (emailLabel) emailLabel.textContent = pendingVerification.email || '';
+  const verificationInfo = document.getElementById('verification-info');
+  if (verificationInfo) {
+    const notice = translateUiText('Poslali smo šestocifreni kod na tvoju email adresu. Provjeri i Spam/Neželjenu poštu.');
+    verificationInfo.textContent = `${notice} (${pendingVerification.email || ''})`;
+  }
   const passwordWrap = document.getElementById('verification-password-wrap');
   if (passwordWrap) passwordWrap.style.display = pendingVerification.password ? 'none' : 'block';
   const codeInput = document.getElementById('verify-code-input');
@@ -7152,7 +7272,7 @@ window.confirmVerificationCode = async function() {
     pendingVerification = { email: '', name: '', password: '' };
     document.getElementById('verificationModal').style.display = 'none';
     document.getElementById('auth-form')?.reset();
-    ShowToast('Registracija uspješna! Dovršimo tvoj profil. 🔥');
+    ShowToast('Registracija uspješna! Dovršimo tvoj profil. 🔥', 'success', 'top');
     setTimeout(() => window.openOnboardingModal(), 250);
   } catch (error) {
     if (verifyError) { verifyError.textContent = getFriendlyVerificationError(error); verifyError.style.display = 'block'; }

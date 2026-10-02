@@ -1,5 +1,5 @@
 import { createHash, randomInt } from 'node:crypto';
-import { getAdminDb, verifyAppCheckRequest } from './firebase-admin.js';
+import { getAdminAuth, getAdminDb, verifyAppCheckRequest } from './firebase-admin.js';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_DELAY_MS = 60 * 1000;
@@ -48,6 +48,16 @@ export default async function handler(req, res) {
   if (!EMAIL_PATTERN.test(email) || email.length > 254) return res.status(400).json({ error: 'Unesite ispravan e-mail.' });
 
   try {
+    try {
+      await getAdminAuth().getUserByEmail(email);
+      return res.status(409).json({
+        code: 'ACCOUNT_EXISTS',
+        error: 'Ovaj email već koristi GymLeader nalog. Prijavi se sa svojim nalogom.'
+      });
+    } catch (error) {
+      if (error.code !== 'auth/user-not-found') throw error;
+    }
+
     const db = getAdminDb();
     const verificationRef = db.collection('_verificationCodes').doc(emailId(email));
     const ipRateRef = db.collection('_verificationRateLimits').doc(emailId(clientIp(req)));

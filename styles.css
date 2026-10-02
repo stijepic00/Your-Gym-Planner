@@ -1377,6 +1377,9 @@ nav {
       max-width: 85vw; width: max-content;
     }
     .toast-notification.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .toast-notification.toast-notification-top { top: 14px; transform: translate(-50%, -40%) scale(.9); }
+    .toast-notification.toast-notification-top.show { transform: translate(-50%, 0) scale(1); }
+    .verification-info { margin: 0 0 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb,var(--primary) 38%,transparent); border-radius: 10px; background: color-mix(in srgb,var(--primary) 11%,transparent); color: var(--text-main); font-size: .82rem; line-height: 1.45; text-align: left; }
 
     .modal {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
