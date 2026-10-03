@@ -1,9 +1,9 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v112';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-i18n-v112';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-i18n-v112';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v112';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-i18n-v112';
+  import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v113';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-i18n-v113';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-i18n-v113';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v113';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-i18n-v113';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -622,6 +622,9 @@
     if (code === 'auth/weak-password') return 'GymLeader lozinka mora imati najmanje 8 karaktera.';
     if (['auth/too-many-requests', 'auth/quota-exceeded'].includes(code)) return 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.';
     if (code === 'auth/network-request-failed') return 'Nema internet veze. Provjeri vezu i pokušaj ponovo.';
+    if (['verification/401', 'verification/403'].includes(code)) return 'Sigurnosna provjera nije uspjela. Osvježi stranicu pa pokušaj ponovo.';
+    if (code === 'verification/429') return 'Previše pokušaja. Sačekaj malo pa pokušaj ponovo.';
+    if (['verification/500', 'verification/502'].includes(code)) return 'Potvrdu emaila trenutno nije moguće završiti. Pokušaj ponovo.';
     if (code === 'auth/user-disabled') return 'Ovaj GymLeader nalog je trenutno onemogućen. Pokušaj ponovo kasnije.';
     if (code === 'auth/operation-not-allowed') return 'Ovaj način ulaska trenutno nije dostupan. Pokušaj ponovo kasnije.';
     return mode === 'register'
@@ -679,7 +682,7 @@
       console.error('Auth greška:', error);
       if (!errorDiv) return;
       errorDiv.style.display = 'block';
-      errorDiv.textContent = getFriendlyAuthError(error, currentAuthMode);
+      errorDiv.textContent = translateUiText(getFriendlyAuthError(error, currentAuthMode));
       if (currentAuthMode === 'register' && error?.code === 'auth/email-already-in-use') {
         const loginButton = document.createElement('button');
         loginButton.type = 'button';
@@ -8007,7 +8010,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261003-i18n-v112';
+    const build = '20261003-i18n-v113';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
@@ -8103,7 +8106,11 @@ async function sendVerificationCodeEmail(email) {
       const errorMsg = result?.error?.message || result?.error || result?.message || rawResponse;
       console.error(`Server Vratio Grešku (${response.status}):`, errorMsg);
       const requestError = new Error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
-      if (response.status === 409 || result?.code === 'ACCOUNT_EXISTS') requestError.code = 'auth/email-already-in-use';
+      if (response.status === 409 || result?.code === 'ACCOUNT_EXISTS') {
+        requestError.code = 'auth/email-already-in-use';
+      } else if ([401, 403, 429, 500, 502].includes(response.status)) {
+        requestError.code = `verification/${response.status}`;
+      }
       throw requestError;
     }
 
