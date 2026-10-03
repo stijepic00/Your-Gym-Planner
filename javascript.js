@@ -1,9 +1,9 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v114';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-i18n-v114';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-i18n-v114';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v114';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-i18n-v114';
+  import { TRANSLATIONS } from './translations.js?v=20261003-home-v127';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-home-v127';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-home-v127';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-home-v127';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-home-v127';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -120,6 +120,12 @@
   let bodyChartInstance = null;
   let foodEntries = [];
   let foodEntriesLoadedDate = '';
+  let progressFoodEntries = [];
+  let progressFoodUserId = '';
+  let progressFoodFetch = null;
+  let progressFoodComplete = false;
+  let progressFoodTruncated = false;
+  let progressFoodLastFetch = 0;
   let activeMealPlan = null;
   let activeMealPlanOptions = null;
   let activeMealPlanDayIndex = 0;
@@ -915,6 +921,14 @@
     if (user) {
       dismissFirstVisitPrompt();
       if (currentUser && currentUser.uid !== user.uid) {
+        bodyMeasurements = [];
+        cachedHistory = [];
+        progressFoodEntries = [];
+        progressFoodUserId = '';
+        progressFoodComplete = false;
+        progressFoodTruncated = false;
+        progressFoodLastFetch = 0;
+        progressFoodFetch = null;
         activeMealPlan = null;
         activeMealPlanOptions = null;
         savedMealPlans = [];
@@ -969,6 +983,14 @@
       }
       currentUser = null;
       currentProfileData = null;
+      bodyMeasurements = [];
+      cachedHistory = [];
+      progressFoodEntries = [];
+      progressFoodUserId = '';
+      progressFoodComplete = false;
+      progressFoodTruncated = false;
+      progressFoodLastFetch = 0;
+      progressFoodFetch = null;
       activeMealPlan = null;
       activeMealPlanOptions = null;
       savedMealPlans = [];
@@ -1031,12 +1053,28 @@
     document.body.scrollTop = 0;
   }
 
+  const progressTabIds = new Set(['progress', 'food', 'history', 'analytics', 'body']);
+
+  function updateProgressNavigation(tabId) {
+    const navigation = document.querySelector('.progress-navigation');
+    if (!navigation || !progressTabIds.has(tabId)) return;
+
+    navigation.querySelectorAll('.progress-navigation-item').forEach((button) => {
+      const isActive = button.dataset.tab === tabId;
+      button.classList.toggle('is-active', isActive);
+      if (isActive) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+
+  }
+
   window.switchTab = function(tabId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     
     const targetView = document.getElementById(`view-${tabId}`);
     if (targetView) targetView.classList.add('active');
+    updateProgressNavigation(tabId);
 
     const navBtns = document.querySelectorAll('.nav-item');
     const indexMap = { dashboard: 0, workouts: 1, analytics: 2, body: 2, food: 2, history: 2, progress: 2, settings: 3 };
@@ -1045,7 +1083,17 @@
     }
 
     if (tabId === 'history') renderHistory();
-    if (tabId === 'dashboard') { checkDraftState(); renderDashboard(); }
+    if (tabId === 'progress') {
+      renderProgressOverview();
+      loadBodyMeasurements();
+      loadProgressFoodEntries();
+    }
+    if (tabId === 'dashboard') {
+      checkDraftState();
+      renderDashboard();
+      loadBodyMeasurements();
+      loadProgressFoodEntries();
+    }
     if (tabId === 'workouts') renderWorkouts();
     if (tabId === 'analytics') setupAnalyticsUI();
     if (tabId === 'body') {
@@ -3654,6 +3702,7 @@ async function loadCloudData() {
     writeHistoryCache(currentUser.uid, cachedHistory);
     checkDraftState();
     renderDashboard();
+    if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
     if (document.getElementById('view-history')?.classList.contains('active')) renderHistory();
   } catch (e) {
     console.error("Greška pri učitavanju sa clouda: ", e);
@@ -3706,44 +3755,80 @@ function renderPendingSyncStatus() {
 }
 
   function renderDashboard() {
-    const greeting = document.getElementById('dashboard-greeting');
-    if (greeting) greeting.textContent = getDashboardGreeting();
+    renderDashboardHero();
+    renderDashboardSummary();
     renderDashboardPrimaryAction();
     renderWeeklyGoalCard();
     renderPendingSyncStatus();
     const container = document.getElementById('last-workout-container');
     if (cachedHistory.length === 0) {
-      container.innerHTML = `<p style="color: var(--text-muted);">${escapeHtml(translateUiText('Još nema zapisa na Cloud-u.'))}</p>`;
+      container.innerHTML = `<span class="dashboard-shortcut-icon dashboard-recent-icon" aria-hidden="true">▶</span><span class="dashboard-shortcut-copy"><strong>${escapeHtml(translateUiText('Posljednji trening'))}</strong><small>${escapeHtml(translateUiText('Još nema sačuvanih treninga'))}</small></span><span class="dashboard-shortcut-chevron" aria-hidden="true">›</span>`;
       return;
     }
 
     const last = cachedHistory[0];
     const dateStr = formatDateClean(last.date, false);
+    const workoutName = last.name ? getRoutineDisplayName(last.name) : translateUiText('Trening');
+    const exerciseCount = Array.isArray(last.exercises) ? last.exercises.length : 0;
+    container.innerHTML = `<span class="dashboard-shortcut-icon dashboard-recent-icon" aria-hidden="true">▶</span><span class="dashboard-shortcut-copy"><strong>${escapeHtml(translateUiText('Posljednji trening'))}</strong><small><span data-no-translate>${escapeHtml(workoutName)}</span> · ${escapeHtml(dateStr)} · ${formatLocalizedNumber(exerciseCount, 0)} ${escapeHtml(translateUiText('vježbi'))}</small></span><span class="dashboard-shortcut-chevron" aria-hidden="true">›</span>`;
+  }
 
-    const exercisesHtml = last.exercises.map(ex => {
-      let contentHtml = '';
-      if (ex.sets && ex.sets.length > 0) {
-        contentHtml = ex.sets.map(s => `<span style="background: rgba(255,255,255,0.06); border: 1px solid var(--bg-card-border); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: #fff;">${escapeHtml(formatSetPerformance(s, ex))}</span>`).join(' ');
-      } else if (ex.minutes || ex.calories) {
-        contentHtml = `<span style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; color: var(--accent-purple);">${ex.minutes ? escapeHtml(ex.minutes) + ' min' : ''} ${ex.calories ? '· ' + escapeHtml(ex.calories) + ' kcal' : ''}</span>`;
-      }
+  function renderDashboardHero() {
+    const name = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || translateUiText('Korisnik');
+    const firstName = String(name).trim().split(/\s+/)[0] || name;
+    const heading = document.getElementById('dashboard-hero-name');
+    const visual = document.getElementById('dashboard-hero-visual');
+    const picture = document.getElementById('dashboard-hero-picture');
+    const mobileSource = document.getElementById('dashboard-hero-mobile-source');
+    const image = document.getElementById('dashboard-hero-image');
+    if (heading) heading.textContent = `${firstName}!`;
+    if (!visual || !picture || !mobileSource || !image) return;
+    const gender = getProfileGender();
+    const variant = gender === 'male' || gender === 'female' ? gender : 'neutral';
+    if (visual.dataset.heroVariant === variant) return;
+    visual.dataset.heroVariant = variant;
+    visual.className = `dashboard-hero-visual dashboard-hero-${variant}`;
+    if (variant === 'neutral') {
+      picture.hidden = true;
+      mobileSource.removeAttribute('srcset');
+      image.removeAttribute('src');
+      image.onerror = null;
+      return;
+    }
+    image.onerror = () => {
+      if (visual.dataset.heroVariant !== variant) return;
+      picture.hidden = true;
+      mobileSource.removeAttribute('srcset');
+      image.removeAttribute('src');
+      visual.className = 'dashboard-hero-visual dashboard-hero-neutral';
+    };
+    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261003-home-v127`;
+    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261003-home-v127`;
+    picture.hidden = false;
+  }
 
-      return `
-        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--bg-card-border);">
-          <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main); margin-bottom: 6px;"><span data-no-translate>${escapeHtml(getGeneratedExerciseDisplayName(ex))}</span></div>
-          <div style="display: flex; flex-wrap: wrap; gap: 6px;">${contentHtml}</div>
-          ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">📝 <span data-no-translate>${escapeHtml(ex.notes)}</span></div>` : ''}
-        </div>
-      `;
-    }).join('');
-
-    container.innerHTML = `
-      <div class="flex-between" style="margin-bottom: 6px;">
-        <strong style="font-size: 1.25rem; font-weight: 900; color: #fff;">${last.name ? `<span data-no-translate>${escapeHtml(getRoutineDisplayName(last.name))}</span>` : escapeHtml(translateUiText('Trening'))}</strong>
-        <span class="badge" style="color: var(--primary); font-size: 0.8rem;">${dateStr}</span>
-      </div>
-      ${exercisesHtml}
-    `;
+  function renderDashboardSummary() {
+    if (!currentUser) return;
+    const now = new Date();
+    const weekStart = getLocalWeekStart(now);
+    const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const weekDayKeys = new Set(progressDays(weekStart, weekEnd).map(progressDayKey));
+    const trainingDays = new Set(cachedHistory.map(getWorkoutDate).filter((date) => date && date >= weekStart && date < weekEnd).map(progressDayKey)).size;
+    const foodSource = progressFoodUserId === currentUser.uid ? progressFoodEntries : cachedProgressFoodEntries(weekStart, weekEnd);
+    const entries = foodSource.filter((entry) => weekDayKeys.has(String(entry.date || '').slice(0, 10)));
+    const loggedDays = new Set(entries.map((entry) => String(entry.date || '').slice(0, 10))).size;
+    const calories = entries.reduce((sum, entry) => sum + (Number(entry.calories) || 0), 0);
+    const measuredWeight = [...bodyMeasurements].find((item) => Number(item.weightKg) > 0)?.weightKg;
+    const profileWeight = Number(currentProfileData?.weightKg) > 0 ? Number(currentProfileData.weightKg) : null;
+    const weight = Number(measuredWeight) > 0 ? Number(measuredWeight) : profileWeight;
+    const workoutRoot = document.getElementById('dashboard-summary-workouts');
+    const calorieRoot = document.getElementById('dashboard-summary-calories');
+    const weightRoot = document.getElementById('dashboard-summary-weight');
+    const weightHelp = document.getElementById('dashboard-summary-weight-help');
+    if (workoutRoot) workoutRoot.textContent = formatLocalizedNumber(trainingDays, 0);
+    if (calorieRoot) calorieRoot.textContent = loggedDays ? `${formatLocalizedNumber(calories / loggedDays, 0)} kcal` : '—';
+    if (weightRoot) weightRoot.textContent = weight ? `${formatLocalizedNumber(weight)} kg` : '—';
+    if (weightHelp) weightHelp.textContent = translateUiText(weight ? 'Tjelesna težina' : 'Nema podataka');
   }
 
   function getWeeklyGoalStorageKey(userId = currentUser?.uid) {
@@ -3942,10 +4027,24 @@ function renderPendingSyncStatus() {
 
     const progress = Math.min(100, Math.round((thisWeekCount / goal) * 100));
     const countText = copy.count(thisWeekCount, goal);
+    const weekEnd = new Date(currentWeekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const completedDays = new Set(cachedHistory.map(getWorkoutDate)
+      .filter((date) => date && date >= currentWeekStart && date < weekEnd)
+      .map(progressDayKey));
+    const todayKey = progressDayKey(now);
+    const dayFormatter = new Intl.DateTimeFormat(getCurrentLocale(), { weekday: 'short' });
+    const dayMarkup = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(currentWeekStart);
+      date.setDate(date.getDate() + index);
+      const key = progressDayKey(date);
+      const label = dayFormatter.format(date).replace('.', '');
+      return `<div class="weekly-goal-day${completedDays.has(key) ? ' is-complete' : ''}${key === todayKey ? ' is-today' : ''}"><span>${completedDays.has(key) ? '✓' : ''}</span><small>${escapeHtml(label)}</small></div>`;
+    }).join('');
     const streakMarkup = streak
       ? `<span class="weekly-goal-streak">⚡ ${escapeHtml(copy.streak(streak.weeks, streak.reachedCacheLimit))}</span>`
       : '';
-    card.innerHTML = `<div class="weekly-goal-heading"><div><span class="weekly-goal-eyebrow">${escapeHtml(copy.title)}</span><strong>${escapeHtml(copy.thisWeek)}</strong></div>${streakMarkup}</div><div class="weekly-goal-stats"><strong>${escapeHtml(countText)}</strong><span>${escapeHtml(copy.goalLabel(goal))}</span></div><div class="weekly-goal-progress" role="progressbar" aria-label="${escapeHtml(copy.title)}" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.min(thisWeekCount, goal)}"><span style="width:${progress}%"></span></div><p class="weekly-goal-message">${escapeHtml(message)}</p>`;
+    card.innerHTML = `<div class="weekly-goal-heading"><div><span class="weekly-goal-eyebrow">${escapeHtml(copy.title)}</span><strong>${escapeHtml(countText)}</strong></div><div class="weekly-goal-heading-actions">${streakMarkup}<button type="button" data-action="open-weekly-goal-settings" aria-label="${escapeHtml(copy.settingTitle)}">›</button></div></div><div class="weekly-goal-days" role="list" aria-label="${escapeHtml(copy.thisWeek)}">${dayMarkup}</div><div class="weekly-goal-progress" role="progressbar" aria-label="${escapeHtml(copy.title)}" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.min(thisWeekCount, goal)}"><span style="width:${progress}%"></span></div><p class="weekly-goal-message">${escapeHtml(message)}</p>`;
     card.hidden = false;
   }
 
@@ -4008,14 +4107,14 @@ function renderPendingSyncStatus() {
     delete button.dataset.tab;
     if (!activePlans.length) {
       button.dataset.action = 'open-create-routine';
-      button.textContent = '➕ Napravi prvi plan';
-      help.textContent = 'Počni sa jednim planom treninga koji želiš ponavljati.';
+      button.innerHTML = `<span aria-hidden="true">＋</span> ${escapeHtml(translateUiText('Napravi prvi plan'))}`;
+      help.textContent = translateUiText('Počni sa jednim planom treninga koji želiš ponavljati.');
       return;
     }
     button.dataset.action = 'switch-tab';
     button.dataset.tab = 'workouts';
-    button.textContent = 'Započni trening';
-    help.textContent = 'Izaberi plan koji danas želiš raditi.';
+    button.innerHTML = `<span aria-hidden="true">▶</span> ${escapeHtml(translateUiText('Započni trening'))}`;
+    help.textContent = translateUiText('Izaberi plan koji danas želiš raditi.');
   }
 
   function parseWorkoutsFromText(rawText) {
@@ -4296,6 +4395,7 @@ function renderPendingSyncStatus() {
     renderHistory();
     renderDashboard();
     setupAnalyticsUI();
+    if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
   }
 
   window.openHistoryWorkoutEditor = function(workoutId) {
@@ -4520,6 +4620,169 @@ function renderPendingSyncStatus() {
       });
     });
     return Array.from(records.values());
+  }
+
+  function progressPeriodRange() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const period = document.getElementById('progress-period-select')?.value || 'week';
+    const start = new Date(today);
+    if (period === 'month') start.setDate(1);
+    else if (period === 'seven') start.setDate(start.getDate() - 6);
+    else start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const end = new Date(today);
+    end.setDate(end.getDate() + 1);
+    return { start, end, period };
+  }
+
+  function progressDayKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function progressDays(start, end) {
+    const days = [];
+    for (const cursor = new Date(start); cursor < end; cursor.setDate(cursor.getDate() + 1)) days.push(new Date(cursor));
+    return days;
+  }
+
+  function cachedProgressFoodEntries(start, end) {
+    if (!currentUser) return [];
+    return progressDays(start, end).flatMap((day) => readFoodEntriesCache(currentUser.uid, progressDayKey(day))?.items || []);
+  }
+
+  function updateProgressFoodDay(date) {
+    if (!currentUser || progressFoodUserId !== currentUser.uid || foodEntriesLoadedDate !== date) return;
+    progressFoodEntries = progressFoodEntries.filter((entry) => String(entry.date || '').slice(0, 10) !== date).concat(foodEntries);
+    progressFoodLastFetch = 0;
+    if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
+  }
+
+  async function loadProgressFoodEntries() {
+    if (!currentUser) return;
+    const userId = currentUser.uid;
+    if (progressFoodUserId !== userId) {
+      progressFoodUserId = userId;
+      progressFoodEntries = [];
+      progressFoodComplete = false;
+      progressFoodTruncated = false;
+      progressFoodLastFetch = 0;
+    }
+    if (!progressFoodComplete) {
+      const { start, end } = progressPeriodRange();
+      progressFoodEntries = cachedProgressFoodEntries(start, end);
+      renderProgressOverview();
+    }
+    if (!navigator.onLine || progressFoodFetch || (progressFoodComplete && Date.now() - progressFoodLastFetch < 60000)) return;
+    const fetchPromise = getDocs(query(collection(db, 'foodEntries'), where('userId', '==', userId), limit(1000)))
+      .then((snapshot) => {
+        if (currentUser?.uid !== userId) return;
+        progressFoodEntries = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        progressFoodComplete = true;
+        progressFoodTruncated = snapshot.size >= 1000;
+        progressFoodLastFetch = Date.now();
+        if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
+        if (document.getElementById('view-dashboard')?.classList.contains('active')) renderDashboard();
+      })
+      .catch((error) => console.warn('Progress nutrition load diagnostic:', error))
+      .finally(() => { if (progressFoodFetch === fetchPromise) progressFoodFetch = null; });
+    progressFoodFetch = fetchPromise;
+    await fetchPromise;
+  }
+
+  function progressBars(days, workouts, period) {
+    const formatDay = (day) => new Intl.DateTimeFormat(getCurrentLocale(), { weekday: 'short' }).format(day);
+    const workoutWord = (count) => {
+      const language = getCurrentLanguage();
+      if (language === 'en') return count === 1 ? 'workout' : 'workouts';
+      if (language === 'de') return count === 1 ? 'Training' : 'Trainings';
+      if (language === 'fr') return count === 1 ? 'séance' : 'séances';
+      if (language === 'it') return count === 1 ? 'allenamento' : 'allenamenti';
+      if (language === 'es') return count === 1 ? 'entrenamiento' : 'entrenamientos';
+      return count === 1 ? 'trening' : 'treninga';
+    };
+    const bins = period === 'month'
+      ? days.reduce((groups, day) => {
+        const weekStart = getLocalWeekStart(day);
+        const key = progressDayKey(weekStart);
+        let group = groups.find((item) => item.key === key);
+        if (!group) { group = { key, label: `${translateUiText('Sedmica')} ${groups.length + 1}`, dates: [] }; groups.push(group); }
+        group.dates.push(progressDayKey(day));
+        return groups;
+      }, [])
+      : days.map((day) => ({ label: formatDay(day), dates: [progressDayKey(day)] }));
+    const counts = bins.map((bin) => workouts.filter((workout) => {
+      const date = getWorkoutDate(workout);
+      return date && bin.dates.includes(progressDayKey(date));
+    }).length);
+    const maximum = Math.max(1, ...counts);
+    return bins.map((bin, index) => `<div class="progress-bar-column" role="listitem" aria-label="${escapeHtml(`${bin.label}: ${counts[index]} ${workoutWord(counts[index])}`)}"><strong>${counts[index]}</strong><span class="progress-bar-track"><span style="height:${counts[index] ? Math.max(9, counts[index] / maximum * 100) : 0}%"></span></span><small>${escapeHtml(bin.label)}</small></div>`).join('');
+  }
+
+  function progressWeightGraph(points) {
+    if (!points.length) return '';
+    const values = points.map((item) => Number(item.weightKg));
+    const low = Math.min(...values) - 1;
+    const high = Math.max(...values) + 1;
+    const coordinates = points.map((item, index) => ({
+      x: points.length === 1 ? 50 : 8 + index * 84 / (points.length - 1),
+      y: 54 - (Number(item.weightKg) - low) / (high - low) * 44
+    }));
+    const path = coordinates.map((point, index) => `${index ? 'L' : 'M'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
+    const description = points.map((item) => `${item.measuredAt}: ${formatLocalizedNumber(item.weightKg)} kg`).join(', ');
+    return `<svg class="progress-weight-graph" viewBox="0 0 100 64" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(description)}"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>${coordinates.map((point) => `<circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="1.2" fill="currentColor"/>`).join('')}</svg>`;
+  }
+
+  function renderProgressOverview() {
+    const root = document.getElementById('progress-overview');
+    if (!root || !currentUser) return;
+    const { start, end, period } = progressPeriodRange();
+    const days = progressDays(start, end);
+    const dayKeys = new Set(days.map(progressDayKey));
+    const workouts = cachedHistory.filter((workout) => {
+      const date = getWorkoutDate(workout);
+      return date && date >= start && date < end;
+    });
+    const entries = (progressFoodUserId === currentUser.uid ? progressFoodEntries : cachedProgressFoodEntries(start, end))
+      .filter((entry) => dayKeys.has(String(entry.date || '').slice(0, 10)));
+    const loggedDays = new Set(entries.map((entry) => String(entry.date).slice(0, 10))).size;
+    const calories = entries.reduce((sum, entry) => sum + (Number(entry.calories) || 0), 0);
+    const protein = entries.reduce((sum, entry) => sum + (Number(entry.proteinG) || 0), 0);
+    const carbs = entries.reduce((sum, entry) => sum + (Number(entry.carbsG) || 0), 0);
+    const fat = entries.reduce((sum, entry) => sum + (Number(entry.fatG) || 0), 0);
+    const macroCalories = protein * 4 + carbs * 4 + fat * 9;
+    const proteinShare = macroCalories ? protein * 4 / macroCalories * 100 : 0;
+    const carbsShare = macroCalories ? carbs * 4 / macroCalories * 100 : 0;
+    const weights = bodyTrackingEnabled() ? bodyMeasurements
+      .filter((item) => Number(item.weightKg) > 0 && /^\d{4}-\d{2}-\d{2}/.test(String(item.measuredAt || '')))
+      .sort((a, b) => String(a.measuredAt).localeCompare(String(b.measuredAt))) : [];
+    const endKey = progressDayKey(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1));
+    const latestWeight = weights.filter((item) => String(item.measuredAt).slice(0, 10) <= endKey).at(-1);
+    const periodWeights = weights.filter((item) => dayKeys.has(String(item.measuredAt).slice(0, 10))).slice(-30);
+    const weightChange = periodWeights.length > 1 ? Number(periodWeights.at(-1).weightKg) - Number(periodWeights[0].weightKg) : null;
+    const dateLabel = new Intl.DateTimeFormat(getCurrentLocale(), { day: 'numeric', month: 'short' });
+    const periodLabel = `${dateLabel.format(start)} – ${dateLabel.format(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1))}`;
+    const t = (source) => escapeHtml(translateUiText(source));
+    const nutritionNote = loggedDays ? `${t('Prosjek po danu s unosom')} · ${loggedDays} ${t('dana s unosom')}` : t('Dodaj prvi obrok da vidiš pregled ishrane.');
+    const foodCoverageNote = progressFoodTruncated
+      ? `<p class="progress-data-note">${t('Pregled ishrane koristi najviše 1000 učitanih unosa.')}</p>`
+      : progressFoodComplete ? '' : `<p class="progress-data-note">${t('Ishrana prikazuje trenutno dostupne unose.')}</p>`;
+    const workoutCoverageNote = cachedHistory.length >= 30 ? `<p class="progress-data-note">${t('Treninzi prikazuju posljednjih 30 učitanih zapisa.')}</p>` : '';
+    const meanCalories = loggedDays ? `${formatLocalizedNumber(calories / loggedDays, 0)} kcal` : '—';
+    const weightValue = latestWeight ? `${formatLocalizedNumber(latestWeight.weightKg)} kg` : '—';
+    const changeLabel = weightChange == null ? t('Nema promjene za izabrani period') : `${weightChange > 0 ? '+' : ''}${formatLocalizedNumber(weightChange)} kg`;
+    const weightContent = periodWeights.length
+      ? `${progressWeightGraph(periodWeights)}<div class="progress-chart-endpoints"><small>${escapeHtml(dateLabel.format(new Date(`${periodWeights[0].measuredAt.slice(0, 10)}T12:00:00`)))}</small><small>${escapeHtml(dateLabel.format(new Date(`${periodWeights.at(-1).measuredAt.slice(0, 10)}T12:00:00`)))}</small></div>`
+      : `<p class="progress-empty">${t('Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.')}</p>`;
+    const nutritionContent = loggedDays
+      ? `<div class="progress-nutrition-content"><div class="progress-donut ${macroCalories ? '' : 'is-empty-macros'}" style="--protein:${proteinShare}%;--carbs:${proteinShare + carbsShare}%" role="img" aria-label="${escapeHtml(`${translateUiText('Proteini')} ${formatLocalizedNumber(protein)} g, ${translateUiText('Ugljikohidrati')} ${formatLocalizedNumber(carbs)} g, ${translateUiText('Masti')} ${formatLocalizedNumber(fat)} g`)}"><span><strong>${formatLocalizedNumber(calories / loggedDays, 0)}</strong><small>kcal / ${t('dan')}</small></span></div><div class="progress-macro-list"><div><i class="progress-macro-protein"></i><span>${t('Proteini')}</span><strong>${formatLocalizedNumber(protein / loggedDays)} g</strong></div><div><i class="progress-macro-carbs"></i><span>${t('Ugljikohidrati')}</span><strong>${formatLocalizedNumber(carbs / loggedDays)} g</strong></div><div><i class="progress-macro-fat"></i><span>${t('Masti')}</span><strong>${formatLocalizedNumber(fat / loggedDays)} g</strong></div></div></div>`
+      : `<p class="progress-empty">${t('Dodaj prvi obrok da vidiš pregled ishrane.')}</p>`;
+    const exerciseCount = new Set(workouts.flatMap((workout) => (workout.exercises || []).map((exercise) => exercise?.name).filter(Boolean))).size;
+    root.innerHTML = `<p class="progress-range-label">${escapeHtml(periodLabel)}</p>
+      <div class="progress-stats"><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">🏋</span><span>${t('Završeni treninzi')}</span><strong>${formatLocalizedNumber(workouts.length, 0)}</strong><small>${t('U izabranom periodu')}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">◉</span><span>${t('Prosječne kalorije')}</span><strong>${meanCalories}</strong><small>${nutritionNote}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">↗</span><span>${t('Tjelesna težina')}</span><strong>${weightValue}</strong><small>${changeLabel}</small></article></div>
+      <div class="progress-panels"><section class="progress-panel"><div class="progress-panel-heading"><div><h3>${t(period === 'month' ? 'Aktivnost po sedmicama' : 'Sedmična aktivnost')}</h3><p>${t('Završeni treninzi po danima')}</p></div><button data-action="switch-tab" data-tab="history" type="button">${t('Istorija treninga')} ›</button></div><div class="progress-bars" role="list" aria-label="${t('Završeni treninzi po danima')}">${progressBars(days, workouts, period)}</div>${workouts.length ? '' : `<p class="progress-data-note">${t('Nema treninga u izabranom periodu.')}</p>`}${workoutCoverageNote}</section>
+      <section class="progress-panel"><div class="progress-panel-heading"><div><h3>${t('Napredak tjelesne težine')}</h3><p>${t('Mjerenja u izabranom periodu')}</p></div><button data-action="switch-tab" data-tab="body" type="button">${t('Moje tijelo')} ›</button></div><div class="progress-weight-value">${weightValue}<small>${changeLabel}</small></div>${weightContent}</section>
+      <section class="progress-panel"><div class="progress-panel-heading"><div><h3>${t('Pregled ishrane')}</h3><p>${nutritionNote}</p></div><button data-action="switch-tab" data-tab="food" type="button">${t('Ishrana')} ›</button></div>${nutritionContent}${foodCoverageNote}</section>
+      <section class="progress-panel progress-exercise-panel"><div class="progress-panel-heading"><div><h3>${t('Napredak u vježbama')}</h3><p>${t('Prati kilaže, ponavljanja i lične rekorde.')}</p></div><button data-action="switch-tab" data-tab="analytics" type="button">${t('Grafici vježbi')} ›</button></div><strong>${exerciseCount}</strong><span>${t('Različitih vježbi u periodu')}</span><p class="progress-data-note">${t('Otvori grafike za detalje svake vježbe.')}</p></section></div>`;
   }
 
   function renderAnalyticsOverview() {
@@ -4877,6 +5140,8 @@ function renderPendingSyncStatus() {
       }).join('')
       : `<li class="body-empty-state">${escapeHtml(translateUiText('Nema sačuvanih mjerenja. Dodaj prvo mjerenje da pratiš promjene kroz vrijeme.'))}</li>`;
     renderBodyChart();
+    if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
+    if (document.getElementById('view-dashboard')?.classList.contains('active')) renderDashboard();
   }
 
   function renderBodyChart() {
@@ -5373,6 +5638,7 @@ function renderPendingSyncStatus() {
       foodEntries.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
       writeFoodEntriesCache(currentUser.uid, date, foodEntries);
       foodEntriesLoadedDate = date;
+      updateProgressFoodDay(date);
       editingFoodEntryId = null;
       document.getElementById('food-entry-modal').style.display = 'none';
       renderFoodEntries();
@@ -5399,7 +5665,9 @@ function renderPendingSyncStatus() {
     try {
       const result = await deleteUserDocument(`foodEntries/${id}`);
       foodEntries = foodEntries.filter((item) => item.id !== id);
-      writeFoodEntriesCache(currentUser.uid, getFoodSelectedDate(), foodEntries);
+      const date = getFoodSelectedDate();
+      writeFoodEntriesCache(currentUser.uid, date, foodEntries);
+      updateProgressFoodDay(date);
       pendingFoodEntryDeleteId = null;
       document.getElementById('food-entry-delete-modal').style.display = 'none';
       renderFoodEntries();
@@ -5563,6 +5831,39 @@ function renderPendingSyncStatus() {
     return options;
   }
 
+  const MEAL_PLAN_REQUIRED_FIELD_IDS = [
+    'meal-plan-goal', 'meal-plan-start', 'meal-plan-people', 'meal-plan-days',
+    'meal-plan-count', 'meal-plan-diet', 'meal-plan-budget', 'meal-plan-currency',
+    'meal-plan-minutes'
+  ];
+
+  function clearMealPlanFieldError(input) {
+    if (!input) return;
+    input.classList.remove('is-invalid');
+    input.removeAttribute('aria-invalid');
+  }
+
+  function validateMealPlanForm() {
+    let valid = true;
+    MEAL_PLAN_REQUIRED_FIELD_IDS.forEach((id) => {
+      const input = document.getElementById(id);
+      const fieldIsValid = Boolean(input?.value?.trim()) && input.checkValidity();
+      if (!fieldIsValid) {
+        valid = false;
+        input?.classList.add('is-invalid');
+        input?.setAttribute('aria-invalid', 'true');
+      } else {
+        clearMealPlanFieldError(input);
+      }
+    });
+    return valid;
+  }
+
+  function todayForDateInput() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+
   function mealPlanCurrencyAmount(eur, currency) {
     const config = MEAL_CURRENCIES[currency] || MEAL_CURRENCIES.EUR;
     return new Intl.NumberFormat(getCurrentLocale(), { style: 'currency', currency: MEAL_CURRENCIES[currency] ? currency : 'EUR' }).format(Math.round(eur * config.factor * 100) / 100);
@@ -5575,10 +5876,20 @@ function renderPendingSyncStatus() {
     return Number.isNaN(parsed.getTime()) ? String(date) : new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'short' }).format(parsed);
   }
 
+  function isNoMealRestriction(value) {
+    const normalized = String(value || '').trim().replace(/\s+/g, ' ').replace(/[.!]+$/, '');
+    if (!normalized) return true;
+    const canonical = String(getCanonicalTranslationSource(normalized)).trim().replace(/[.!]+$/, '');
+    return canonical === 'Nemam alergije ni ograničenja hrane'
+      || /^(nemam|nema|none|no (food )?allergies( or (dietary )?restrictions)?|no restrictions|keine (lebensmittel)?allergien( oder einschrankungen)?|aucune allergie( ni| ou) restriction alimentaire|nessuna allergia o restrizione alimentare|sin alergias ni restricciones alimentarias)$/iu.test(normalized);
+  }
+
   function combinedMealAllergies(...values) {
-    return values.map((value) => String(value || '').trim())
-      .filter((value) => value && !/^(nemam|nema|none|no allergies|no restrictions|keine)/i.test(value))
-      .join(', ');
+    const unique = new Set();
+    values.map((value) => String(value || '').trim())
+      .filter((value) => !isNoMealRestriction(value))
+      .forEach((value) => unique.add(value));
+    return [...unique].join(', ');
   }
 
   function mealPlannerNavigationCopy() {
@@ -5723,8 +6034,18 @@ function renderPendingSyncStatus() {
     if (!currentUser) return;
     const profileGoal = currentProfileData?.goal;
     document.getElementById('meal-plan-goal').value = ['lose_weight', 'maintain', 'gain_weight'].includes(profileGoal) ? profileGoal : 'maintain';
-    document.getElementById('meal-plan-start').value = getFoodSelectedDate();
-    document.getElementById('meal-plan-allergies').value = currentProfileData?.foodAllergies || '';
+    document.getElementById('meal-plan-start').value = todayForDateInput();
+    const profileAllergies = currentProfileData?.foodAllergies || '';
+    document.getElementById('meal-plan-allergies').value = isNoMealRestriction(profileAllergies) ? '' : profileAllergies;
+    MEAL_PLAN_REQUIRED_FIELD_IDS.forEach((id) => {
+      const input = document.getElementById(id);
+      clearMealPlanFieldError(input);
+      if (input && !input.dataset.validationBound) {
+        input.dataset.validationBound = 'true';
+        input.addEventListener('input', () => clearMealPlanFieldError(input));
+        input.addEventListener('change', () => clearMealPlanFieldError(input));
+      }
+    });
     refreshMealPlannerFastCopy();
     document.getElementById('meal-planner-form-status').textContent = '';
     document.getElementById('meal-planner-modal').style.display = 'flex';
@@ -5734,6 +6055,7 @@ function renderPendingSyncStatus() {
     if (!currentUser) return;
     const status = document.getElementById('meal-planner-form-status');
     const copy = mealPlannerCopy();
+    if (!validateMealPlanForm()) { status.textContent = copy.badForm; return; }
     const options = mealPlanOptionsFromForm();
     if (!options) { status.textContent = copy.badForm; return; }
     options.allergies = combinedMealAllergies(options.allergies, currentProfileData?.foodAllergies);
@@ -7211,6 +7533,7 @@ function renderPendingSyncStatus() {
     if (document.getElementById('plan-generator-modal')?.style.display === 'flex' && generatedPlanSuggestions.length) renderGeneratedPlanSuggestions();
     const activeViewId = document.querySelector('.view.active')?.id;
     if (activeViewId === 'view-body') renderBodyMeasurements();
+    if (activeViewId === 'view-progress') renderProgressOverview();
     if (activeViewId === 'view-food') renderFoodEntries();
     if (activeViewId === 'view-history') renderHistory();
     if (activeViewId === 'view-analytics') {
@@ -7445,6 +7768,10 @@ function renderPendingSyncStatus() {
     document.getElementById('analytics-period-select')?.addEventListener('change', window.renderAnalyticsChart);
     document.getElementById('body-metric-select')?.addEventListener('change', renderBodyMeasurements);
     document.getElementById('food-selected-date')?.addEventListener('change', () => loadFoodEntriesForSelectedDay());
+    document.getElementById('progress-period-select')?.addEventListener('change', () => {
+      renderProgressOverview();
+      if (!progressFoodComplete) loadProgressFoodEntries();
+    });
     document.getElementById('body-auto-progress')?.addEventListener('change', (event) => {
       if (event.target?.id !== 'body-manual-metric-select' || !currentUser) return;
       localStorage.setItem(`gym-body-selected-metric-v1-${currentUser.uid}`, event.target.value);
@@ -8022,7 +8349,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261003-i18n-v114';
+    const build = '20261003-home-v127';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });

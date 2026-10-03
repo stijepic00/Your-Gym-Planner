@@ -2703,6 +2703,7 @@ export const DYNAMIC_TRANSLATIONS = {
 };
 
 Object.assign(DYNAMIC_TRANSLATIONS.en, {
+  'Napravi prvi plan': 'Create your first plan',
   'Upravljaj nalogom, preferencama i aplikacijom.': 'Manage your account, preferences and app settings.',
   'Nalog': 'Account',
   'Tvoj profil i lični podaci.': 'Your profile and personal information.',
@@ -2723,6 +2724,7 @@ Object.assign(DYNAMIC_TRANSLATIONS.en, {
   'Trening, ishrana i lični ciljevi': 'Training, nutrition and personal goals'
 });
 Object.assign(DYNAMIC_TRANSLATIONS.de, {
+  'Napravi prvi plan': 'Erstelle deinen ersten Plan',
   'Upravljaj nalogom, preferencama i aplikacijom.': 'Verwalte dein Konto, deine Einstellungen und die App.',
   'Nalog': 'Konto', 'Tvoj profil i lični podaci.': 'Dein Profil und deine persönlichen Daten.',
   'Tijelo i ciljevi': 'Körper & Ziele', 'Prati napredak i postavi svoje ciljeve.': 'Verfolge deinen Fortschritt und setze deine Ziele.',
@@ -2736,6 +2738,7 @@ Object.assign(DYNAMIC_TRANSLATIONS.de, {
   'Trening, ishrana i lični ciljevi': 'Training, Ernährung und persönliche Ziele'
 });
 Object.assign(DYNAMIC_TRANSLATIONS.fr, {
+  'Napravi prvi plan': 'Crée ton premier programme',
   'Upravljaj nalogom, preferencama i aplikacijom.': 'Gérez votre compte, vos préférences et l’application.',
   'Nalog': 'Compte', 'Tvoj profil i lični podaci.': 'Votre profil et vos informations personnelles.',
   'Tijelo i ciljevi': 'Corps et objectifs', 'Prati napredak i postavi svoje ciljeve.': 'Suivez vos progrès et définissez vos objectifs.',
@@ -2749,6 +2752,7 @@ Object.assign(DYNAMIC_TRANSLATIONS.fr, {
   'Trening, ishrana i lični ciljevi': 'Entraînement, nutrition et objectifs personnels'
 });
 Object.assign(DYNAMIC_TRANSLATIONS.it, {
+  'Napravi prvi plan': 'Crea il tuo primo programma',
   'Upravljaj nalogom, preferencama i aplikacijom.': 'Gestisci account, preferenze e app.',
   'Nalog': 'Account', 'Tvoj profil i lični podaci.': 'Il tuo profilo e i dati personali.',
   'Tijelo i ciljevi': 'Corpo e obiettivi', 'Prati napredak i postavi svoje ciljeve.': 'Segui i progressi e definisci i tuoi obiettivi.',
@@ -2762,6 +2766,7 @@ Object.assign(DYNAMIC_TRANSLATIONS.it, {
   'Trening, ishrana i lični ciljevi': 'Allenamento, alimentazione e obiettivi personali'
 });
 Object.assign(DYNAMIC_TRANSLATIONS.es, {
+  'Napravi prvi plan': 'Crea tu primer plan',
   'Upravljaj nalogom, preferencama i aplikacijom.': 'Gestiona tu cuenta, preferencias y aplicación.',
   'Nalog': 'Cuenta', 'Tvoj profil i lični podaci.': 'Tu perfil y datos personales.',
   'Tijelo i ciljevi': 'Cuerpo y objetivos', 'Prati napredak i postavi svoje ciljeve.': 'Sigue tu progreso y define tus objetivos.',
@@ -2794,4 +2799,143 @@ Object.assign(DYNAMIC_TRANSLATIONS.it, {
 Object.assign(DYNAMIC_TRANSLATIONS.es, {
   'Mjerenja tijela': 'Medidas corporales', 'Težina, obimi i ostala mjerenja': 'Peso, perímetros y otras medidas',
   'Ciljevi': 'Objetivos', 'Lozinka i sigurnost': 'Contraseña y seguridad', 'Uslovi korištenja': 'Términos de uso', 'Pravila korištenja i privatnost': 'Términos de uso y privacidad'
+});
+
+// Progress overview uses the same UI translation dictionary as the rest of the app.
+Object.assign(DYNAMIC_TRANSLATIONS.en, {
+  'Prati svoj put, vidi promjene i ostani dosljedan/na.': 'Track your journey, see your progress and stay consistent.',
+  'Period': 'Period', 'Ova sedmica': 'This week', 'Posljednjih 7 dana': 'Last 7 days', 'Ovaj mjesec': 'This month', 'Pregled': 'Overview', 'Pregled napretka': 'Progress overview',
+  'Učitavanje pregleda napretka…': 'Loading progress overview…', 'Sedmica': 'Week',
+  'Završeni treninzi': 'Completed workouts', 'U izabranom periodu': 'In the selected period',
+  'Prosječne kalorije': 'Average calories', 'Prosjek po danu s unosom': 'Average per logged day', 'dana s unosom': 'logged days',
+  'Tjelesna težina': 'Body weight', 'Nema promjene za izabrani period': 'No change in the selected period',
+  'Aktivnost po sedmicama': 'Weekly activity', 'Sedmična aktivnost': 'Weekly activity', 'Završeni treninzi po danima': 'Completed workouts by day',
+  'Nema treninga u izabranom periodu.': 'No workouts in the selected period.',
+  'Napredak tjelesne težine': 'Body weight progress', 'Mjerenja u izabranom periodu': 'Measurements in the selected period',
+  'Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.': 'No weight measurements in this period. Add one to track changes.',
+  'Pregled ishrane': 'Nutrition summary', 'Dodaj prvi obrok da vidiš pregled ishrane.': 'Add your first meal to see your nutrition summary.',
+  'Ishrana prikazuje trenutno dostupne unose.': 'Nutrition shows the entries currently available.',
+  'Pregled ishrane koristi najviše 1000 učitanih unosa.': 'The nutrition summary uses up to 1,000 loaded entries.',
+  'Treninzi prikazuju posljednjih 30 učitanih zapisa.': 'Workouts show the last 30 loaded records.',
+  'Napredak u vježbama': 'Exercise progress', 'Različitih vježbi u periodu': 'Different exercises in this period',
+  'Otvori grafike za detalje svake vježbe.': 'Open exercise charts for details.', 'dan': 'day'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.de, {
+  'Prati svoj put, vidi promjene i ostani dosljedan/na.': 'Verfolge deinen Weg, sieh deine Fortschritte und bleib dran.',
+  'Period': 'Zeitraum', 'Ova sedmica': 'Diese Woche', 'Posljednjih 7 dana': 'Letzte 7 Tage', 'Ovaj mjesec': 'Dieser Monat', 'Pregled': 'Übersicht', 'Pregled napretka': 'Fortschrittsübersicht',
+  'Učitavanje pregleda napretka…': 'Fortschrittsübersicht wird geladen…', 'Sedmica': 'Woche',
+  'Završeni treninzi': 'Abgeschlossene Workouts', 'U izabranom periodu': 'Im gewählten Zeitraum',
+  'Prosječne kalorije': 'Kalorien im Durchschnitt', 'Prosjek po danu s unosom': 'Durchschnitt pro erfasstem Tag', 'dana s unosom': 'erfasste Tage',
+  'Tjelesna težina': 'Körpergewicht', 'Nema promjene za izabrani period': 'Keine Veränderung im gewählten Zeitraum',
+  'Aktivnost po sedmicama': 'Aktivität nach Wochen', 'Sedmična aktivnost': 'Wochenaktivität', 'Završeni treninzi po danima': 'Abgeschlossene Workouts nach Tagen',
+  'Nema treninga u izabranom periodu.': 'Keine Workouts im gewählten Zeitraum.',
+  'Napredak tjelesne težine': 'Gewichtsverlauf', 'Mjerenja u izabranom periodu': 'Messungen im gewählten Zeitraum',
+  'Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.': 'Keine Gewichtsmessungen in diesem Zeitraum. Füge eine Messung hinzu.',
+  'Pregled ishrane': 'Ernährungsübersicht', 'Dodaj prvi obrok da vidiš pregled ishrane.': 'Erfasse deine erste Mahlzeit für die Ernährungsübersicht.',
+  'Ishrana prikazuje trenutno dostupne unose.': 'Die Ernährung zeigt derzeit verfügbare Einträge.',
+  'Pregled ishrane koristi najviše 1000 učitanih unosa.': 'Die Ernährungsübersicht verwendet höchstens 1.000 geladene Einträge.',
+  'Treninzi prikazuju posljednjih 30 učitanih zapisa.': 'Workouts zeigen die letzten 30 geladenen Einträge.',
+  'Napredak u vježbama': 'Übungsfortschritt', 'Različitih vježbi u periodu': 'Verschiedene Übungen im Zeitraum',
+  'Otvori grafike za detalje svake vježbe.': 'Öffne die Übungsdiagramme für Details.', 'dan': 'Tag'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.fr, {
+  'Prati svoj put, vidi promjene i ostani dosljedan/na.': 'Suis ton parcours, observe tes progrès et garde le rythme.',
+  'Period': 'Période', 'Ova sedmica': 'Cette semaine', 'Posljednjih 7 dana': '7 derniers jours', 'Ovaj mjesec': 'Ce mois-ci', 'Pregled': 'Vue d’ensemble', 'Pregled napretka': 'Vue d’ensemble des progrès',
+  'Učitavanje pregleda napretka…': 'Chargement du suivi des progrès…', 'Sedmica': 'Semaine',
+  'Završeni treninzi': 'Séances terminées', 'U izabranom periodu': 'Sur la période choisie',
+  'Prosječne kalorije': 'Calories moyennes', 'Prosjek po danu s unosom': 'Moyenne par jour renseigné', 'dana s unosom': 'jours renseignés',
+  'Tjelesna težina': 'Poids corporel', 'Nema promjene za izabrani period': 'Aucune variation sur la période choisie',
+  'Aktivnost po sedmicama': 'Activité par semaine', 'Sedmična aktivnost': 'Activité hebdomadaire', 'Završeni treninzi po danima': 'Séances terminées par jour',
+  'Nema treninga u izabranom periodu.': 'Aucune séance sur la période choisie.',
+  'Napredak tjelesne težine': 'Évolution du poids', 'Mjerenja u izabranom periodu': 'Mesures sur la période choisie',
+  'Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.': 'Aucune mesure de poids sur cette période. Ajoute une mesure pour suivre ton évolution.',
+  'Pregled ishrane': 'Bilan nutritionnel', 'Dodaj prvi obrok da vidiš pregled ishrane.': 'Ajoute ton premier repas pour voir ton bilan nutritionnel.',
+  'Ishrana prikazuje trenutno dostupne unose.': 'Le bilan affiche les repas actuellement disponibles.',
+  'Pregled ishrane koristi najviše 1000 učitanih unosa.': 'Le bilan nutritionnel utilise au maximum 1 000 entrées chargées.',
+  'Treninzi prikazuju posljednjih 30 učitanih zapisa.': 'Les séances affichent les 30 derniers enregistrements chargés.',
+  'Napredak u vježbama': 'Progrès par exercice', 'Različitih vježbi u periodu': 'Exercices différents sur la période',
+  'Otvori grafike za detalje svake vježbe.': 'Ouvre les graphiques pour voir chaque exercice.', 'dan': 'jour'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.it, {
+  'Prati svoj put, vidi promjene i ostani dosljedan/na.': 'Segui il tuo percorso, osserva i progressi e resta costante.',
+  'Period': 'Periodo', 'Ova sedmica': 'Questa settimana', 'Posljednjih 7 dana': 'Ultimi 7 giorni', 'Ovaj mjesec': 'Questo mese', 'Pregled': 'Panoramica', 'Pregled napretka': 'Panoramica dei progressi',
+  'Učitavanje pregleda napretka…': 'Caricamento della panoramica dei progressi…', 'Sedmica': 'Settimana',
+  'Završeni treninzi': 'Allenamenti completati', 'U izabranom periodu': 'Nel periodo selezionato',
+  'Prosječne kalorije': 'Calorie medie', 'Prosjek po danu s unosom': 'Media per giorno registrato', 'dana s unosom': 'giorni registrati',
+  'Tjelesna težina': 'Peso corporeo', 'Nema promjene za izabrani period': 'Nessuna variazione nel periodo selezionato',
+  'Aktivnost po sedmicama': 'Attività per settimana', 'Sedmična aktivnost': 'Attività settimanale', 'Završeni treninzi po danima': 'Allenamenti completati per giorno',
+  'Nema treninga u izabranom periodu.': 'Nessun allenamento nel periodo selezionato.',
+  'Napredak tjelesne težine': 'Andamento del peso', 'Mjerenja u izabranom periodu': 'Misurazioni nel periodo selezionato',
+  'Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.': 'Nessuna misurazione del peso in questo periodo. Aggiungine una per seguire i progressi.',
+  'Pregled ishrane': 'Riepilogo alimentare', 'Dodaj prvi obrok da vidiš pregled ishrane.': 'Aggiungi il primo pasto per vedere il riepilogo alimentare.',
+  'Ishrana prikazuje trenutno dostupne unose.': 'Il riepilogo mostra i pasti attualmente disponibili.',
+  'Pregled ishrane koristi najviše 1000 učitanih unosa.': 'Il riepilogo alimentare usa al massimo 1.000 voci caricate.',
+  'Treninzi prikazuju posljednjih 30 učitanih zapisa.': 'Gli allenamenti mostrano gli ultimi 30 record caricati.',
+  'Napredak u vježbama': 'Progressi negli esercizi', 'Različitih vježbi u periodu': 'Esercizi diversi nel periodo',
+  'Otvori grafike za detalje svake vježbe.': 'Apri i grafici per i dettagli di ogni esercizio.', 'dan': 'giorno'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.es, {
+  'Prati svoj put, vidi promjene i ostani dosljedan/na.': 'Sigue tu camino, observa tus progresos y mantén la constancia.',
+  'Period': 'Período', 'Ova sedmica': 'Esta semana', 'Posljednjih 7 dana': 'Últimos 7 días', 'Ovaj mjesec': 'Este mes', 'Pregled': 'Resumen', 'Pregled napretka': 'Resumen del progreso',
+  'Učitavanje pregleda napretka…': 'Cargando el resumen del progreso…', 'Sedmica': 'Semana',
+  'Završeni treninzi': 'Entrenamientos completados', 'U izabranom periodu': 'En el período seleccionado',
+  'Prosječne kalorije': 'Calorías medias', 'Prosjek po danu s unosom': 'Media por día registrado', 'dana s unosom': 'días registrados',
+  'Tjelesna težina': 'Peso corporal', 'Nema promjene za izabrani period': 'Sin cambios en el período seleccionado',
+  'Aktivnost po sedmicama': 'Actividad por semanas', 'Sedmična aktivnost': 'Actividad semanal', 'Završeni treninzi po danima': 'Entrenamientos completados por día',
+  'Nema treninga u izabranom periodu.': 'No hay entrenamientos en el período seleccionado.',
+  'Napredak tjelesne težine': 'Evolución del peso', 'Mjerenja u izabranom periodu': 'Mediciones en el período seleccionado',
+  'Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.': 'No hay mediciones de peso en este período. Añade una para seguir los cambios.',
+  'Pregled ishrane': 'Resumen nutricional', 'Dodaj prvi obrok da vidiš pregled ishrane.': 'Añade tu primera comida para ver el resumen nutricional.',
+  'Ishrana prikazuje trenutno dostupne unose.': 'El resumen muestra las comidas disponibles actualmente.',
+  'Pregled ishrane koristi najviše 1000 učitanih unosa.': 'El resumen nutricional utiliza como máximo 1.000 registros cargados.',
+  'Treninzi prikazuju posljednjih 30 učitanih zapisa.': 'Los entrenamientos muestran los últimos 30 registros cargados.',
+  'Napredak u vježbama': 'Progreso en ejercicios', 'Različitih vježbi u periodu': 'Ejercicios diferentes en el período',
+  'Otvori grafike za detalje svake vježbe.': 'Abre los gráficos para ver cada ejercicio.', 'dan': 'día'
+});
+
+// Home dashboard
+Object.assign(DYNAMIC_TRANSLATIONS.en, {
+  'DRAGO NAM JE ŠTO SI TU': 'GOOD TO SEE YOU', 'Spreman/na za današnji trening?': 'Ready to train today?',
+  'Treninzi ove sedmice': 'Workouts this week', 'Prosječne dnevne kalorije': 'Average daily calories', 'Nema podataka': 'No data yet',
+  'Posljednji trening': 'Recent workout', 'Još nema sačuvanih treninga': 'No saved workouts yet',
+  'Planovi': 'Plans', 'Pregledaj i upravljaj planovima': 'View and manage your plans',
+  'Biblioteka vježbi': 'Exercise library', 'Pronađi i dodaj vježbe u plan': 'Find and add exercises to a plan',
+  'Prati obroke i kalorije': 'Log meals and calories', 'Dosljednost donosi rezultate.': 'Consistency builds results.',
+  'Drži se svog sedmičnog cilja.': 'Stay on track with your weekly goal.', 'Sedmični pregled': 'Weekly overview', 'Brze prečice': 'Quick links'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.de, {
+  'DRAGO NAM JE ŠTO SI TU': 'SCHÖN, DICH ZU SEHEN', 'Spreman/na za današnji trening?': 'Bereit für dein heutiges Training?',
+  'Treninzi ove sedmice': 'Workouts diese Woche', 'Prosječne dnevne kalorije': 'Durchschnittliche Kalorien pro Tag', 'Nema podataka': 'Noch keine Daten',
+  'Posljednji trening': 'Letztes Workout', 'Još nema sačuvanih treninga': 'Noch keine gespeicherten Workouts',
+  'Planovi': 'Pläne', 'Pregledaj i upravljaj planovima': 'Pläne ansehen und verwalten',
+  'Biblioteka vježbi': 'Übungsbibliothek', 'Pronađi i dodaj vježbe u plan': 'Übungen suchen und zum Plan hinzufügen',
+  'Prati obroke i kalorije': 'Mahlzeiten und Kalorien erfassen', 'Dosljednost donosi rezultate.': 'Konstanz bringt Ergebnisse.',
+  'Drži se svog sedmičnog cilja.': 'Bleib bei deinem Wochenziel.', 'Sedmični pregled': 'Wochenübersicht', 'Brze prečice': 'Schnellzugriffe'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.fr, {
+  'DRAGO NAM JE ŠTO SI TU': 'RAVI DE TE REVOIR', 'Spreman/na za današnji trening?': 'Prêt(e) pour ton entraînement du jour ?',
+  'Treninzi ove sedmice': 'Séances cette semaine', 'Prosječne dnevne kalorije': 'Calories quotidiennes moyennes', 'Nema podataka': 'Aucune donnée',
+  'Posljednji trening': 'Dernière séance', 'Još nema sačuvanih treninga': 'Aucune séance enregistrée',
+  'Planovi': 'Programmes', 'Pregledaj i upravljaj planovima': 'Consulte et gère tes programmes',
+  'Biblioteka vježbi': 'Bibliothèque d’exercices', 'Pronađi i dodaj vježbe u plan': 'Trouve et ajoute des exercices au programme',
+  'Prati obroke i kalorije': 'Enregistre tes repas et calories', 'Dosljednost donosi rezultate.': 'La régularité porte ses fruits.',
+  'Drži se svog sedmičnog cilja.': 'Garde le cap sur ton objectif hebdomadaire.', 'Sedmični pregled': 'Aperçu hebdomadaire', 'Brze prečice': 'Accès rapides'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.it, {
+  'DRAGO NAM JE ŠTO SI TU': 'BENTORNATO', 'Spreman/na za današnji trening?': 'Pronto per l’allenamento di oggi?',
+  'Treninzi ove sedmice': 'Allenamenti questa settimana', 'Prosječne dnevne kalorije': 'Calorie medie giornaliere', 'Nema podataka': 'Nessun dato',
+  'Posljednji trening': 'Ultimo allenamento', 'Još nema sačuvanih treninga': 'Nessun allenamento salvato',
+  'Planovi': 'Programmi', 'Pregledaj i upravljaj planovima': 'Visualizza e gestisci i programmi',
+  'Biblioteka vježbi': 'Libreria degli esercizi', 'Pronađi i dodaj vježbe u plan': 'Trova e aggiungi esercizi al programma',
+  'Prati obroke i kalorije': 'Registra pasti e calorie', 'Dosljednost donosi rezultate.': 'La costanza porta risultati.',
+  'Drži se svog sedmičnog cilja.': 'Segui il tuo obiettivo settimanale.', 'Sedmični pregled': 'Riepilogo settimanale', 'Brze prečice': 'Collegamenti rapidi'
+});
+Object.assign(DYNAMIC_TRANSLATIONS.es, {
+  'DRAGO NAM JE ŠTO SI TU': 'NOS ALEGRA VERTE', 'Spreman/na za današnji trening?': '¿Listo para entrenar hoy?',
+  'Treninzi ove sedmice': 'Entrenamientos esta semana', 'Prosječne dnevne kalorije': 'Calorías diarias medias', 'Nema podataka': 'Aún no hay datos',
+  'Posljednji trening': 'Último entrenamiento', 'Još nema sačuvanih treninga': 'Aún no hay entrenamientos guardados',
+  'Planovi': 'Planes', 'Pregledaj i upravljaj planovima': 'Consulta y gestiona tus planes',
+  'Biblioteka vježbi': 'Biblioteca de ejercicios', 'Pronađi i dodaj vježbe u plan': 'Busca y añade ejercicios al plan',
+  'Prati obroke i kalorije': 'Registra comidas y calorías', 'Dosljednost donosi rezultate.': 'La constancia da resultados.',
+  'Drži se svog sedmičnog cilja.': 'Mantén tu objetivo semanal.', 'Sedmični pregled': 'Resumen semanal', 'Brze prečice': 'Accesos rápidos'
 });
