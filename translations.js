@@ -1,6 +1,6 @@
-import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261003-i18n-v113';
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v113';
-import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261003-i18n-v113';
+import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261003-i18n-v114';
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v114';
+import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261003-i18n-v114';
 // Text used by the app UI. User-created names, workout notes and exercise names
 // are intentionally never translated.
 export const TRANSLATIONS = {

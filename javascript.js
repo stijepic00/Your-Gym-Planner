@@ -1,9 +1,9 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v113';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-i18n-v113';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-i18n-v113';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v113';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-i18n-v113';
+  import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v114';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-i18n-v114';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-i18n-v114';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v114';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-i18n-v114';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -6331,17 +6331,28 @@ function renderPendingSyncStatus() {
   function updateProfilePreferenceButtons() {
     document.querySelectorAll('.profile-preference-none').forEach((button) => {
       const input = document.getElementById(button.dataset.target || '');
-      const selected = Boolean(input && input.value.trim() === button.dataset.value);
+      const sourceValue = getCanonicalTranslationSource(button.dataset.value || '');
+      const selected = Boolean(input && getCanonicalTranslationSource(input.value.trim()) === sourceValue);
+      const localizedValue = translateUiText(sourceValue);
+      // The three “none” values are system choices, not a user-written note.
+      // Render legacy Serbian values in the current language while preserving
+      // actual user-entered preferences unchanged.
+      if (selected && input && input.value !== localizedValue) input.value = localizedValue;
+      button.dataset.value = localizedValue;
+      button.dataset.actionLabel = translateUiText('Klikni za unos');
+      button.dataset.removeLabel = translateUiText('Ukloni');
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', String(selected));
-      button.textContent = selected ? '✓ Odabrano — klikni za uklanjanje' : `＋ ${button.dataset.label || 'Nemam'}`;
+      button.textContent = selected
+        ? `✓ ${translateUiText('Odabrano — klikni za uklanjanje')}`
+        : `＋ ${translateUiText(getCanonicalTranslationSource(button.dataset.label || 'Nemam'))}`;
     });
   }
 
   window.setProfilePreference = function(targetId, value) {
     const input = document.getElementById(targetId);
     if (!input) return;
-    const selected = input.value.trim() === value;
+    const selected = getCanonicalTranslationSource(input.value.trim()) === getCanonicalTranslationSource(value);
     input.value = selected ? '' : value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     updateProfilePreferenceButtons();
@@ -7183,6 +7194,7 @@ function renderPendingSyncStatus() {
     updatePlanGeneratorConfiguration(false);
     renderProfileWizardControls();
     renderProfileWizardReview();
+    updateProfilePreferenceButtons();
     document.querySelectorAll('[data-library-picker-for]').forEach(renderExerciseLibraryPicker);
     refreshExerciseNameDisplays();
     if (document.getElementById('onboardingModal')?.style.display === 'flex') renderOnboardingStep();
@@ -8010,7 +8022,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261003-i18n-v113';
+    const build = '20261003-i18n-v114';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });

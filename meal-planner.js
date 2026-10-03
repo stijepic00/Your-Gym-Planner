@@ -1,8 +1,8 @@
-import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v113';
+import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v114';
 
 // A small, reviewed recipe set built only from individual catalogue ingredients.
 // Prices are illustrative local estimates in EUR, not shop prices or live rates.
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v113';
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v114';
 const recipe = (id, name, slots, ingredients, minutes, costEur, diet, simple = true) => ({
   id, name, slots, ingredients: ingredients.map(([foodId, quantity]) => ({ foodId, quantity })),
   minutes, costEur, diet, simple
