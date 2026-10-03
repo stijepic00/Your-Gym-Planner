@@ -1,4 +1,4 @@
-import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v112';
+import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v113';
 
 export const SUPPORTED_LANGUAGES = ['sr', 'en', 'de', 'fr', 'it', 'es'];
 export const LOCALES = { sr: 'sr-Latn-RS', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES' };
