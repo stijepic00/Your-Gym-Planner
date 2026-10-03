@@ -1,10 +1,12 @@
 // GymLeader's initial offline exercise catalogue. It never writes to Firebase.
 export const EXERCISE_LIBRARY_VERSION = 1;
 
-const names = (sr, en, de) => ({ sr, en, de });
-const exercise = (id, title, muscles, equipment, measurementType, defaults, instruction) => ({
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v111';
+const names = (sr, en, de) => ({ sr, en, de, ...Object.fromEntries(['fr', 'it', 'es'].map(language => [language, CATALOG_TRANSLATIONS[language][sr]])) });
+const exercise = (id, title, muscles, equipment, measurementType, defaults, instruction, aliases = []) => ({
   id,
   names: names(...title),
+  aliases,
   muscles,
   equipment,
   measurementType,
@@ -25,7 +27,7 @@ export const EXERCISE_LIBRARY = Object.freeze([
   exercise('incline-barbell-bench-press', ['Kosi bench press sa šipkom', 'Incline barbell bench press', 'Schrägbankdrücken mit Langhantel'], ['upper_chest', 'triceps', 'shoulders'], ['barbell', 'incline_bench'], 'weight_reps', [6, 10, 2.5, 5, 150], 'Namjesti blagi nagib klupe, spusti šipku prema gornjim grudima i potisni kontrolisano.'),
   exercise('incline-dumbbell-press', ['Kosi potisak bučicama', 'Incline dumbbell press', 'Schrägbankdrücken mit Kurzhanteln'], ['upper_chest', 'triceps', 'shoulders'], ['dumbbells', 'incline_bench'], 'weight_reps', [8, 12, 2, 5, 120], 'Lopatice drži stabilno na klupi, spuštaj bučice do ugodne dubine i potisni ih gore.'),
   exercise('chest-fly-machine', ['Pec deck', 'Chest fly machine', 'Butterfly-Maschine'], ['chest'], ['machine'], 'weight_reps', [10, 15, 5, 5, 90], 'Sjedi uspravno, laktove drži blago savijene i spoji ručke bez zamaha tijelom.'),
-  exercise('cable-chest-fly', ['Cable fly', 'Cable chest fly', 'Kabel-Flys'], ['chest'], ['cable_machine'], 'weight_reps', [10, 15, 2.5, 5, 75], 'Stani stabilno, zadrži blagi pregib lakta i spajaj ručke ispred grudi.'),
+  exercise('cable-chest-fly', ['Cable fly', 'Cable chest fly', 'Kabel-Flys'], ['chest'], ['cable_machine'], 'weight_reps', [10, 15, 2.5, 5, 75], 'Stani stabilno, zadrži blagi pregib lakta i spajaj ručke ispred grudi.', ['leptir na sajli', 'leptir sajla']),
   exercise('push-up', ['Sklek', 'Push-up', 'Liegestütz'], ['chest', 'triceps', 'shoulders'], ['bodyweight'], 'reps', [8, 20, 0, 5, 75], 'Tijelo drži ravno, spusti grudi prema podu i potisni se bez propadanja kukova.'),
   exercise('knee-push-up', ['Sklek na koljenima', 'Knee push-up', 'Liegestütz auf Knien'], ['chest', 'triceps'], ['bodyweight'], 'reps', [8, 20, 0, 5, 60], 'Osloni se na koljena, zadrži tijelo u ravnoj liniji i spuštaj grudi kontrolisano.'),
   exercise('dumbbell-pullover', ['Pullover bučicom', 'Dumbbell pullover', 'Kurzhantel-Pullover'], ['chest', 'lats'], ['dumbbells', 'bench'], 'weight_reps', [10, 15, 2, 5, 90], 'Lezi preko klupe stabilno, spuštaj bučicu iza glave uz kontrolu i vrati je iznad grudi.'),
@@ -34,6 +36,7 @@ export const EXERCISE_LIBRARY = Object.freeze([
   // Leđa
   exercise('lat-pulldown', ['Lat povlačenje', 'Lat pulldown', 'Latzug'], ['lats', 'biceps'], ['cable_machine'], 'weight_reps', [8, 12, 5, 5, 120], 'Povuci šipku prema gornjim grudima, laktove vodi prema dolje i ne zabacuj tijelo.'),
   exercise('pull-up', ['Zgib', 'Pull-up', 'Klimmzug'], ['lats', 'upper_back', 'biceps'], ['pull_up_bar'], 'reps', [5, 12, 0, 5, 120], 'Kreni iz aktivnih ramena, povuci laktove prema rebrima i spusti se kontrolisano.'),
+  exercise('scapular-pull-up', ['Zgib lopaticama', 'Scapular pull-up', 'Schulterblatt-Klimmzug'], ['lats', 'upper_back', 'shoulders'], ['pull_up_bar'], 'reps', [8, 15, 0, 5, 60], 'Ostani u visu s ravnim rukama, spusti i podigni tijelo samo pokretom lopatica, bez savijanja laktova.', ['aktivacija lopatica na šipci']),
   exercise('assisted-pull-up', ['Potpomognuti zgib', 'Assisted pull-up', 'Unterstützter Klimmzug'], ['lats', 'upper_back', 'biceps'], ['assisted_machine'], 'reps', [6, 12, 0, 5, 120], 'Postavi pomoć koja ti dopušta punu kontrolu i izvodi zgib bez zamaha.'),
   exercise('barbell-row', ['Veslanje sa šipkom', 'Barbell row', 'Langhantelrudern'], ['lats', 'upper_back', 'biceps'], ['barbell'], 'weight_reps', [6, 10, 2.5, 5, 150], 'Nagnut trup drži čvrsto, povuci šipku prema donjim rebrima i ne zaokružuj leđa.'),
   exercise('dumbbell-row', ['Jednoručno veslanje bučicom', 'One-arm dumbbell row', 'Einarmiges Kurzhantelrudern'], ['lats', 'upper_back', 'biceps'], ['dumbbells', 'bench'], 'weight_reps', [8, 12, 2, 5, 90], 'Osloni se stabilno, povuci lakat prema kuku i spusti bučicu do punog istezanja.'),
@@ -50,6 +53,7 @@ export const EXERCISE_LIBRARY = Object.freeze([
   exercise('dumbbell-lateral-raise', ['Odručenje bučicama', 'Dumbbell lateral raise', 'Seitheben mit Kurzhanteln'], ['side_delts'], ['dumbbells'], 'weight_reps', [12, 20, 1, 5, 60], 'Diži ruke do visine ramena uz blagi pregib lakta i bez zamaha tijelom.'),
   exercise('cable-lateral-raise', ['Odručenje na sajli', 'Cable lateral raise', 'Seitheben am Kabel'], ['side_delts'], ['cable_machine'], 'weight_reps', [12, 20, 1, 5, 60], 'Stani bočno uz sajlu, diži ruku kontrolisano do visine ramena i polako spusti.'),
   exercise('rear-delt-fly', ['Zadnje rame na mašini', 'Rear delt fly', 'Reverse Fly Maschine'], ['rear_delts', 'upper_back'], ['machine'], 'weight_reps', [12, 20, 5, 5, 60], 'Grudi drži uz naslon, raširi ruke u stranu i ne povlači ramenima prema ušima.'),
+  exercise('dumbbell-reverse-fly', ['Zadnje rame bučicama', 'Dumbbell reverse fly', 'Reverse Fly mit Kurzhanteln'], ['rear_delts', 'upper_back'], ['dumbbells'], 'weight_reps', [10, 15, 1, 5, 60], 'Nagnut trup drži mirno, raširi blago savijene ruke u stranu i vrati bučice kontrolisano.', ['obrnuti leptir bučicama']),
   exercise('front-raise', ['Predručenje bučicama', 'Dumbbell front raise', 'Frontheben mit Kurzhanteln'], ['front_delts'], ['dumbbells', 'plate'], 'weight_reps', [10, 15, 1, 5, 60], 'Diži težinu do visine ramena bez zamaha i spusti je sporim pokretom.'),
   exercise('arnold-press', ['Arnold potisak', 'Arnold press', 'Arnold Press'], ['shoulders', 'triceps'], ['dumbbells', 'bench'], 'weight_reps', [8, 12, 2, 5, 90], 'Kreni s dlanovima prema licu, rotiraj i potisni bučice iznad glave uz kontrolu.'),
 
@@ -71,13 +75,14 @@ export const EXERCISE_LIBRARY = Object.freeze([
   exercise('barbell-back-squat', ['Čučanj sa šipkom', 'Barbell back squat', 'Kniebeuge mit Langhantel'], ['quadriceps', 'glutes', 'hamstrings'], ['barbell', 'rack'], 'weight_reps', [5, 10, 2.5, 5, 150], 'Postavi šipku stabilno, spusti se uz čvrst trup i guraj pod kroz cijelo stopalo.'),
   exercise('front-squat', ['Prednji čučanj', 'Front squat', 'Frontkniebeuge'], ['quadriceps', 'glutes'], ['barbell', 'rack'], 'weight_reps', [5, 10, 2.5, 5, 150], 'Drži laktove visoko, trup uspravno i spuštaj se uz stabilna stopala.'),
   exercise('goblet-squat', ['Goblet čučanj', 'Goblet squat', 'Goblet Squat'], ['quadriceps', 'glutes'], ['dumbbells', 'kettlebell'], 'weight_reps', [8, 15, 2, 5, 90], 'Drži težinu uz grudi, sjedni između kukova i vrati se gurajući kroz stopala.'),
-  exercise('leg-press', ['Leg press', 'Leg press', 'Beinpresse'], ['quadriceps', 'glutes', 'hamstrings'], ['leg_press_machine'], 'weight_reps', [8, 12, 5, 5, 120], 'Leđa i kukove zadrži uz naslon, spuštaj platformu do ugodne dubine i ne zaključavaj koljena.'),
+  exercise('leg-press', ['Potisak nogama', 'Leg press', 'Beinpresse'], ['quadriceps', 'glutes', 'hamstrings'], ['leg_press_machine'], 'weight_reps', [8, 12, 5, 5, 120], 'Leđa i kukove zadrži uz naslon, spuštaj platformu do ugodne dubine i ne zaključavaj koljena.'),
   exercise('leg-extension', ['Ekstenzija nogu', 'Leg extension', 'Beinstrecker'], ['quadriceps'], ['machine'], 'weight_reps', [10, 15, 5, 5, 75], 'Namjesti oslonac iznad stopala, ispruži koljena kontrolisano i ne zamahuj tijelom.'),
   exercise('romanian-deadlift', ['Rumunsko mrtvo dizanje', 'Romanian deadlift', 'Rumänisches Kreuzheben'], ['hamstrings', 'glutes', 'lower_back'], ['barbell', 'dumbbells'], 'weight_reps', [6, 10, 2.5, 5, 150], 'Guraj kukove unazad uz neutralna leđa, osjeti istezanje zadnje lože i vrati se stiskanjem gluteusa.'),
   exercise('conventional-deadlift', ['Mrtvo dizanje', 'Conventional deadlift', 'Kreuzheben'], ['glutes', 'hamstrings', 'lower_back'], ['barbell'], 'weight_reps', [3, 6, 2.5, 5, 180], 'Zategni trup prije podizanja, guraj pod nogama i drži šipku blizu tijela cijelim putem.'),
   exercise('lying-leg-curl', ['Ležeći pregib nogu', 'Lying leg curl', 'Beinbeuger liegend'], ['hamstrings'], ['machine'], 'weight_reps', [10, 15, 5, 5, 75], 'Kukove drži uz klupu, pregibaj noge bez zamaha i polako vrati težinu.'),
   exercise('seated-leg-curl', ['Sjedaći pregib nogu', 'Seated leg curl', 'Beinbeuger sitzend'], ['hamstrings'], ['machine'], 'weight_reps', [10, 15, 5, 5, 75], 'Namjesti oslonac na butinama, pregibaj noge do kraja i kontrolisano se vrati.'),
   exercise('hip-thrust', ['Hip thrust', 'Hip thrust', 'Hip Thrust'], ['glutes', 'hamstrings'], ['barbell', 'bench'], 'weight_reps', [8, 12, 2.5, 5, 120], 'Gornji dio leđa osloni na klupu, podigni kukove stiskanjem gluteusa i ne prelamaj donja leđa.'),
+  exercise('cable-pull-through', ['Povlačenje kroz noge na sajli', 'Cable pull-through', 'Kabelzug durch die Beine'], ['glutes', 'hamstrings'], ['cable_machine'], 'weight_reps', [10, 15, 5, 5, 90], 'Stani leđima prema sajli, guraj kukove unazad pa ih snažno ispruži bez zaokruživanja leđa.', ['pull through sajla']),
   exercise('glute-bridge', ['Glute bridge', 'Glute bridge', 'Glute Bridge'], ['glutes', 'hamstrings'], ['bodyweight', 'barbell'], 'reps', [12, 20, 0, 5, 75], 'Lezi na leđa, stopala postavi blizu kukova i podigni kukove stiskanjem gluteusa.'),
   exercise('bulgarian-split-squat', ['Bugarski iskorak', 'Bulgarian split squat', 'Bulgarische Kniebeuge'], ['quadriceps', 'glutes'], ['dumbbells', 'bench', 'bodyweight'], 'weight_reps', [8, 12, 2, 5, 90], 'Zadnju nogu osloni na klupu, spuštaj se ravno dolje i guraj kroz prednje stopalo.'),
   exercise('walking-lunge', ['Iskorak u hodu', 'Walking lunge', 'Ausfallschritte gehend'], ['quadriceps', 'glutes'], ['dumbbells', 'bodyweight'], 'reps', [10, 20, 0, 5, 90], 'Napravi kontrolisan korak, spusti zadnje koljeno prema podu i odgurni se prednjom nogom.'),
@@ -95,6 +100,7 @@ export const EXERCISE_LIBRARY = Object.freeze([
   exercise('cable-crunch', ['Cable crunch', 'Cable crunch', 'Kabel-Crunch'], ['abs'], ['cable_machine'], 'weight_reps', [10, 15, 2.5, 5, 75], 'Kleči uz sajlu, savij trup prema podu i zadrži kukove što mirnijim.'),
   exercise('machine-crunch', ['Trbušnjaci na mašini', 'Machine crunch', 'Bauchpresse Maschine'], ['abs'], ['machine'], 'weight_reps', [10, 15, 5, 5, 75], 'Namjesti mašinu, savij rebra prema kukovima i ne povlači vratom.'),
   exercise('hanging-knee-raise', ['Podizanje koljena u visu', 'Hanging knee raise', 'Hängendes Knieheben'], ['abs', 'hip_flexors'], ['pull_up_bar'], 'reps', [8, 15, 0, 5, 75], 'Aktiviraj ramena u visu, podigni koljena bez zamaha i polako ih spusti.'),
+  exercise('hanging-leg-raise', ['Podizanje ravnih nogu u visu', 'Hanging leg raise', 'Hängendes Beinheben'], ['abs', 'hip_flexors'], ['pull_up_bar'], 'reps', [6, 12, 0, 5, 90], 'Zadrži ramena aktivnim, podigni ravne noge bez zamaha i spuštaj ih kontrolisano.', ['viseće podizanje nogu']),
   exercise('leg-raise', ['Podizanje nogu ležeći', 'Lying leg raise', 'Beinheben liegend'], ['abs', 'hip_flexors'], ['bodyweight'], 'reps', [8, 15, 0, 5, 60], 'Donja leđa drži što bliže podu, podiži noge kontrolisano i ne zamahuj.'),
   exercise('dead-bug', ['Dead bug', 'Dead bug', 'Dead Bug'], ['core'], ['bodyweight'], 'reps', [8, 16, 0, 5, 60], 'Lezi na leđa, zadrži donja leđa uz pod i naizmjenično ispruži suprotnu ruku i nogu.'),
   exercise('russian-twist', ['Ruski twist', 'Russian twist', 'Russian Twist'], ['obliques', 'abs'], ['bodyweight', 'plate'], 'reps', [12, 24, 0, 5, 60], 'Sjedi stabilno, rotiraj grudni koš lijevo-desno i ne pomjeraj samo ruke.'),
@@ -143,7 +149,8 @@ const normalizeName = (value) => String(value || '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const byName = new Map();
-EXERCISE_LIBRARY.forEach((item) => Object.values(item.names).forEach((name) => byName.set(normalizeName(name), item)));
+EXERCISE_LIBRARY.forEach((item) => [...Object.values(item.names), ...(item.aliases || [])]
+  .forEach((name) => byName.set(normalizeName(name), item)));
 
 export function getLibraryExerciseById(id) {
   return typeof id === 'string' ? byId.get(id) || null : null;
@@ -165,6 +172,27 @@ export function getLibraryExerciseTrainingPlaces(item) {
 
 export function getLibraryExerciseName(item, language = 'sr') {
   return item?.names?.[language] || item?.names?.sr || '';
+}
+
+// Display names must never be used as identifiers or written over stored names.
+export function getLibraryExerciseDisplayName(item, language = 'sr') {
+  const primary = getLibraryExerciseName(item, language);
+  const english = item?.names?.en?.trim();
+  if (!english || language === 'en' || primary.trim().normalize('NFC').toLowerCase() === english.normalize('NFC').toLowerCase()) return primary;
+  return `${primary} · ${english}`;
+}
+
+export function getDisplayLibraryExercise(value) {
+  const name = typeof value === 'string' ? value : value?.name || '';
+  const identified = typeof value === 'object' && value ? getLibraryExerciseById(value.libraryExerciseId || value.exerciseId || value.id) : null;
+  if (identified && (!name || Object.values(identified.names).includes(name))) return identified;
+  // Exact catalogue names only: never reinterpret arbitrary custom names or notes.
+  return EXERCISE_LIBRARY.find(item => Object.values(item.names).includes(name)) || null;
+}
+
+export function getExerciseDisplayName(value, language = 'sr') {
+  const item = getDisplayLibraryExercise(value);
+  return item ? getLibraryExerciseDisplayName(item, language) : (typeof value === 'string' ? value : value?.name || '');
 }
 
 // Safe resolver for future UI. Old free-text routines simply return null.

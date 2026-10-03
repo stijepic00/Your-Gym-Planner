@@ -2,9 +2,12 @@
   const loadingCopy = {
     sr: { title: 'Učitavanje GymLeadera…', message: 'Pripremamo tvoj trening.', offline: 'Nema internet veze. Čim se veza vrati, možeš nastaviti gdje si stao.', retry: 'Pokušaj ponovo' },
     en: { title: 'Loading GymLeader…', message: 'Getting your workout ready.', offline: 'You are offline. Reconnect to continue where you left off.', retry: 'Try again' },
-    de: { title: 'GymLeader wird geladen…', message: 'Dein Training wird vorbereitet.', offline: 'Du bist offline. Stelle die Verbindung wieder her, um fortzufahren.', retry: 'Erneut versuchen' }
+    de: { title: 'GymLeader wird geladen…', message: 'Dein Training wird vorbereitet.', offline: 'Du bist offline. Stelle die Verbindung wieder her, um fortzufahren.', retry: 'Erneut versuchen' },
+    fr: { title: 'Chargement de GymLeader…', message: 'Préparation de ton entraînement.', offline: 'Tu es hors ligne. Reconnecte-toi pour reprendre là où tu en étais.', retry: 'Réessayer' },
+    it: { title: 'Caricamento di GymLeader…', message: 'Prepariamo il tuo allenamento.', offline: 'Sei offline. Riconnettiti per riprendere da dove eri rimasto/a.', retry: 'Riprova' },
+    es: { title: 'Cargando GymLeader…', message: 'Preparando tu entrenamiento.', offline: 'No tienes conexión. Vuelve a conectarte para continuar donde lo dejaste.', retry: 'Reintentar' }
   };
-  const supportedLanguages = ['sr', 'en', 'de'];
+  const supportedLanguages = ['sr', 'en', 'de', 'fr', 'it', 'es'];
   const savedLanguage = localStorage.getItem('gym-language');
   let language = supportedLanguages.includes(savedLanguage) ? savedLanguage : '';
 
@@ -14,7 +17,7 @@
       : [navigator.language].filter(Boolean);
     for (const preference of preferences) {
       const code = String(preference || '').trim().toLowerCase().replace(/_/g, '-').split('-')[0];
-      if (['sr', 'en', 'de'].includes(code)) {
+      if (supportedLanguages.includes(code)) {
         language = code;
         break;
       }
@@ -28,6 +31,7 @@
     localStorage.setItem('gym-language-source', 'device');
   }
 
+  document.documentElement.lang = language === 'sr' ? 'sr-Latn' : language;
   const copy = loadingCopy[language] || loadingCopy.sr;
   const bootText = document.getElementById('auth-boot-text');
   const bootScreen = document.getElementById('auth-boot-screen');

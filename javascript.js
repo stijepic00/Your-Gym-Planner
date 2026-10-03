@@ -1,8 +1,9 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261002-static-carousel-arrows-v94';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261002-static-carousel-arrows-v94';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261002-static-carousel-arrows-v94';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261002-static-carousel-arrows-v94';
+  import { TRANSLATIONS } from './translations.js?v=20261003-i18n-v111';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-i18n-v111';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-i18n-v111';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v111';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-i18n-v111';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -22,12 +23,10 @@
   import { 
     getFirestore, 
     collection, 
-    addDoc, 
     getDocs, 
     getDoc, 
     doc, 
     setDoc, 
-    updateDoc,
     deleteDoc,
     deleteField,
     query, 
@@ -107,6 +106,8 @@
   let editingRoutineId = null;
   let pendingWorkoutsMemory = [];
   let pendingWorkoutsLoaded = false;
+  let pendingOperationsMemory = [];
+  let pendingOperationsLoaded = false;
   let pendingDbPromise = null;
   let currentProfileData = null;
   let profileReadSucceeded = false;
@@ -121,6 +122,7 @@
   let foodEntriesLoadedDate = '';
   let activeMealPlan = null;
   let activeMealPlanOptions = null;
+  let activeMealPlanDayIndex = 0;
   let savedMealPlans = [];
   let savedMealPlansLoaded = false;
   let pendingMealPlanDeleteId = null;
@@ -142,8 +144,11 @@
   const FOOD_ENTRIES_CACHE_TTL_MS = 10 * 60 * 1000;
   const LEGAL_DOCUMENT_VERSION = '2026-09-29';
   const LEGAL_ACCEPTANCE_CACHE_PREFIX = 'gym_legal_acceptance_v1_';
+  const PROFILE_CACHE_PREFIX = 'gym_profile_cache_v1_';
   const PENDING_SYNC_RETRY_MIN_MS = 5000;
   const PENDING_SYNC_RETRY_MAX_MS = 60000;
+  const OFFLINE_DB_VERSION = 2;
+  const PENDING_OPERATIONS_STORE = 'pendingOperations';
   let deferredInstallPrompt = null;
   const PWA_INSTALL_DISMISSED_KEY = 'gymleader-install-dismissed-v1';
   let pendingSyncRetryTimer = null;
@@ -171,16 +176,16 @@
 
   function getDashboardGreeting() {
     const language = getCurrentLanguage();
-    const name = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || (language === 'en' ? 'there' : language === 'de' ? 'Nutzer' : 'korisniče');
-    const greeting = language === 'en' ? 'Welcome' : language === 'de' ? 'Willkommen' : genderText('Dobrodošao', 'Dobrodošla', 'Dobro došao/la');
+    const name = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || translateUiText('Korisnik');
+    const greeting = translateUiText(genderText('Dobrodošao', 'Dobrodošla', 'Dobro došao/la'));
     return `${greeting}, ${name}!`;
   }
 
   function getOnboardingGreeting() {
     const language = getCurrentLanguage();
-    const fullName = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || (language === 'en' ? 'there' : language === 'de' ? 'Nutzer' : 'korisniče');
+    const fullName = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || translateUiText('Korisnik');
     const firstName = String(fullName).trim().split(/\s+/)[0] || fullName;
-    const greeting = language === 'en' ? 'Welcome' : language === 'de' ? 'Willkommen' : genderText('Dobrodošao', 'Dobrodošla', 'Dobro došao/la');
+    const greeting = translateUiText(genderText('Dobrodošao', 'Dobrodošla', 'Dobro došao/la'));
     return `${greeting}, ${firstName}!`;
   }
 
@@ -220,14 +225,59 @@
       && typeof profile.foodAllergies === 'string' && profile.foodAllergies.trim().length > 0;
   }
 
+  function getProfileCacheKey(userId) {
+    return `${PROFILE_CACHE_PREFIX}${userId}`;
+  }
+
+  function readProfileCache(userId) {
+    if (!userId) return null;
+    try {
+      const cached = JSON.parse(localStorage.getItem(getProfileCacheKey(userId)) || 'null');
+      return cached?.userId === userId && cached?.profile && typeof cached.profile === 'object' ? cached.profile : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeProfileCache(userId, profile) {
+    if (!userId || !profile || typeof profile !== 'object') return;
+    try {
+      localStorage.setItem(getProfileCacheKey(userId), JSON.stringify({ userId, profile, cachedAt: Date.now() }));
+    } catch (error) {
+      console.warn('Lokalni cache profila nije mogao biti sačuvan:', error);
+    }
+  }
+
+  function getEffectiveCurrentProfile() {
+    const userId = currentUser?.uid;
+    const profile = { ...(readProfileCache(userId) || {}), ...(currentProfileData || {}) };
+    pendingOperationsMemory
+      .filter((operation) => operation.userId === userId && operation.path === `users/${userId}`)
+      .sort((first, second) => Number(first.createdAt || 0) - Number(second.createdAt || 0))
+      .forEach((operation) => {
+        if (operation.kind === 'delete') {
+          Object.keys(profile).forEach((key) => delete profile[key]);
+          return;
+        }
+        Object.assign(profile, operation.data || {});
+        (operation.deleteFields || []).forEach((field) => delete profile[field]);
+      });
+    return profile;
+  }
+
+  function hasCurrentLegalAcceptance() {
+    return hasAcceptedCurrentLegalVersion(getEffectiveCurrentProfile())
+      || (!profileReadSucceeded && readLegalAcceptanceCache(currentUser?.uid));
+  }
+
   function showGenderProfileGateIfRequired() {
     const modal = document.getElementById('profile-required-modal');
     if (!modal || !currentUser || !profileReadSucceeded) return;
-    if (!hasAcceptedCurrentLegalVersion(currentProfileData)) {
+    if (!hasCurrentLegalAcceptance()) {
       modal.style.display = 'none';
       return;
     }
-    const needsProfile = !isProfileComplete();
+    const needsProfile = !isProfileComplete(getEffectiveCurrentProfile());
     modal.style.display = needsProfile ? 'flex' : 'none';
     if (needsProfile) {
       profileRequiredEditMode = false;
@@ -299,7 +349,7 @@
         verificationSent: 'Wir haben einen sechsstelligen Code an deine E-Mail-Adresse gesendet. Prüfe auch den Spam-Ordner.',
         passwordHint: 'Gib das Passwort deines GymLeader-Kontos ein.'
       }
-    }[language] || {};
+    }[['sr', 'en', 'de'].includes(language) ? language : 'sr'];
     const isRegister = currentAuthMode === 'register';
     const title = document.getElementById('auth-title');
     if (title) title.textContent = isRegister ? (copy.registerTitle || 'Napravi GymLeader nalog') : (copy.loginTitle || 'Prijavi se u GymLeader');
@@ -802,9 +852,7 @@
     // A failed Firestore read while offline must not turn a previously accepted
     // document into a new required consent flow. The cache is scoped to this UID
     // and is used only while the profile cannot be read at all.
-    const accepted = profileReadSucceeded
-      ? hasAcceptedCurrentLegalVersion(currentProfileData)
-      : readLegalAcceptanceCache(currentUser.uid);
+    const accepted = hasCurrentLegalAcceptance();
     const modal = document.getElementById('legal-acceptance-modal');
     if (!modal) return;
     if (accepted) {
@@ -839,12 +887,12 @@
         privacyVersion: LEGAL_DOCUMENT_VERSION,
         privacyAcceptedAt: acceptedAt
       };
-      await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
+      const result = await writeUserDocument(`users/${currentUser.uid}`, profile, { merge: true });
       currentProfileData = { ...(currentProfileData || {}), ...profile };
       writeLegalAcceptanceCache(currentUser.uid, currentProfileData);
       document.getElementById('legal-acceptance-modal').style.display = 'none';
       showGenderProfileGateIfRequired();
-      ShowToast('Hvala — možeš nastaviti u GymLeader.');
+      ShowToast(result.queued ? 'Pravila su sačuvana na ovom uređaju i biće sinhronizovana kada se veza vrati.' : 'Hvala — možeš nastaviti u GymLeader.');
     } catch (error) {
       console.error('Legal acceptance diagnostic:', error);
       if (status) {
@@ -882,6 +930,7 @@
           const userDoc = await getDoc(doc(db, "users", user.uid));
           profileReadSucceeded = true;
           currentProfileData = userDoc.exists() ? userDoc.data() : null;
+          if (currentProfileData) writeProfileCache(user.uid, currentProfileData);
           if (hasAcceptedCurrentLegalVersion(currentProfileData)) {
             writeLegalAcceptanceCache(user.uid, currentProfileData);
           } else if (navigator.onLine) {
@@ -894,18 +943,19 @@
           }
         } catch {
           profileReadSucceeded = false;
-          currentProfileData = null;
-          mailDisplay.innerText = user.email;
+          currentProfileData = readProfileCache(user.uid);
+          mailDisplay.innerText = currentProfileData?.fullName || user.email;
         }
         mailDisplay.style.display = 'inline-block';
       }
 
       showLegalAcceptanceIfRequired();
-      if (hasAcceptedCurrentLegalVersion(currentProfileData)) showGenderProfileGateIfRequired();
+      if (hasCurrentLegalAcceptance()) showGenderProfileGateIfRequired();
 
       await loadPendingWorkouts(user.uid);
-      await loadCloudData();
+      await loadPendingOperations(user.uid);
       await syncPendingWorkouts();
+      await loadCloudData();
       listenToUserRoutines(user.uid);
       switchTab('dashboard');
       ensureInAppHistory();
@@ -952,10 +1002,18 @@
     if (!isoString) return translateUiText('Nedavno');
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return translateUiText('Nedavno');
-    const locale = { sr: 'sr-Latn-RS', en: 'en-GB', de: 'de-DE' }[getCurrentLanguage()] || 'sr-Latn-RS';
+    const locale = getCurrentLocale();
     return new Intl.DateTimeFormat(locale, {
       day: 'numeric', month: 'short', ...(includeYear ? { year: 'numeric' } : {})
     }).format(d);
+  }
+
+  function getCurrentLocale() {
+    return ({ sr: 'sr-Latn-RS', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES' })[getCurrentLanguage()] || 'sr-Latn-RS';
+  }
+
+  function formatLocalizedNumber(value, maximumFractionDigits = 1) {
+    return Number(value || 0).toLocaleString(getCurrentLocale(), { maximumFractionDigits });
   }
 
   window.vibrate = function(ms = 35) {
@@ -1021,7 +1079,77 @@
   });
 
   function getRoutineDisplayName(name) {
+    const sourceName = getCanonicalTranslationSource(String(name || ''));
+    // Keep user-created routine names unchanged. The fixed labels below are the
+    // generator's own standard titles, so localize their display without editing
+    // the saved routine data.
+    const generatedTitles = new Set([
+      'Gornji dio A', 'Gornji dio B', 'Gornji dio C', 'Gornji dio D',
+      'Donji dio A', 'Donji dio B', 'Cijelo tijelo A', 'Cijelo tijelo B', 'Cijelo tijelo C',
+      'Trup i kondicija', 'Kardio i oporavak'
+    ]);
+    return generatedTitles.has(sourceName) ? translateUiText(sourceName) : String(name || '');
+  }
+
+  function getGeneratedPlanDisplayName(name) {
     return String(name || '').split(' + ').map((part) => translateUiText(part)).join(' + ');
+  }
+
+  function getGeneratedExerciseDisplayName(exercise) {
+    return getExerciseDisplayName(exercise, getCurrentLanguage());
+  }
+
+  const exerciseInputSources = new WeakMap();
+  function getExerciseInputValue(input) {
+    const previous = input && exerciseInputSources.get(input);
+    return previous && input.value === previous.displayed ? previous.source : input?.value || '';
+  }
+
+  function localizeExerciseNameInput(input) {
+    if (!input) return;
+    const source = getExerciseInputValue(input);
+    const item = getDisplayLibraryExercise(source);
+    const displayed = item ? getLibraryExerciseName(item, getCurrentLanguage()) : source;
+    const hadFocus = document.activeElement === input;
+    const cursor = input.selectionStart;
+    input.value = displayed;
+    exerciseInputSources.set(input, { source, displayed });
+    if (hadFocus && cursor != null) input.setSelectionRange(Math.min(cursor, displayed.length), Math.min(cursor, displayed.length));
+    let label = input.nextElementSibling;
+    if (!label?.classList.contains('exercise-english-name')) {
+      label = document.createElement('small');
+      label.className = 'exercise-english-name';
+      label.dataset.noTranslate = '';
+      label.lang = 'en';
+      input.insertAdjacentElement('afterend', label);
+    }
+    const full = item ? getLibraryExerciseDisplayName(item, getCurrentLanguage()) : '';
+    label.textContent = full && full !== displayed ? full : '';
+    label.lang = getCurrentLanguage();
+    label.hidden = !label.textContent;
+  }
+
+  function refreshExerciseNameDisplays() {
+    const workoutTitle = document.getElementById('active-workout-title');
+    if (workoutTitle && currentWorkout) workoutTitle.textContent = getRoutineDisplayName(currentWorkout.name);
+    document.querySelectorAll('.routine-exercise-name, .history-editor-exercise-name').forEach(localizeExerciseNameInput);
+    document.querySelectorAll('#custom-existing-select option').forEach(option => {
+      option.dataset.noTranslate = '';
+      option.textContent = getGeneratedExerciseDisplayName(option.value);
+    });
+    document.querySelectorAll('.exercise-block[data-name]').forEach(card => {
+      const title = card.querySelector('h3');
+      if (title) { title.dataset.noTranslate = ''; title.textContent = getExerciseDisplayName(card.dataset.name, getCurrentLanguage()); }
+    });
+  }
+
+  function isRoutinePendingSync(routineId) {
+    return pendingOperationsMemory.some((operation) => operation.userId === currentUser?.uid && operation.path === `routines/${routineId}`);
+  }
+
+  function getRoutinePendingSyncLabel() {
+    const language = getCurrentLanguage();
+    return translateUiText('Čeka sinhronizaciju');
   }
 
   window.renderWorkouts = function() {
@@ -1043,7 +1171,7 @@
       </div>
       ${userRoutines.length > 0 ? `
         <button class="routine-manage-link" data-action="toggle-routine-edit-mode" type="button">
-          ${routineEditMode ? '✓ Gotovo s uređivanjem' : '✎ Uredi planove'}
+          ${escapeHtml(translateUiText(routineEditMode ? '✓ Gotovo s uređivanjem' : '✎ Uredi planove'))}
         </button>
       ` : ''}
     `;
@@ -1062,16 +1190,16 @@
         return `
           <div class="card flex-between">
             <div>
-            <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px;">${w.emoji ? `${escapeHtml(emoji)} ` : ''}${escapeHtml(getRoutineDisplayName(w.name))} ${w.isFavorite ? '<span class="routine-favorite-mark" title="Omiljeni plan">★</span>' : ''}</h3>
+            <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px;">${w.emoji ? `${escapeHtml(emoji)} ` : ''}<span data-no-translate>${escapeHtml(getRoutineDisplayName(w.name))}</span> ${w.isFavorite ? `<span class="routine-favorite-mark" title="${escapeHtml(translateUiText('Omiljeni plan'))}">★</span>` : ''}</h3>
               <p style="color: var(--text-muted); font-size: 0.85rem;">
                 ${exCount > 0 ? `${exCount} ${translateUiText(exCount === 1 ? 'vježba' : 'vježbi')}` : translateUiText('Prazan trening - sam dodaj vježbe')}
               </p>
-              ${w.isArchived ? `<span class="routine-archived-badge">${escapeHtml(translateUiText('Arhiviran'))}</span>` : ''}${Array.isArray(w.scheduleDays) && w.scheduleDays.length ? `<span class="routine-schedule-hint">${escapeHtml(translateUiText('Raspored:'))} ${w.scheduleDays.map((day) => translateUiText(routineWeekdayLabels[Number(day)])).filter(Boolean).join(' · ')}</span>` : ''}
+              ${isRoutinePendingSync(w.id) ? `<span class="routine-sync-pending-badge">⏳ ${escapeHtml(getRoutinePendingSyncLabel())}</span>` : ''}${w.isArchived ? `<span class="routine-archived-badge">${escapeHtml(translateUiText('Arhiviran'))}</span>` : ''}${Array.isArray(w.scheduleDays) && w.scheduleDays.length ? `<span class="routine-schedule-hint">${escapeHtml(translateUiText('Raspored:'))} ${w.scheduleDays.map((day) => translateUiText(routineWeekdayLabels[Number(day)])).filter(Boolean).join(' · ')}</span>` : ''}
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
               ${routineEditMode
-                ? `<button class="btn btn-secondary" style="padding:10px 14px; font-size:0.85rem;" data-action="open-edit-routine" data-routine-id="${escapeHtml(w.id)}">✎ Uredi</button>`
-                : `<button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(w.id)}">Započni ovaj trening →</button>`}
+                ? `<button class="btn btn-secondary" style="padding:10px 14px; font-size:0.85rem;" data-action="open-edit-routine" data-routine-id="${escapeHtml(w.id)}">${escapeHtml(translateUiText('✎ Uredi'))}</button>`
+                : `<button class="btn btn-start-card" data-action="start-routine" data-routine-id="${escapeHtml(w.id)}">${escapeHtml(translateUiText('Započni ovaj trening →'))}</button>`}
             </div>
           </div>
         `;
@@ -1080,13 +1208,13 @@
 
     if (routineEditMode && archivedRoutines.length) {
       html += `
-        <button class="routine-manage-link routine-archive-toggle" data-action="toggle-archived-routines" type="button">${showArchivedRoutines ? 'Sakrij arhivu' : `Prikaži arhivu (${archivedRoutines.length})`}</button>
-        ${showArchivedRoutines ? `<section class="routine-archive-section" aria-label="Arhivirani planovi">
+        <button class="routine-manage-link routine-archive-toggle" data-action="toggle-archived-routines" type="button">${showArchivedRoutines ? escapeHtml(translateUiText('Sakrij arhivu')) : `${escapeHtml(translateUiText('Prikaži arhivu'))} (${archivedRoutines.length})`}</button>
+        ${showArchivedRoutines ? `<section class="routine-archive-section" aria-label="${escapeHtml(translateUiText('Arhivirani planovi'))}">
           <div class="routine-archive-heading"><div><span class="settings-eyebrow">ARHIVA</span><h3>Arhivirani planovi</h3><p>Ovi planovi nisu prikazani među aktivnim treninzima.</p></div></div>
           ${sortRoutinesForDisplay(archivedRoutines).map(w => {
             const emoji = w.emoji || getEmojiForRoutine(w.name);
             const exCount = w.exercises ? w.exercises.length : 0;
-            return `<div class="card flex-between routine-archived-card"><div><h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 4px;">${w.emoji ? `${escapeHtml(emoji)} ` : ''}${escapeHtml(getRoutineDisplayName(w.name))}</h3><p style="color: var(--text-muted); font-size: 0.85rem;">${exCount} ${escapeHtml(translateUiText(exCount === 1 ? 'vježba' : 'vježbi'))}</p><span class="routine-archived-badge">Arhiviran</span></div><div style="display: flex; gap: 8px; align-items: center;"><button class="btn btn-secondary" style="padding:10px 14px; font-size:0.85rem;" data-action="open-edit-routine" data-routine-id="${escapeHtml(w.id)}">✎ Uredi</button></div></div>`;
+            return `<div class="card flex-between routine-archived-card"><div><h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 4px;">${w.emoji ? `${escapeHtml(emoji)} ` : ''}<span data-no-translate>${escapeHtml(getRoutineDisplayName(w.name))}</span></h3><p style="color: var(--text-muted); font-size: 0.85rem;">${exCount} ${escapeHtml(translateUiText(exCount === 1 ? 'vježba' : 'vježbi'))}</p><span class="routine-archived-badge">${escapeHtml(translateUiText('Arhiviran'))}</span></div><div style="display: flex; gap: 8px; align-items: center;"><button class="btn btn-secondary" style="padding:10px 14px; font-size:0.85rem;" data-action="open-edit-routine" data-routine-id="${escapeHtml(w.id)}">${escapeHtml(translateUiText('✎ Uredi'))}</button></div></div>`;
           }).join('')}
         </section>` : ''}`;
     }
@@ -1097,7 +1225,7 @@
         editButton.hidden = true;
         const routine = userRoutines.find((item) => item.id === editButton.dataset.routineId);
         if (!routine || editButton.parentElement.querySelector('.routine-card-actions')) return;
-        editButton.parentElement.insertAdjacentHTML('beforeend', `<div class="routine-card-actions"><button class="btn btn-secondary" data-action="open-edit-routine" data-routine-id="${escapeHtml(routine.id)}">✎ Uredi</button><button class="btn btn-secondary" data-action="duplicate-routine" data-routine-id="${escapeHtml(routine.id)}">Kopiraj</button><button class="btn btn-secondary" data-action="toggle-routine-favorite" data-routine-id="${escapeHtml(routine.id)}">${routine.isFavorite ? '★ Omiljeni' : '☆ Omiljeni'}</button><button class="btn btn-secondary" data-action="toggle-routine-archive" data-routine-id="${escapeHtml(routine.id)}">${routine.isArchived ? 'Vrati' : 'Arhiviraj'}</button></div>`);
+        editButton.parentElement.insertAdjacentHTML('beforeend', `<div class="routine-card-actions"><button class="btn btn-secondary" data-action="open-edit-routine" data-routine-id="${escapeHtml(routine.id)}">${escapeHtml(translateUiText('✎ Uredi'))}</button><button class="btn btn-secondary" data-action="duplicate-routine" data-routine-id="${escapeHtml(routine.id)}">${escapeHtml(translateUiText('Kopiraj'))}</button><button class="btn btn-secondary" data-action="toggle-routine-favorite" data-routine-id="${escapeHtml(routine.id)}">${escapeHtml(translateUiText(routine.isFavorite ? '★ Omiljeni' : '☆ Omiljeni'))}</button><button class="btn btn-secondary" data-action="toggle-routine-archive" data-routine-id="${escapeHtml(routine.id)}">${escapeHtml(translateUiText(routine.isArchived ? 'Vrati' : 'Arhiviraj'))}</button></div>`);
       });
     }
   };
@@ -1157,6 +1285,13 @@
         nextRoutines.push({ id: docSnap.id, ...docSnap.data() });
       });
       const isOfflineSnapshot = querySnapshot.metadata?.fromCache === true || !navigator.onLine;
+      const hasPendingRoutineChanges = pendingOperationsMemory.some((item) => item.userId === userId && String(item.path || '').startsWith('routines/'));
+      if (hasPendingRoutineChanges && isOfflineSnapshot) {
+        // The local routine cache already includes optimistic changes. Do not let a
+        // stale Firestore cache replace it before the queued operation is delivered.
+        renderWorkouts();
+        return;
+      }
       if (isOfflineSnapshot && nextRoutines.length === 0 && localRoutines.length > 0) {
         userRoutines = localRoutines;
         renderWorkouts();
@@ -1173,10 +1308,13 @@
   window.deleteRoutine = async function(routineId) {
     if (await showConfirm("Da li ste sigurni da želite obrisati ovu rutinu/dan?")) {
       try {
-        await deleteDoc(doc(db, "routines", routineId));
-        ShowToast("Rutina uspješno obrisana!");
+        const result = await deleteUserDocument(`routines/${routineId}`);
+        userRoutines = userRoutines.filter((routine) => routine.id !== routineId);
+        writeRoutineCache(currentUser.uid, userRoutines);
+        window.renderWorkouts();
+        ShowToast(result.queued ? 'Plan je obrisan lokalno i čeka sinhronizaciju.' : 'Rutina uspješno obrisana!');
       } catch (error) {
-        ShowToast("Greška pri brisanju: " + error.message, 'error');
+        ShowToast(translateUiText('Plan nije moguće obrisati. Pokušaj ponovo.'), 'error');
       }
     }
   };
@@ -1212,8 +1350,11 @@
       scheduleDays: []
     };
     try {
-      await addDoc(collection(db, 'routines'), copy);
-      ShowToast('Plan je kopiran.');
+      const saved = await createUserDocument('routines', copy);
+      userRoutines = [...userRoutines, { ...copy, id: saved.id }];
+      writeRoutineCache(currentUser.uid, userRoutines);
+      window.renderWorkouts();
+      ShowToast(saved.queued ? 'Kopija plana je sačuvana lokalno i čeka sinhronizaciju.' : 'Plan je kopiran.');
     } catch (error) {
       console.error('Routine duplicate diagnostic:', error);
       ShowToast('Plan nije moguće kopirati. Provjeri internet i pokušaj ponovo.', 'error');
@@ -1225,8 +1366,9 @@
     if (!routine) return;
     const changes = { isFavorite: routine.isFavorite !== true };
     try {
-      await updateDoc(doc(db, 'routines', routineId), changes);
+      const result = await writeUserDocument(`routines/${routineId}`, changes);
       updateRoutineInMemory(routineId, changes);
+      if (result.queued) ShowToast('Promjena omiljenog plana čeka sinhronizaciju.');
     } catch (error) {
       ShowToast('Omiljeni plan nije moguće sačuvati.', 'error');
     }
@@ -1240,8 +1382,9 @@
     if (archived) showArchivedRoutines = false;
     updateRoutineInMemory(routineId, changes);
     try {
-      await updateDoc(doc(db, 'routines', routineId), changes);
+      const result = await writeUserDocument(`routines/${routineId}`, changes);
       ShowToast(archived ? 'Plan je arhiviran.' : 'Plan je vraćen među aktivne planove.');
+      if (result.queued) ShowToast('Promjena plana čeka sinhronizaciju.');
     } catch (error) {
       updateRoutineInMemory(routineId, { isArchived: routine.isArchived === true, archivedAt: routine.archivedAt || '' });
       ShowToast('Arhiviranje plana nije moguće sačuvati.', 'error');
@@ -1290,7 +1433,7 @@
     }
 
     try {
-      await updateDoc(doc(db, 'routines', editingRoutineId), {
+      const result = await writeUserDocument(`routines/${editingRoutineId}`, {
         emoji: emoji || '',
         name,
         exercises,
@@ -1299,9 +1442,9 @@
       updateRoutineInMemory(editingRoutineId, { emoji: emoji || '', name, exercises, scheduleDays });
       document.getElementById('editRoutineModal').style.display = 'none';
       editingRoutineId = null;
-      ShowToast('Izmjene su sačuvane.');
+      ShowToast(result.queued ? 'Izmjene su sačuvane lokalno i čekaju sinhronizaciju.' : 'Izmjene su sačuvane.');
     } catch (error) {
-      ShowToast('Greška pri čuvanju izmjena: ' + error.message, 'error');
+      ShowToast(translateUiText('Izmjene nije moguće sačuvati. Pokušaj ponovo.'), 'error');
     }
   };
 
@@ -1310,13 +1453,15 @@
     if (!(await showConfirm('Obrisati cijeli dan i sve vježbe iz njega?'))) return;
 
     try {
-      await deleteDoc(doc(db, 'routines', editingRoutineId));
+      const result = await deleteUserDocument(`routines/${editingRoutineId}`);
+      userRoutines = userRoutines.filter((routine) => routine.id !== editingRoutineId);
+      writeRoutineCache(currentUser.uid, userRoutines);
       document.getElementById('editRoutineModal').style.display = 'none';
       editingRoutineId = null;
       routineEditMode = false;
-      ShowToast('Plan je obrisan.');
+      ShowToast(result.queued ? 'Plan je obrisan lokalno i čeka sinhronizaciju.' : 'Plan je obrisan.');
     } catch (error) {
-      ShowToast('Greška pri brisanju dana: ' + error.message, 'error');
+      ShowToast(translateUiText('Dan nije moguće obrisati. Pokušaj ponovo.'), 'error');
     }
   };
 
@@ -1349,7 +1494,7 @@
       ShowToast("Morate biti prijavljeni!", 'error');
       return;
     }
-    if (!hasAcceptedCurrentLegalVersion(currentProfileData)) {
+    if (!hasCurrentLegalAcceptance()) {
       showLegalAcceptanceIfRequired();
       return;
     }
@@ -1453,7 +1598,7 @@
   };
 
   function exerciseLibraryLabel(value) {
-    return exerciseLibraryLabels[value] || String(value || '').replace(/_/g, ' ');
+    return translateUiText(exerciseLibraryLabels[value] || String(value || '').replace(/_/g, ' '));
   }
 
   function normalizeLibrarySearch(value) {
@@ -1486,7 +1631,7 @@
     const language = getCurrentLanguage();
     const hasSearchOrFilter = Boolean(queryText || muscle || equipment || place);
     const matches = EXERCISE_LIBRARY.filter((item) => {
-      const text = normalizeLibrarySearch([...Object.values(item.names), item.instruction, ...item.muscles, ...item.equipment].join(' '));
+      const text = normalizeLibrarySearch([...Object.values(item.names), ...(item.aliases || []), item.instruction, ...item.muscles, ...item.equipment].join(' '));
       return (!queryText || text.includes(queryText))
         && (!muscle || item.muscles.includes(muscle))
         && (!equipment || item.equipment.includes(equipment))
@@ -1516,7 +1661,7 @@
         ? `${defaults.repRangeMin}–${defaults.repRangeMax} ponavljanja`
         : item.measurementType === 'seconds' ? `Korak vremena ${defaults.timeIncrement} sek` : `Korak vremena ${defaults.timeIncrement} min`;
       const primaryMuscle = item.muscles[0] ? exerciseLibraryLabel(item.muscles[0]) : 'Cijelo tijelo';
-      return `<article class="exercise-library-result"><div><h4>${escapeHtml(getLibraryExerciseName(item, language))}</h4><p class="exercise-library-tags"><span>${escapeHtml(getExerciseLibraryTypeLabel(item.measurementType))}</span><span>${escapeHtml(primaryMuscle)}</span></p><details class="exercise-library-details"><summary>Detalji</summary><p>${escapeHtml(item.instruction)}</p><small>${escapeHtml(tracking)} · odmor ${defaults.restSeconds} sek · ${escapeHtml(item.equipment.map(exerciseLibraryLabel).join(' · '))}</small></details></div><button class="btn btn-secondary" type="button" data-action="add-library-exercise" data-exercise-id="${escapeHtml(item.id)}" data-target-list="${escapeHtml(targetList)}">Dodaj</button></article>`;
+      return `<article class="exercise-library-result"><div><h4 data-no-translate>${escapeHtml(getLibraryExerciseDisplayName(item, language))}</h4><p class="exercise-library-tags"><span>${escapeHtml(getExerciseLibraryTypeLabel(item.measurementType))}</span><span>${escapeHtml(primaryMuscle)}</span></p><details class="exercise-library-details"><summary>Detalji</summary><p>${escapeHtml(translateUiText(item.instruction))}</p><small>${escapeHtml(tracking)} · ${translateUiText('odmor')} ${formatLocalizedNumber(defaults.restSeconds)} ${translateUiText('sek')} · ${escapeHtml(item.equipment.map(exerciseLibraryLabel).join(' · '))}</small></details></div><button class="btn btn-secondary" type="button" data-action="add-library-exercise" data-exercise-id="${escapeHtml(item.id)}" data-target-list="${escapeHtml(targetList)}">Dodaj</button></article>`;
     }).join('');
   }
 
@@ -1539,7 +1684,7 @@
       measurementType: item.measurementType,
       ...item.defaults
     });
-    ShowToast(`${getLibraryExerciseName(item, getCurrentLanguage())} je dodana u plan.`);
+    ShowToast(`${getLibraryExerciseDisplayName(item, getCurrentLanguage())} je dodana u plan.`);
   };
 
   const generatorMuscleMap = {
@@ -1634,7 +1779,7 @@
   function profileMentionsExercise(value, item, tokens = []) {
     const profileText = normalizeLibrarySearch(value);
     if (!profileText || !item) return false;
-    const names = [item.id.replace(/-/g, ' '), ...Object.values(item.names || {})]
+    const names = [item.id.replace(/-/g, ' '), ...Object.values(item.names || {}), ...(item.aliases || [])]
       .map(normalizeLibrarySearch)
       .filter((name) => name.length >= 3);
     const itemText = names.join(' ');
@@ -1821,11 +1966,11 @@
   }
 
   function describeGeneratorProfile(profile, mode) {
-    const location = { gym: 'teretanu', home: 'kuću', street: 'street workout', other: 'drugo mjesto' }[profile?.trainingLocation] || 'svoje mjesto treninga';
+    const location = getProfileValueLabel(profile?.trainingLocation || 'other');
     const duration = Number(profile?.sessionMinutes) || 60;
-    const focus = { strength: 'snagu', muscle_progress: 'mišićni napredak', general_fitness: 'opštu kondiciju' }[profile?.trainingFocus] || 'tvoj fokus';
-    const goal = { lose_weight: 'mršanje', maintain: 'održavanje težine', gain_weight: 'povećanje težine' }[profile?.goal] || 'tvoj cilj težine';
-    return `Prijedlog za ${location} · oko ${duration} min · cilj: ${goal} · fokus: ${focus}${mode === 'selected_muscles' ? ' · koristi tvoje odabrane mišićne grupe' : ' · cijelo tijelo'}.`;
+    const focus = getProfileValueLabel(profile?.trainingFocus || 'general_fitness');
+    const goal = getProfileValueLabel(profile?.goal || 'maintain');
+    return uiMessage('Prijedlog: {location} · oko {duration} min · cilj: {goal} · fokus: {focus} · {muscles}.', { location, duration: formatLocalizedNumber(duration), goal, focus, muscles: translateUiText(mode === 'selected_muscles' ? 'Moje odabrane mišićne grupe' : 'Cijelo tijelo') });
   }
 
   function getSelectedGeneratorMuscles() {
@@ -1833,7 +1978,8 @@
   }
 
   function updatePlanGeneratorConfiguration(clearResults = true) {
-    const mode = profileUsesFullBody(currentProfileData)
+    const profile = getEffectiveCurrentProfile();
+    const mode = profileUsesFullBody(profile)
       ? 'full_body'
       : (document.querySelector('input[name="plan-generator-mode"]:checked')?.value || '');
     const selectedMuscles = getSelectedGeneratorMuscles();
@@ -1847,8 +1993,8 @@
       if (!mode) summary.textContent = 'Izaberi cijelo tijelo ili odabrane mišićne grupe prije generisanja.';
       else if (mode === 'selected_muscles' && !selectedMuscles.length) summary.textContent = 'Odaberi barem jednu mišićnu grupu.';
       else {
-        const profile = mode === 'selected_muscles' ? { ...currentProfileData, targetMuscleGroups: selectedMuscles } : currentProfileData;
-        summary.textContent = describeGeneratorProfile(profile, mode);
+        const configuredProfile = mode === 'selected_muscles' ? { ...profile, targetMuscleGroups: selectedMuscles } : profile;
+        summary.textContent = describeGeneratorProfile(configuredProfile, mode);
       }
     }
     if (clearResults) {
@@ -1872,9 +2018,9 @@
     generatedPlanViewIndex = Math.max(0, Math.min(generatedPlanViewIndex, generatedPlanSuggestions.length - 1));
     const plan = generatedPlanSuggestions[generatedPlanViewIndex];
     const totalPlans = generatedPlanSuggestions.length;
-    const saveAllButton = `<button class="btn btn-secondary plan-generator-save-all" type="button" data-action="save-all-generated-plans" ${generatedPlanSaveInProgress ? 'disabled' : ''}>Sačuvaj sve planove</button>`;
+    const saveAllButton = `<button class="btn btn-secondary plan-generator-save-all" type="button" data-action="save-all-generated-plans" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('Sačuvaj sve planove'))}</button>`;
     const warning = generatedPlanWarning ? `<p class="plan-generator-warning">${escapeHtml(translateUiText(generatedPlanWarning))}</p>` : '';
-    const estimatedMinutes = Number(currentProfileData?.sessionMinutes) || 60;
+    const estimatedMinutes = Number(getEffectiveCurrentProfile().sessionMinutes) || 60;
     const exercises = plan.exercises;
     const dots = Array.from({ length: totalPlans }, (_, index) => `<i class="${index === generatedPlanViewIndex ? 'is-active' : ''}"></i>`).join('');
     const language = getCurrentLanguage();
@@ -1890,25 +2036,25 @@
       </div>
       <article class="plan-generator-suggestion">
         <div class="plan-generator-suggestion-content">
-          <div class="plan-generator-suggestion-heading"><div><span class="settings-eyebrow">${escapeHtml(translateUiText(routineWeekdayLabels[Number(plan.scheduleDays?.[0])] || 'PRIJEDLOG'))}</span><h4>${escapeHtml(plan.emoji)} ${escapeHtml(getRoutineDisplayName(plan.name))}</h4><p>Fokus: ${escapeHtml(getRoutineDisplayName(plan.groupTitle))} · ${escapeHtml(plan.exercises.length)} ${escapeHtml(translateUiText('vježbi'))} · oko ${estimatedMinutes} min</p></div></div>
+          <div class="plan-generator-suggestion-heading"><div><span class="settings-eyebrow">${escapeHtml(translateUiText(routineWeekdayLabels[Number(plan.scheduleDays?.[0])] || 'PRIJEDLOG'))}</span><h4>${escapeHtml(plan.emoji)} ${escapeHtml(getGeneratedPlanDisplayName(plan.name))}</h4><p>${escapeHtml(translateUiText('Fokus:'))} ${escapeHtml(getGeneratedPlanDisplayName(plan.groupTitle))} · ${escapeHtml(plan.exercises.length)} ${escapeHtml(translateUiText('vježbi'))} · ${escapeHtml(translateUiText('oko'))} ${estimatedMinutes} ${escapeHtml(translateUiText('min'))}</p></div></div>
           <ol>${exercises.map((exercise) => {
-          const reps = ['weight_reps', 'reps'].includes(exercise.measurementType) ? `${exercise.setCount} serije × ${exercise.repRangeMin}–${exercise.repRangeMax}` : exercise.measurementType === 'seconds' ? `${exercise.setCount} serije · trajanje` : 'kardio';
-          return `<li><strong>${escapeHtml(exercise.name)}</strong><small>${escapeHtml(reps)} · odmor ${escapeHtml(exercise.restSeconds)} sek</small></li>`;
+          const reps = ['weight_reps', 'reps'].includes(exercise.measurementType) ? `${exercise.setCount} ${translateUiText('serije')} × ${exercise.repRangeMin}–${exercise.repRangeMax}` : exercise.measurementType === 'seconds' ? `${exercise.setCount} ${translateUiText('serije')} · ${translateUiText('trajanje')}` : translateUiText('kardio');
+          return `<li><strong data-no-translate>${escapeHtml(getGeneratedExerciseDisplayName(exercise))}</strong><small>${escapeHtml(reps)} · ${escapeHtml(translateUiText('odmor'))} ${escapeHtml(exercise.restSeconds)} ${escapeHtml(translateUiText('sek'))}</small></li>`;
           }).join('')}</ol>
           <div class="plan-generator-pagination" aria-live="polite"><span class="plan-generator-dots" aria-hidden="true">${dots}</span><strong>${escapeHtml(planPosition)}</strong></div>
         </div>
       </article>
-      <div class="plan-generator-actions"><button class="btn btn-secondary" type="button" data-action="regenerate-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>↻ Generiši ponovo</button><button class="btn btn-secondary" type="button" data-action="edit-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>✎ Uredi ovaj plan</button><button class="btn" type="button" data-action="save-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>Sačuvaj ovaj plan</button></div>${saveAllButton}
+      <div class="plan-generator-actions"><button class="btn btn-secondary" type="button" data-action="regenerate-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('↻ Generiši ponovo'))}</button><button class="btn btn-secondary" type="button" data-action="edit-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('✎ Uredi ovaj plan'))}</button><button class="btn" type="button" data-action="save-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('Sačuvaj ovaj plan'))}</button></div>${saveAllButton}
     `;
   }
 
   window.openPlanGenerator = function() {
     if (!currentUser) return;
-    if (!hasAcceptedCurrentLegalVersion(currentProfileData)) {
+    if (!hasCurrentLegalAcceptance()) {
       showLegalAcceptanceIfRequired();
       return;
     }
-    if (!isProfileComplete()) {
+    if (!isProfileComplete(getEffectiveCurrentProfile())) {
       ShowToast('Prvo dovrši Profil i ciljeve da napravimo smislen prijedlog.', 'error');
       window.openProfileDetailsEditor('onboarding');
       return;
@@ -1916,7 +2062,8 @@
     const modal = document.getElementById('plan-generator-modal');
     const results = document.getElementById('plan-generator-results');
     if (results) { results.hidden = true; results.innerHTML = ''; }
-    const mustUseFullBody = profileUsesFullBody(currentProfileData);
+    const profile = getEffectiveCurrentProfile();
+    const mustUseFullBody = profileUsesFullBody(profile);
     const generatorModeFieldset = document.querySelector('.plan-generator-mode');
     if (generatorModeFieldset) generatorModeFieldset.hidden = mustUseFullBody;
     document.querySelectorAll('input[name="plan-generator-mode"]').forEach((input) => { input.checked = false; });
@@ -1931,7 +2078,8 @@
   };
 
   window.generatePersonalizedPlans = function() {
-    if (Number(currentProfileData?.trainingFrequency) < 1) {
+    const currentProfile = getEffectiveCurrentProfile();
+    if (Number(currentProfile.trainingFrequency) < 1) {
       ShowToast('U Profilu i ciljevima postavi barem jedan trening sedmično da napravimo raspored.', 'error');
       return;
     }
@@ -1941,8 +2089,8 @@
       return;
     }
     const generatorProfile = configuration.mode === 'selected_muscles'
-      ? { ...(currentProfileData || {}), targetMuscleGroups: configuration.selectedMuscles }
-      : (currentProfileData || {});
+      ? { ...currentProfile, targetMuscleGroups: configuration.selectedMuscles }
+      : currentProfile;
     generatedPlanSuggestions = buildPersonalizedPlanSuggestions(generatorProfile, configuration.mode);
     generatedPlanViewIndex = 0;
     renderGeneratedPlanSuggestions();
@@ -1983,7 +2131,8 @@
     let generationSeed = Number(plan.generationSeed) || 0;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       generationSeed += 1;
-      const next = pickGeneratorExercises(plan.generatorGroups || [], currentProfileData || {}, getGeneratorExerciseCount(currentProfileData || {}), new Set(), generationSeed);
+      const profile = getEffectiveCurrentProfile();
+      const next = pickGeneratorExercises(plan.generatorGroups || [], profile, getGeneratorExerciseCount(profile), new Set(), generationSeed);
       if (next.length && next.map((exercise) => exercise.name).join('|') !== previousSignature) {
         replacement = next;
         break;
@@ -2003,7 +2152,7 @@
     generatedPlanSaveInProgress = true;
     renderGeneratedPlanSuggestions();
     try {
-      await addDoc(collection(db, 'routines'), {
+      const routineData = {
         userId: currentUser.uid,
         emoji: plan.emoji || '',
         name: plan.name,
@@ -2012,12 +2161,15 @@
         isArchived: false,
         isFavorite: false,
         scheduleDays: Array.isArray(plan.scheduleDays) ? plan.scheduleDays : []
-      });
+      };
+      const saved = await createUserDocument('routines', routineData);
+      userRoutines = [...userRoutines, { ...routineData, id: saved.id }];
+      writeRoutineCache(currentUser.uid, userRoutines);
       generatedPlanSuggestions = generatedPlanSuggestions.filter((item) => item.id !== planId);
       generatedPlanViewIndex = Math.max(0, Math.min(generatedPlanViewIndex, generatedPlanSuggestions.length - 1));
       if (generatedPlanSuggestions.length) renderGeneratedPlanSuggestions();
       else document.getElementById('plan-generator-modal')?.style.setProperty('display', 'none');
-      ShowToast('Plan je sačuvan u tvojim planovima treninga.');
+      ShowToast(saved.queued ? 'Plan je sačuvan lokalno i čeka sinhronizaciju.' : 'Plan je sačuvan u tvojim planovima treninga.');
     } catch (error) {
       console.error('Generated plan save diagnostic:', error);
       ShowToast('Plan trenutno nije moguće sačuvati. Pokušaj ponovo.', 'error');
@@ -2035,7 +2187,7 @@
     try {
       const plans = [...generatedPlanSuggestions].sort((first, second) => getRoutineScheduleSortValue(first) - getRoutineScheduleSortValue(second));
       for (const plan of plans) {
-        await addDoc(collection(db, 'routines'), {
+        const routineData = {
           userId: currentUser.uid,
           emoji: plan.emoji || '',
           name: plan.name,
@@ -2044,7 +2196,10 @@
           isArchived: false,
           isFavorite: false,
           scheduleDays: Array.isArray(plan.scheduleDays) ? plan.scheduleDays : []
-        });
+        };
+        const saved = await createUserDocument('routines', routineData);
+        userRoutines = [...userRoutines, { ...routineData, id: saved.id }];
+        writeRoutineCache(currentUser.uid, userRoutines);
         generatedPlanSuggestions = generatedPlanSuggestions.filter((item) => item.id !== plan.id);
         savedCount += 1;
       }
@@ -2094,6 +2249,7 @@
       </details>
     `;
     list.appendChild(row);
+    localizeExerciseNameInput(row.querySelector('.routine-exercise-name'));
     syncRoutineExerciseSettingsVisibility(row);
     row.querySelector('.routine-exercise-type')?.addEventListener('change', () => syncRoutineExerciseSettingsVisibility(row));
   }
@@ -2134,7 +2290,7 @@
   function getRoutineExercisesFromList(listId) {
     return Array.from(document.querySelectorAll(`#${listId} .routine-exercise-row`))
       .map((row) => normalizeRoutineExercise({
-        name: row.querySelector('.routine-exercise-name')?.value || '',
+        name: getExerciseInputValue(row.querySelector('.routine-exercise-name')),
         measurementType: row.querySelector('.routine-exercise-type')?.value || '',
         setCount: row.querySelector('.routine-exercise-set-count')?.value,
         repRangeMin: row.querySelector('.routine-exercise-rep-min')?.value,
@@ -2224,11 +2380,14 @@
     }
 
     try {
-      await addDoc(collection(db, "routines"), newRoutine);
+      const saved = await createUserDocument('routines', newRoutine);
+      userRoutines = [...userRoutines, { ...newRoutine, id: saved.id }];
+      writeRoutineCache(currentUser.uid, userRoutines);
       document.getElementById('createRoutineModal').style.display = 'none';
-      ShowToast("Novi plan uspješno kreiran! 🔥");
+      window.renderWorkouts();
+      ShowToast(saved.queued ? 'Novi plan je sačuvan lokalno i čeka sinhronizaciju.' : 'Novi plan uspješno kreiran! 🔥');
     } catch (e) {
-      ShowToast("Greška pri kreiranju: " + e.message, 'error');
+      ShowToast(translateUiText('Plan nije moguće kreirati. Pokušaj ponovo.'), 'error');
     }
   };
 
@@ -2324,7 +2483,7 @@
     const draft = JSON.parse(draftRaw);
     currentWorkout = { id: draft.id, name: draft.name, date: draft.date, exercises: [] };
 
-    document.getElementById('active-workout-title').innerText = draft.name;
+    document.getElementById('active-workout-title').innerText = getRoutineDisplayName(draft.name);
     const container = document.getElementById('active-exercises-container');
     container.innerHTML = '';
 
@@ -2367,7 +2526,7 @@
 
         card.innerHTML = `
           <div class="flex-between">
-            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(exName)} 🏃‍♂️</h3>
+            <h3 data-no-translate style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(getGeneratedExerciseDisplayName(exName))} 🏃‍♂️</h3>
             <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
           </div>
           ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
@@ -2375,7 +2534,7 @@
           <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
             ${ex.minutes ? `⏱️ <strong>${escapeHtml(ex.minutes)} min</strong>` : ''} ${ex.calories ? ` · 🔥 <strong>${escapeHtml(ex.calories)} kcal</strong>` : ''}
           </div>
-          ${ex.notes ? `<div style="font-size:0.8rem; color:var(--text-muted);">📝 ${escapeHtml(ex.notes)}</div>` : ''}
+          ${ex.notes ? `<div data-no-translate style="font-size:0.8rem; color:var(--text-muted);">📝 ${escapeHtml(ex.notes)}</div>` : ''}
           <input type="hidden" class="ex-note" value="${escapeHtml(ex.notes || '')}">
         `;
         container.appendChild(card);
@@ -2395,7 +2554,7 @@
 
         card.innerHTML = `
           <div class="flex-between">
-            <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(ex.name)}</h3>
+            <h3 data-no-translate style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(getGeneratedExerciseDisplayName(ex))}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="pr-badge-slot"></span>
               <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
@@ -2405,7 +2564,7 @@
           ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor između serija: ${escapeHtml(restTime)}</small>` : ''}
           <div class="prev-perf">
             Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
-            ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
+            ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: <span data-no-translate>${escapeHtml(prevNote)}</span></small>` : ''}
           </div>
           <div class="sets-container">
             <div class="set-row">
@@ -2581,15 +2740,15 @@
     const fallbackName = typeof exercise === 'string' ? exercise : (exercise?.name || '');
     const measurementType = getExerciseMeasurementType(exercise, fallbackName);
     if (measurementType === 'seconds' || (set.seconds !== undefined && set.seconds !== null)) {
-      return `${set.seconds ?? set.weight ?? 0} sek`;
+      return `${formatLocalizedNumber(set.seconds ?? set.weight ?? 0)} ${translateUiText('sek')}`;
     }
     if (measurementType === 'reps') {
-      return `${set.reps ?? 0} pon`;
+      return `${formatLocalizedNumber(set.reps ?? 0)} ${translateUiText('pon')}`;
     }
     if (set.weight === undefined || set.weight === null || set.weight === '') {
-      return `${set.reps ?? 0} pon`;
+      return `${formatLocalizedNumber(set.reps ?? 0)} ${translateUiText('pon')}`;
     }
-    return `${set.weight ?? 0}kg × ${set.reps ?? 0}`;
+    return `${formatLocalizedNumber(set.weight ?? 0)} kg × ${formatLocalizedNumber(set.reps ?? 0)}`;
   }
 
   function getLatestExerciseLog(exerciseName) {
@@ -2686,7 +2845,7 @@
   }
 
   function renderActiveWorkoutUI(workout) {
-    document.getElementById('active-workout-title').innerText = currentWorkout.name;
+    document.getElementById('active-workout-title').innerText = getRoutineDisplayName(currentWorkout.name);
     const container = document.getElementById('active-exercises-container');
 
     if (!workout.exercises || workout.exercises.length === 0) {
@@ -2705,7 +2864,7 @@
       if (measurementType === 'cardio') {
         return `
           <div class="card exercise-block custom-cardio-block" data-name="${escapeHtml(exName)}" data-is-cardio="true" data-measurement-type="cardio" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}" data-minutes="${escapeHtml(ex.minutes || '')}" data-calories="${escapeHtml(ex.calories || '')}">
-            <div class="flex-between"><h3 style="font-size:1.15rem;font-weight:800;color:var(--accent-purple);">${escapeHtml(exName)} 🏃</h3><button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button></div>
+            <div class="flex-between"><h3 data-no-translate style="font-size:1.15rem;font-weight:800;color:var(--accent-purple);">${escapeHtml(getGeneratedExerciseDisplayName(exName))} 🏃</h3><button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button></div>
             ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
             ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor: ${escapeHtml(restTime)}</small>` : ''}
             <div class="cardio-input-grid"><label>Minute<input type="number" class="custom-input cardio-minutes" min="0" step="1" value="${escapeHtml(ex.minutes || '')}" placeholder="0"></label><label>Kalorije<input type="number" class="custom-input cardio-calories" min="0" step="1" value="${escapeHtml(ex.calories || '')}" placeholder="opcionalno"></label></div>
@@ -2733,7 +2892,7 @@
       return `
           <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-maxw="${escapeHtml(maxW)}" data-measurement-type="${measurementType}" data-set-count="${escapeHtml(plannedSetCount)}" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}">
           <div class="flex-between">
-            <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(exName)}</h3>
+            <h3 data-no-translate style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(getGeneratedExerciseDisplayName(exName))}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="pr-badge-slot"></span>
               <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
@@ -2743,7 +2902,7 @@
           ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor između serija: ${escapeHtml(restTime)}</small>` : ''}
           <div class="prev-perf">
             Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
-            ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
+            ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: <span data-no-translate>${escapeHtml(prevNote)}</span></small>` : ''}
           </div>
           <div class="sets-container">
             <div class="set-row">
@@ -2820,7 +2979,7 @@
     cachedHistory.forEach(h => h.exercises?.forEach(e => { if (e.name) allExercisesSet.add(e.name); }));
 
     const select = document.getElementById('custom-existing-select');
-    select.innerHTML = Array.from(allExercisesSet).map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+    select.innerHTML = Array.from(allExercisesSet).map(e => `<option data-no-translate value="${escapeHtml(e)}">${escapeHtml(getGeneratedExerciseDisplayName(e))}</option>`).join('');
 
     setCustomType('existing');
   };
@@ -2887,13 +3046,13 @@
 
       card.innerHTML = `
         <div class="flex-between">
-          <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(name)} 🏃‍♂️</h3>
+          <h3 data-no-translate style="font-size: 1.15rem; font-weight: 800; color: var(--accent-purple);">${escapeHtml(getGeneratedExerciseDisplayName(name))} 🏃‍♂️</h3>
           <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
         </div>
         <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
           ${min ? `⏱️ <strong>${escapeHtml(min)} min</strong>` : ''} ${cal ? ` · 🔥 <strong>${escapeHtml(cal)} kcal</strong>` : ''}
         </div>
-        ${notes ? `<div style="font-size:0.8rem; color:var(--text-muted);">📝 ${escapeHtml(notes)}</div>` : ''}
+        ${notes ? `<div data-no-translate style="font-size:0.8rem; color:var(--text-muted);">📝 ${escapeHtml(notes)}</div>` : ''}
         <input type="hidden" class="ex-note" value="${escapeHtml(notes)}">
       `;
       container.appendChild(card);
@@ -2922,7 +3081,7 @@
 
       card.innerHTML = `
         <div class="flex-between">
-          <h3 style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(name)}</h3>
+          <h3 data-no-translate style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(getGeneratedExerciseDisplayName(name))}</h3>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="pr-badge-slot"></span>
             <button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button>
@@ -2931,7 +3090,7 @@
         ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
         <div class="prev-perf">
           Prošli put: <strong>${escapeHtml(prevLogStr)}</strong>
-          ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: ${escapeHtml(prevNote)}</small>` : ''}
+          ${prevNote ? `<br><small style="color: #94a3b8;">📝 Napomena: <span data-no-translate>${escapeHtml(prevNote)}</span></small>` : ''}
         </div>
         <div class="sets-container">
           <div class="set-row">
@@ -3024,10 +3183,13 @@
         reject(new Error('IndexedDB nije dostupan'));
         return;
       }
-      const request = indexedDB.open('gym-tracker-offline', 1);
+      const request = indexedDB.open('gym-tracker-offline', OFFLINE_DB_VERSION);
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains('pendingWorkouts')) {
           request.result.createObjectStore('pendingWorkouts', { keyPath: 'id' });
+        }
+        if (!request.result.objectStoreNames.contains(PENDING_OPERATIONS_STORE)) {
+          request.result.createObjectStore(PENDING_OPERATIONS_STORE, { keyPath: 'id' });
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -3094,6 +3256,138 @@
     }
   }
 
+  function createOfflineOperationId() {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    return `operation-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  function getPendingOperationsFallbackKey(userId) {
+    return `gym_pending_operations_v1_${userId}`;
+  }
+
+  async function savePendingOperations(userId, operations) {
+    pendingOperationsMemory = operations;
+    try {
+      const dbInstance = await openPendingWorkoutsDb();
+      await new Promise((resolve, reject) => {
+        const transaction = dbInstance.transaction(PENDING_OPERATIONS_STORE, 'readwrite');
+        const store = transaction.objectStore(PENDING_OPERATIONS_STORE);
+        const keepIds = new Set(operations.map((item) => item.id));
+        const request = store.getAll();
+        request.onsuccess = () => {
+          (request.result || []).forEach((item) => {
+            if (item.userId === userId && !keepIds.has(item.id)) store.delete(item.id);
+          });
+          operations.forEach((item) => store.put({ ...item, userId }));
+        };
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+    } catch (error) {
+      localStorage.setItem(getPendingOperationsFallbackKey(userId), JSON.stringify(operations));
+      console.warn('Offline red promjena je sačuvan u localStorage fallbacku:', error);
+    }
+  }
+
+  async function loadPendingOperations(userId) {
+    try {
+      const dbInstance = await openPendingWorkoutsDb();
+      const stored = await new Promise((resolve, reject) => {
+        const request = dbInstance.transaction(PENDING_OPERATIONS_STORE, 'readonly').objectStore(PENDING_OPERATIONS_STORE).getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+      const fallback = JSON.parse(localStorage.getItem(getPendingOperationsFallbackKey(userId)) || '[]');
+      const merged = [...stored.filter((item) => item.userId === userId), ...(Array.isArray(fallback) ? fallback : [])]
+        .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
+        .sort((first, second) => Number(first.createdAt || 0) - Number(second.createdAt || 0));
+      await savePendingOperations(userId, merged);
+      localStorage.removeItem(getPendingOperationsFallbackKey(userId));
+      pendingOperationsMemory = merged;
+    } catch (error) {
+      try {
+        const fallback = JSON.parse(localStorage.getItem(getPendingOperationsFallbackKey(userId)) || '[]');
+        pendingOperationsMemory = Array.isArray(fallback) ? fallback : [];
+      } catch { pendingOperationsMemory = []; }
+      console.warn('Offline red promjena nije učitan iz IndexedDB-a:', error);
+    }
+    pendingOperationsLoaded = true;
+    renderPendingSyncStatus();
+  }
+
+  function operationReference(path) {
+    return doc(db, ...String(path || '').split('/').filter(Boolean));
+  }
+
+  async function executePendingOperation(operation) {
+    const reference = operationReference(operation.path);
+    if (operation.kind === 'delete') return deleteDoc(reference);
+    const data = { ...(operation.data || {}) };
+    (operation.deleteFields || []).forEach((field) => { data[field] = deleteField(); });
+    return setDoc(reference, data, { merge: operation.merge !== false });
+  }
+
+  async function queueOfflineOperation(operation) {
+    if (!currentUser || operation.userId !== currentUser.uid) throw new Error('Nema aktivnog naloga za offline izmjenu.');
+    const existingIndex = pendingOperationsMemory.findIndex((item) => item.userId === operation.userId && item.path === operation.path);
+    let next = { ...operation, id: operation.id || createOfflineOperationId(), createdAt: operation.createdAt || Date.now(), status: 'pending' };
+    if (existingIndex >= 0) {
+      const previous = pendingOperationsMemory[existingIndex];
+      if (next.kind !== 'delete' && previous.kind !== 'delete') {
+        const mergedData = { ...(previous.data || {}), ...(next.data || {}) };
+        const mergedDeleteFields = new Set([...(previous.deleteFields || []), ...(next.deleteFields || [])]);
+        // A newer value for a field must win over an older queued field deletion.
+        Object.keys(mergedData).forEach((field) => mergedDeleteFields.delete(field));
+        next = { ...previous, ...next, kind: 'set', merge: previous.merge !== false || next.merge !== false, data: mergedData, deleteFields: [...mergedDeleteFields] };
+      }
+      pendingOperationsMemory.splice(existingIndex, 1);
+    }
+    pendingOperationsMemory.push(next);
+    pendingOperationsMemory.sort((first, second) => Number(first.createdAt || 0) - Number(second.createdAt || 0));
+    await savePendingOperations(currentUser.uid, pendingOperationsMemory);
+    renderPendingSyncStatus();
+    schedulePendingWorkoutSync(0);
+    return next;
+  }
+
+  async function writeUserDocument(path, data, { merge = true, deleteFields = [] } = {}) {
+    const operation = { userId: currentUser?.uid, kind: 'set', path, data, merge, deleteFields };
+    if (currentUser && path === `users/${currentUser.uid}`) {
+      const nextProfile = { ...getEffectiveCurrentProfile(), ...(data || {}) };
+      deleteFields.forEach((field) => delete nextProfile[field]);
+      writeProfileCache(currentUser.uid, nextProfile);
+    }
+    try {
+      if (!navigator.onLine) throw Object.assign(new Error('offline'), { code: 'unavailable' });
+      await executePendingOperation(operation);
+      return { queued: false };
+    } catch (error) {
+      if (!isOfflineError(error)) throw error;
+      await queueOfflineOperation(operation);
+      return { queued: true };
+    }
+  }
+
+  async function deleteUserDocument(path) {
+    const operation = { userId: currentUser?.uid, kind: 'delete', path };
+    try {
+      if (!navigator.onLine) throw Object.assign(new Error('offline'), { code: 'unavailable' });
+      await executePendingOperation(operation);
+      return { queued: false };
+    } catch (error) {
+      if (!isOfflineError(error)) throw error;
+      await queueOfflineOperation(operation);
+      return { queued: true };
+    }
+  }
+
+  async function createUserDocument(collectionPath, data) {
+    const collectionReference = collection(db, ...String(collectionPath || '').split('/').filter(Boolean));
+    const reference = doc(collectionReference);
+    const result = await writeUserDocument(reference.path, data, { merge: false });
+    return { id: reference.id, ...result };
+  }
+
   function isOfflineError(error) {
     const message = String(error?.message || '').toLowerCase();
     return !navigator.onLine
@@ -3134,7 +3428,8 @@
   }
 
   function hasPendingWorkoutsForCurrentUser() {
-    return Boolean(currentUser) && pendingWorkoutsMemory.some((item) => item.userId === currentUser.uid);
+    return Boolean(currentUser) && (pendingWorkoutsMemory.some((item) => item.userId === currentUser.uid)
+      || pendingOperationsMemory.some((item) => item.userId === currentUser.uid));
   }
 
   function clearPendingWorkoutSyncRetry() {
@@ -3156,7 +3451,10 @@
   async function syncPendingWorkouts() {
     if (!currentUser || !navigator.onLine || pendingSyncInProgress) return;
     const queue = pendingWorkoutsMemory.filter((item) => item.userId === currentUser.uid);
-    if (queue.length === 0) {
+    const operationQueue = pendingOperationsMemory.filter((item) => item.userId === currentUser.uid);
+    const queuedWorkoutIds = new Set(queue.map((item) => item.id));
+    const queuedOperationIds = new Set(operationQueue.map((item) => item.id));
+    if (queue.length === 0 && operationQueue.length === 0) {
       clearPendingWorkoutSyncRetry();
       return;
     }
@@ -3164,6 +3462,7 @@
     renderPendingSyncStatus();
 
     const remaining = [];
+    const remainingOperations = [];
     let syncedCount = 0;
     try {
     for (const item of queue) {
@@ -3181,17 +3480,35 @@
         if (!isOfflineError(error)) console.error('Greška pri sinhronizaciji treninga:', error);
       }
     }
-    await savePendingWorkouts(currentUser.uid, remaining);
-    if (remaining.length && navigator.onLine) {
+    for (const operation of operationQueue) {
+      operation.status = 'syncing';
+      try {
+        await executePendingOperation(operation);
+        syncedCount += 1;
+      } catch (error) {
+        operation.status = 'error';
+        operation.error = String(error?.message || 'Slanje nije uspjelo');
+        remainingOperations.push(operation);
+        if (!isOfflineError(error)) console.error('Greška pri sinhronizaciji lokalne izmjene:', error);
+      }
+    }
+    // Keep changes that the user made while an earlier batch was being sent.
+    const workoutsAddedDuringSync = pendingWorkoutsMemory.filter((item) => item.userId === currentUser.uid && !queuedWorkoutIds.has(item.id));
+    const operationsAddedDuringSync = pendingOperationsMemory.filter((item) => item.userId === currentUser.uid && !queuedOperationIds.has(item.id));
+    await savePendingWorkouts(currentUser.uid, [...remaining, ...workoutsAddedDuringSync]);
+    await savePendingOperations(currentUser.uid, [...remainingOperations, ...operationsAddedDuringSync]
+      .sort((first, second) => Number(first.createdAt || 0) - Number(second.createdAt || 0)));
+    if ((remaining.length || remainingOperations.length) && navigator.onLine) {
       pendingSyncRetryDelayMs = Math.min(pendingSyncRetryDelayMs * 2, PENDING_SYNC_RETRY_MAX_MS);
       schedulePendingWorkoutSync();
-    } else if (remaining.length === 0) {
+    } else if (remaining.length === 0 && remainingOperations.length === 0) {
       clearPendingWorkoutSyncRetry();
     }
     renderPendingSyncStatus();
     if (syncedCount > 0) {
       await loadCloudData();
-      ShowToast(remaining.length ? `Sinhronizovano: ${syncedCount}. Čeka još: ${remaining.length}.` : 'Trening sinhronizovan sa Cloudom.');
+      const waiting = remaining.length + remainingOperations.length;
+      ShowToast(waiting ? `Sinhronizovano: ${syncedCount}. Čeka još: ${waiting}.` : 'Lokalne izmjene su sinhronizovane sa Cloudom.');
     }
     } finally {
       pendingSyncInProgress = false;
@@ -3282,7 +3599,7 @@
         return;
       }
       console.error("Greška pri čuvanju: ", e);
-      ShowToast('Greška pri čuvanju na cloud: ' + e.message, 'error');
+      ShowToast(translateUiText('Trening nije moguće sačuvati. Provjeri internet i pokušaj ponovo.'), 'error');
     }
   };
 
@@ -3343,29 +3660,44 @@ async function loadCloudData() {
 function renderPendingSyncStatus() {
   const container = document.getElementById('pending-sync-container');
   if (!container || !currentUser) return;
-  const pending = pendingWorkoutsMemory.filter((item) => item.userId === currentUser.uid);
+  const pendingWorkouts = pendingWorkoutsMemory.filter((item) => item.userId === currentUser.uid);
+  const pendingOperations = pendingOperationsMemory.filter((item) => item.userId === currentUser.uid);
+  const pending = [...pendingWorkouts, ...pendingOperations];
   if (pending.length === 0) {
     container.style.display = 'none';
     container.innerHTML = '';
     return;
   }
 
-  const connectionText = navigator.onLine ? 'Internet je dostupan — pokušavam poslati.' : 'Čeka internetnu vezu.';
+  const connectionText = translateUiText(navigator.onLine ? 'Internet je dostupan — pokušavam poslati.' : 'Čeka internetnu vezu.');
+  const documentLabels = {
+    routines: 'Plan treninga', workouts: 'Trening', foodEntries: 'Unos ishrane',
+    bodyMeasurements: 'Mjerenje tijela', mealPlans: 'Plan obroka', users: 'Profil ili podešavanje'
+  };
   const rows = pending.map((item) => {
-    const name = item.data?.name || 'Trening';
-    const date = item.data?.date ? formatDateClean(item.data.date, false) : 'Novi zapis';
-    const status = item.status === 'syncing' ? 'Šalje se…' : item.status === 'error' ? `Greška: ${item.error || 'pokušaj ponovo'}` : 'Čeka sinhronizaciju';
-    return `<li style="margin: 6px 0;"><strong>${escapeHtml(name)}</strong><span style="color:var(--text-muted);"> · ${escapeHtml(date)} · ${escapeHtml(status)}</span></li>`;
+    const pathParts = String(item.path || '').split('/').filter(Boolean);
+    const collectionName = pathParts.length > 2 && pathParts[0] === 'users' ? pathParts[2] : pathParts[0];
+    const name = item.data?.name ? `<span data-no-translate>${escapeHtml(item.data.name)}</span>` : escapeHtml(translateUiText(documentLabels[collectionName] || 'Lokalna izmjena'));
+    const date = item.data?.date ? formatDateClean(item.data.date, false) : translateUiText('Novi zapis');
+    const status = item.status === 'syncing' ? translateUiText('Šalje se…') : item.status === 'error' ? translateUiText('Sinhronizacija nije uspjela — pokušaj ponovo.') : translateUiText('Čeka sinhronizaciju');
+    return `<li style="margin: 6px 0;"><strong>${name}</strong><span style="color:var(--text-muted);"> · ${escapeHtml(date)} · ${escapeHtml(status)}</span></li>`;
   }).join('');
+
+  const language = getCurrentLanguage();
+  const pendingTitle = language === 'en'
+    ? `${pending.length} local change${pending.length === 1 ? '' : 's'} waiting to sync`
+    : language === 'de'
+      ? `${pending.length} lokale Änderung${pending.length === 1 ? '' : 'en'} warten auf Synchronisierung`
+      : `${pending.length} lokaln${pending.length === 1 ? 'a izmjena čeka' : 'e izmjene čekaju'} sinhronizaciju`;
 
   container.style.display = 'block';
   container.innerHTML = `
     <div class="flex-between" style="gap: 10px; align-items: flex-start;">
       <div>
-        <strong style="color: var(--accent-purple);">⏳ ${pending.length} trening${pending.length === 1 ? '' : 'a'} čeka sinhronizaciju</strong>
+        <strong style="color: var(--accent-purple);">⏳ ${escapeHtml(pendingTitle)}</strong>
         <div style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">${connectionText}</div>
       </div>
-      <button class="btn btn-secondary" style="width:auto; padding:8px 10px; font-size:0.8rem;" data-action="sync-pending-workouts">Pokušaj sada</button>
+      <button class="btn btn-secondary" style="width:auto; padding:8px 10px; font-size:0.8rem;" data-action="sync-pending-workouts">${escapeHtml(translateUiText('Pokušaj sada'))}</button>
     </div>
     <ul style="margin: 10px 0 0 18px; padding:0;">${rows}</ul>`;
 }
@@ -3378,7 +3710,7 @@ function renderPendingSyncStatus() {
     renderPendingSyncStatus();
     const container = document.getElementById('last-workout-container');
     if (cachedHistory.length === 0) {
-      container.innerHTML = '<p style="color: var(--text-muted);">Još nema zapisa na Cloud-u.</p>';
+      container.innerHTML = `<p style="color: var(--text-muted);">${escapeHtml(translateUiText('Još nema zapisa na Cloud-u.'))}</p>`;
       return;
     }
 
@@ -3395,16 +3727,16 @@ function renderPendingSyncStatus() {
 
       return `
         <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--bg-card-border);">
-          <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main); margin-bottom: 6px;">${escapeHtml(ex.name)}</div>
+          <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main); margin-bottom: 6px;"><span data-no-translate>${escapeHtml(getGeneratedExerciseDisplayName(ex))}</span></div>
           <div style="display: flex; flex-wrap: wrap; gap: 6px;">${contentHtml}</div>
-          ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">📝 ${escapeHtml(ex.notes)}</div>` : ''}
+          ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px;">📝 <span data-no-translate>${escapeHtml(ex.notes)}</span></div>` : ''}
         </div>
       `;
     }).join('');
 
     container.innerHTML = `
       <div class="flex-between" style="margin-bottom: 6px;">
-        <strong style="font-size: 1.25rem; font-weight: 900; color: #fff;">${escapeHtml(last.name || 'Trening')}</strong>
+        <strong style="font-size: 1.25rem; font-weight: 900; color: #fff;">${last.name ? `<span data-no-translate>${escapeHtml(getRoutineDisplayName(last.name))}</span>` : escapeHtml(translateUiText('Trening'))}</strong>
         <span class="badge" style="color: var(--primary); font-size: 0.8rem;">${dateStr}</span>
       </div>
       ${exercisesHtml}
@@ -3580,7 +3912,7 @@ function renderPendingSyncStatus() {
       });
     }
 
-    return copy;
+    return localizeCopy(copy, language);
   }
 
   function renderWeeklyGoalCard() {
@@ -3788,17 +4120,21 @@ function renderPendingSyncStatus() {
           createdAt: new Date().toISOString()
         };
 
-        await addDoc(collection(db, "routines"), newRoutine);
+        const saved = await createUserDocument('routines', newRoutine);
+        userRoutines = [...userRoutines, { ...newRoutine, id: saved.id }];
+        writeRoutineCache(currentUser.uid, userRoutines);
         importedCount++;
       }
 
       if (areaInput) areaInput.value = '';
       document.getElementById('importNotesModal').style.display = 'none';
 
+      window.renderWorkouts();
+
       ShowToast(`Uspješno uvezeno ${importedCount} treninga! 🎉`);
     } catch (error) {
       console.error("Greška pri čuvanju rutine:", error);
-      ShowToast("Greška pri uvozu: " + error.message, 'error');
+      ShowToast(translateUiText('Uvoz nije moguće dovršiti. Provjeri podatke i pokušaj ponovo.'), 'error');
     }
   };
 
@@ -3822,9 +4158,9 @@ function renderPendingSyncStatus() {
 
         return `
           <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--bg-card-border);">
-            <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-main); margin-bottom: 4px;">${escapeHtml(ex.name)}</div>
+            <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-main); margin-bottom: 4px;"><span data-no-translate>${escapeHtml(getGeneratedExerciseDisplayName(ex))}</span></div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">${contentHtml}</div>
-            ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">📝 ${escapeHtml(ex.notes)}</div>` : ''}
+            ${ex.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">📝 <span data-no-translate>${escapeHtml(ex.notes)}</span></div>` : ''}
           </div>
         `;
       }).join('');
@@ -3839,7 +4175,7 @@ function renderPendingSyncStatus() {
       return `
         <div class="card history-card">
           <div class="flex-between" style="margin-bottom: 6px;">
-            <strong style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(h.name || 'Trening')}</strong>
+            <strong style="font-size: 1.15rem; font-weight: 800;">${h.name ? `<span data-no-translate>${escapeHtml(getRoutineDisplayName(h.name))}</span>` : escapeHtml(translateUiText('Trening'))}</strong>
             <div class="history-card-actions"><span class="badge">${dateStr}</span>${actionMarkup}</div>
           </div>
           ${exercisesHtml}
@@ -3896,13 +4232,14 @@ function renderPendingSyncStatus() {
     const root = document.getElementById('history-workout-editor-exercises');
     if (!root) return;
     root.innerHTML = exercises.map((exercise, index) => getHistoryEditorExerciseMarkup(exercise, index)).join('');
+    root.querySelectorAll('.history-editor-exercise-name').forEach(localizeExerciseNameInput);
   }
 
   function readHistoryWorkoutEditorExercises({ strict = false } = {}) {
     const cards = Array.from(document.querySelectorAll('#history-workout-editor-exercises .history-editor-exercise'));
     const exercises = [];
     for (const card of cards) {
-      const name = card.querySelector('.history-editor-exercise-name')?.value.trim() || '';
+      const name = getExerciseInputValue(card.querySelector('.history-editor-exercise-name')).trim();
       const type = card.querySelector('.history-editor-exercise-type')?.value || 'weight-reps';
       const notes = card.querySelector('.history-editor-exercise-note')?.value.trim() || '';
       if (!name) {
@@ -4022,7 +4359,7 @@ function renderPendingSyncStatus() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { if (status) status.textContent = 'Izaberi ispravan datum treninga.'; return; }
     let exercises;
     try { exercises = readHistoryWorkoutEditorExercises({ strict: true }); }
-    catch (error) { if (status) status.textContent = error.message; return; }
+    catch (error) { if (status) status.textContent = translateUiText(error.message); return; }
     const originalDate = getWorkoutDate(workout);
     const [year, month, date] = day.split('-').map(Number);
     const savedDate = new Date(year, month - 1, date, originalDate?.getHours() || 12, originalDate?.getMinutes() || 0, originalDate?.getSeconds() || 0).toISOString();
@@ -4030,13 +4367,13 @@ function renderPendingSyncStatus() {
     if (button) { button.disabled = true; button.textContent = '\u010cuvam\u2026'; }
     if (status) status.textContent = '';
     try {
-      await updateDoc(doc(db, 'workouts', workout.id), { name, date: savedDate, exercises });
+      const result = await writeUserDocument(`workouts/${workout.id}`, { name, date: savedDate, exercises });
       cachedHistory = cachedHistory.map((item) => item.id === workout.id ? { ...item, name, date: savedDate, exercises } : item)
         .sort((a, b) => (getWorkoutDate(b)?.getTime() || 0) - (getWorkoutDate(a)?.getTime() || 0));
       document.getElementById('history-workout-editor-modal').style.display = 'none';
       editingHistoryWorkoutId = null;
       refreshWorkoutViews();
-      ShowToast('Trening je sa\u010duvan.');
+      ShowToast(result.queued ? 'Izmjene treninga su sačuvane lokalno i čekaju sinhronizaciju.' : 'Trening je sa\u010duvan.');
     } catch (error) {
       console.error('Workout history update diagnostic:', error);
       if (status) status.textContent = 'Trening nije mogu\u0107e sa\u010duvati. Provjeri internet i poku\u0161aj ponovo.';
@@ -4066,14 +4403,14 @@ function renderPendingSyncStatus() {
     const button = document.getElementById('confirm-history-workout-delete');
     if (button) { button.disabled = true; button.textContent = 'Bri\u0161em\u2026'; }
     try {
-      await deleteDoc(doc(db, 'workouts', workout.id));
+      const result = await deleteUserDocument(`workouts/${workout.id}`);
       cachedHistory = cachedHistory.filter((item) => item.id !== workout.id);
       pendingHistoryWorkoutDeleteId = null;
       editingHistoryWorkoutId = null;
       document.getElementById('history-workout-delete-modal').style.display = 'none';
       document.getElementById('history-workout-editor-modal').style.display = 'none';
       refreshWorkoutViews();
-      ShowToast('Trening je obrisan.');
+      ShowToast(result.queued ? 'Trening je obrisan lokalno i čeka sinhronizaciju.' : 'Trening je obrisan.');
     } catch (error) {
       console.error('Workout history delete diagnostic:', error);
       if (status) status.textContent = 'Trening nije mogu\u0107e obrisati. Ostao je sa\u010duvan.';
@@ -4130,14 +4467,16 @@ function renderPendingSyncStatus() {
   }
 
   function formatAnalyticsNumber(value) {
-    return new Intl.NumberFormat(getCurrentLanguage?.() === 'de' ? 'de-DE' : 'sr-Latn-RS', { maximumFractionDigits: 0 }).format(Math.round(value || 0));
+    return new Intl.NumberFormat(getCurrentLocale(), { maximumFractionDigits: 0 }).format(Math.round(value || 0));
   }
 
   function formatWorkoutDuration(seconds) {
     const safe = Math.max(0, Math.round(Number(seconds) || 0));
-    if (!safe) return 'Nema podatka';
+    if (!safe) return translateUiText('Nema podatka');
     const hours = Math.floor(safe / 3600);
     const minutes = Math.floor((safe % 3600) / 60);
+    const language = getCurrentLanguage();
+    if (language === 'de') return hours ? `${hours} Std. ${minutes} Min.` : `${Math.max(1, minutes)} Min.`;
     if (hours) return `${hours} h ${minutes} min`;
     return `${Math.max(1, minutes)} min`;
   }
@@ -4148,11 +4487,11 @@ function renderPendingSyncStatus() {
     const state = !hasPrevious || difference === 0 ? 'analytics-delta-neutral' : difference > 0 ? 'analytics-delta-positive' : 'analytics-delta-negative';
     const differenceText = formatter(Math.abs(difference));
     const detail = !hasPrevious
-      ? 'Nema ranijeg perioda'
+      ? translateUiText('Nema ranijeg perioda')
       : difference === 0
-        ? 'Isto kao prethodni period'
-        : `${difference > 0 ? '+' : '−'}${differenceText} u odnosu na prethodni period`;
-    return `<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(formatter(currentValue))}</strong><small class="${state}">${escapeHtml(detail)}</small></div>`;
+        ? translateUiText('Isto kao prethodni period')
+        : `${difference > 0 ? '+' : '−'}${differenceText} ${translateUiText('u odnosu na prethodni period')}`;
+    return `<div><small>${escapeHtml(translateUiText(label))}</small><strong>${escapeHtml(formatter(currentValue))}</strong><small class="${state}">${escapeHtml(detail)}</small></div>`;
   }
 
   function getExerciseRecordValue(exercise) {
@@ -4203,8 +4542,8 @@ function renderPendingSyncStatus() {
     const recordsThisMonth = records.filter((record) => record.wasImprovement && (getWorkoutTime({ date: record.date }) || 0) >= thisMonthStart).length;
     const recentRecords = [...records].sort((a, b) => (getWorkoutTime({ date: b.date }) || 0) - (getWorkoutTime({ date: a.date }) || 0)).slice(0, 5);
     const coverageNote = cachedHistory.length >= 30
-      ? 'Pregled koristi posljednjih 30 sačuvanih treninga.'
-      : 'Pregled koristi sve trenutno učitane treninge.';
+      ? translateUiText('Pregled koristi posljednjih 30 sačuvanih treninga.')
+      : translateUiText('Pregled koristi sve trenutno učitane treninge.');
 
     root.innerHTML = `
       <div class="analytics-period-grid">
@@ -4212,8 +4551,8 @@ function renderPendingSyncStatus() {
         <article class="analytics-summary-card"><span class="settings-eyebrow">POREĐENJE MJESECA</span><h3>Ovaj i prošli mjesec</h3><div class="analytics-comparison-grid">${comparisonItem('Treninzi', thisMonth.workouts, lastMonth.workouts)}${comparisonItem('Serije', thisMonth.sets, lastMonth.sets)}${comparisonItem('Volumen (kg)', thisMonth.volume, lastMonth.volume)}${comparisonItem('Vrijeme', thisMonth.durationSeconds, lastMonth.durationSeconds, formatWorkoutDuration)}</div></article>
       </div>
       <article class="analytics-summary-card"><span class="settings-eyebrow">UKUPAN PREGLED</span><h3>Tvoji učitani treninzi</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Različite vježbe</small><strong>${exerciseNames.size}</strong></div><div class="analytics-highlight"><small>Sačuvani treninzi</small><strong>${cachedHistory.length}</strong></div><div class="analytics-highlight"><small>Ukupan volumen</small><strong>${formatAnalyticsNumber(summarizeWorkouts(cachedHistory).volume)} kg</strong></div></div><p>${coverageNote}</p></article>
-      <article class="analytics-summary-card"><span class="settings-eyebrow">MJESEČNI SAŽETAK</span><h3>${escapeHtml(new Intl.DateTimeFormat('sr-Latn-RS', { month: 'long', year: 'numeric' }).format(new Date(now)))}</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Završeni treninzi</small><strong>${thisMonth.workouts}</strong></div><div class="analytics-highlight"><small>Ukupne serije</small><strong>${thisMonth.sets}</strong></div><div class="analytics-highlight"><small>Novi lični rekordi</small><strong>${recordsThisMonth}</strong></div></div><p>${thisMonth.durationCount ? `Zabilježeno vrijeme treninga: ${formatWorkoutDuration(thisMonth.durationSeconds)}.` : 'Vrijeme treninga će se početi prikazivati nakon narednog sačuvanog treninga.'}</p></article>
-      <article class="analytics-summary-card"><span class="settings-eyebrow">LIČNI REKORDI</span><h3>Najbolji zabilježeni rezultati</h3>${recentRecords.length ? `<ul class="analytics-pr-list">${recentRecords.map((record) => `<li><strong>${escapeHtml(record.name)}</strong><span>${escapeHtml(formatAnalyticsNumber(record.value))} ${record.unit}</span></li>`).join('')}</ul>` : '<p>Nema dovoljno podataka za lične rekorde.</p>'}</article>
+      <article class="analytics-summary-card"><span class="settings-eyebrow">MJESEČNI SAŽETAK</span><h3>${escapeHtml(new Intl.DateTimeFormat(getCurrentLocale(), { month: 'long', year: 'numeric' }).format(new Date(now)))}</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Završeni treninzi</small><strong>${thisMonth.workouts}</strong></div><div class="analytics-highlight"><small>Ukupne serije</small><strong>${thisMonth.sets}</strong></div><div class="analytics-highlight"><small>Novi lični rekordi</small><strong>${recordsThisMonth}</strong></div></div><p>${thisMonth.durationCount ? `${translateUiText('Zabilježeno vrijeme treninga:')} ${formatWorkoutDuration(thisMonth.durationSeconds)}.` : translateUiText('Vrijeme treninga će se početi prikazivati nakon narednog sačuvanog treninga.')}</p></article>
+      <article class="analytics-summary-card"><span class="settings-eyebrow">LIČNI REKORDI</span><h3>Najbolji zabilježeni rezultati</h3>${recentRecords.length ? `<ul class="analytics-pr-list">${recentRecords.map((record) => `<li><strong data-no-translate>${escapeHtml(getGeneratedExerciseDisplayName(record.name))}</strong><span>${escapeHtml(formatAnalyticsNumber(record.value))} ${record.unit}</span></li>`).join('')}</ul>` : '<p>Nema dovoljno podataka za lične rekorde.</p>'}</article>
     `;
   }
 
@@ -4231,13 +4570,13 @@ function renderPendingSyncStatus() {
 
     const list = Array.from(exercisesSet);
     if (list.length === 0) {
-      select.innerHTML = '<option>Nema sačuvanih vježbi</option>';
+      select.innerHTML = `<option>${escapeHtml(translateUiText('Nema sačuvanih vježbi'))}</option>`;
       const empty = document.getElementById('analytics-empty-state');
-      if (empty) { empty.textContent = 'Nema dovoljno sačuvanih treninga za grafikon.'; empty.style.display = 'block'; }
+      if (empty) { empty.textContent = translateUiText('Nema dovoljno sačuvanih treninga za grafikon.'); empty.style.display = 'block'; }
       return;
     }
 
-    select.innerHTML = list.map(ex => `<option value="${escapeHtml(ex)}">${escapeHtml(ex)}</option>`).join('');
+    select.innerHTML = list.map(ex => `<option data-no-translate value="${escapeHtml(ex)}">${escapeHtml(getGeneratedExerciseDisplayName(ex))}</option>`).join('');
     const empty = document.getElementById('analytics-empty-state');
     if (empty) empty.style.display = 'none';
     renderAnalyticsChart();
@@ -4280,7 +4619,7 @@ function renderPendingSyncStatus() {
     });
 
     const empty = document.getElementById('analytics-empty-state');
-    if (empty) { empty.textContent = dataPoints.length < 1 ? 'Nema dovoljno podataka za izabrani period.' : ''; empty.style.display = dataPoints.length < 1 ? 'block' : 'none'; }
+    if (empty) { empty.textContent = dataPoints.length < 1 ? translateUiText('Nema dovoljno podataka za izabrani period.') : ''; empty.style.display = dataPoints.length < 1 ? 'block' : 'none'; }
 
     const ctx = document.getElementById('progressChart').getContext('2d');
     if (chartInstance) chartInstance.destroy();
@@ -4290,7 +4629,7 @@ function renderPendingSyncStatus() {
       data: {
         labels: labels,
         datasets: [{
-          label: `${metric === 'volume' ? 'Volumen (kg)' : metric === 'sets' ? 'Serije' : metric === 'sessions' ? 'Treninzi' : 'Najbolja kilaža (kg)'} (${exName})`,
+          label: `${translateUiText(metric === 'volume' ? 'Volumen (kg)' : metric === 'sets' ? 'Serije' : metric === 'sessions' ? 'Treninzi' : 'Najbolja kilaža (kg)')} (${getGeneratedExerciseDisplayName(exName)})`,
           data: dataPoints,
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.15)',
@@ -4302,6 +4641,7 @@ function renderPendingSyncStatus() {
         }]
       },
       options: {
+        locale: getCurrentLocale(),
         responsive: true,
         maintainAspectRatio: false,
         scales: {
@@ -4431,7 +4771,7 @@ function renderPendingSyncStatus() {
     } catch (error) {
       console.error('Body measurements load diagnostic:', error);
       const status = document.getElementById('body-measurements-status');
-      if (status) status.textContent = 'Mjerenja trenutno nije moguće učitati.';
+      if (status) status.textContent = translateUiText('Mjerenja trenutno nije moguće učitati.');
     }
   }
 
@@ -4463,28 +4803,28 @@ function renderPendingSyncStatus() {
       { key: 'calfCm', label: 'List', unit: 'cm' },
       { key: 'hipsCm', label: 'Kukovi', unit: 'cm' }
     ];
-    const formatDelta = (record, unit) => record?.delta == null ? '—' : `${record.delta > 0 ? '+' : ''}${record.delta.toFixed(1)} ${unit}`;
+    const formatDelta = (record, unit) => record?.delta == null ? '—' : `${record.delta > 0 ? '+' : ''}${formatLocalizedNumber(record.delta)} ${unit}`;
     const cards = metrics.map((metric) => {
       const overall = getBodyMetricChange(metric.key);
       if (!overall) return '';
       const week = getBodyMetricChange(metric.key, 7);
       const month = getBodyMetricChange(metric.key, 30);
       const state = overall.delta == null ? 'is-neutral' : overall.delta > 0 ? 'is-positive' : 'is-negative';
-      return `<article class="body-measurement-summary-card"><div><small>${escapeHtml(metric.label)}</small><strong>${overall.value.toFixed(1)} ${metric.unit}</strong><em class="${state}">${escapeHtml(formatDelta(overall, metric.unit))} od početka</em></div><dl><div><dt>Sedmica</dt><dd>${escapeHtml(formatDelta(week, metric.unit))}</dd></div><div><dt>Mjesec</dt><dd>${escapeHtml(formatDelta(month, metric.unit))}</dd></div></dl></article>`;
+      return `<article class="body-measurement-summary-card"><div><small>${escapeHtml(translateUiText(metric.label))}</small><strong>${formatLocalizedNumber(overall.value)} ${metric.unit}</strong><em class="${state}">${escapeHtml(formatDelta(overall, metric.unit))} ${escapeHtml(translateUiText('od početka'))}</em></div><dl><div><dt>${escapeHtml(translateUiText('Sedmica'))}</dt><dd>${escapeHtml(formatDelta(week, metric.unit))}</dd></div><div><dt>${escapeHtml(translateUiText('Mjesec'))}</dt><dd>${escapeHtml(formatDelta(month, metric.unit))}</dd></div></dl></article>`;
     }).filter(Boolean).join('');
     if (!cards) return;
-    root.querySelector('.body-silhouette-card')?.insertAdjacentHTML('beforeend', `<section class="body-measurements-summary" aria-label="Pregled svih mjera"><div class="body-measurements-summary-heading"><div><span class="settings-eyebrow">SVE MJERE</span><h4>Pregled promjena</h4></div><p>Uporedi svaku unesenu mjeru za sedmicu, mjesec i od početka.</p></div><div class="body-measurements-summary-grid">${cards}</div></section>`);
+    root.querySelector('.body-silhouette-card')?.insertAdjacentHTML('beforeend', `<section class="body-measurements-summary" aria-label="${escapeHtml(translateUiText('Pregled svih mjera'))}"><div class="body-measurements-summary-heading"><div><span class="settings-eyebrow">${escapeHtml(translateUiText('SVE MJERE'))}</span><h4>${escapeHtml(translateUiText('Pregled promjena'))}</h4></div><p>${escapeHtml(translateUiText('Uporedi svaku unesenu mjeru za sedmicu, mjesec i od početka.'))}</p></div><div class="body-measurements-summary-grid">${cards}</div></section>`);
   }
 
   function renderBodyMeasurements() {
     const status = document.getElementById('body-tracking-status');
-    if (status) status.textContent = bodyTrackingEnabled() ? 'Praćenje je uključeno.' : 'Praćenje je isključeno.';
+    if (status) status.textContent = translateUiText(bodyTrackingEnabled() ? 'Praćenje je uključeno.' : 'Praćenje je isključeno.');
     const addButton = document.querySelector('[data-action="open-body-measurement-modal"]');
     if (addButton) addButton.hidden = !bodyTrackingEnabled();
     const root = document.getElementById('body-auto-progress');
     if (!root) return;
-    if (!bodyTrackingEnabled()) { root.innerHTML = '<div class="card body-empty-state">Praćenje tijela je isključeno. Možeš ga uključiti u Podešavanjima.</div>'; }
-    else if (!bodyMeasurements.length) { root.innerHTML = '<div class="card body-empty-state">Dodaj prvo mjerenje da bi se ovdje prikazao tvoj napredak.</div>'; }
+    if (!bodyTrackingEnabled()) { root.innerHTML = `<div class="card body-empty-state">${escapeHtml(translateUiText('Praćenje tijela je isključeno. Možeš ga uključiti u Podešavanjima.'))}</div>`; }
+    else if (!bodyMeasurements.length) { root.innerHTML = `<div class="card body-empty-state">${escapeHtml(translateUiText('Dodaj prvo mjerenje da bi se ovdje prikazao tvoj napredak.'))}</div>`; }
     else {
       const hasDetailedLegMeasurements = bodyMeasurements.some((item) => item.thighCm != null || item.calfCm != null);
       const defs = [
@@ -4504,13 +4844,13 @@ function renderPendingSyncStatus() {
       const uid=currentUser.uid, mode=localStorage.getItem(`gym-body-progress-mode-v1-${uid}`)==='manual'?'manual':'silhouette';
       const gender=getProfileGender(), female=gender==='female', selectedKey=localStorage.getItem(`gym-body-selected-metric-v1-${uid}`)||'waistCm';
       const selected=defs.find(x=>x.key===selectedKey)||defs[0];
-      const svg = `<img class="body-silhouette-svg" src="${female?'/assets/gymleader-body-female.svg?v=20260930-20':'/assets/gymleader-body-male.svg?v=20260930-20'}" alt="${female?'\u017Denska':'Mu\u0161ka'} silueta">`;
-      const sign=x=>x==null?'Nema ranijeg zapisa':`${x>0?'+':''}${x.toFixed(1)}`;
-      const callouts=defs.map(x=>{const d=delta(x.key);if(!d)return '';const t=d.delta==null?'prvo mjerenje':`${d.delta>0?'+':''}${d.delta.toFixed(1)} cm od početka`;return `<div class="body-callout body-callout-${x.side} body-callout-${x.pos}"><i class="body-callout-line" aria-hidden="true"></i><small>${x.label}</small><strong>${d.value.toFixed(1)} cm</strong><em class="${d.delta==null?'is-neutral':d.delta>0?'is-positive':'is-negative'}">${escapeHtml(t)}</em></div>`}).join('');
-      const weight=delta('weightKg'), weightCard=weight?`<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v2m-7 2h14l2 14H3L5 7Zm7 3-2 4h4l-2-4Z"/></svg></span><div><small>Tvoja težina</small><strong>${weight.value.toFixed(1)} kg</strong><em class="${weight.delta==null?'is-neutral':weight.delta>0?'is-positive':'is-negative'}">${escapeHtml(weight.delta==null?'Dodaj još jedno mjerenje':`${weight.delta>0?'+':''}${weight.delta.toFixed(1)} kg od početka`)}</em><small>Posljednje mjerenje: ${escapeHtml(formatDateClean(weight.date))}</small></div></div>`:'<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true">⚖</span><div><small>Tvoja težina</small><strong>Nema zapisa</strong><em class="is-neutral">Dodaj prvo mjerenje.</em></div></div>';
+      const svg = `<img class="body-silhouette-svg" src="${female?'/assets/gymleader-body-female.svg?v=20260930-20':'/assets/gymleader-body-male.svg?v=20260930-20'}" alt="${escapeHtml(translateUiText(female?'Ženska silueta':'Muška silueta'))}">`;
+      const sign=x=>x==null?translateUiText('Nema ranijeg zapisa'):`${x>0?'+':''}${formatLocalizedNumber(x)}`;
+      const callouts=defs.map(x=>{const d=delta(x.key);if(!d)return '';const t=d.delta==null?translateUiText('prvo mjerenje'):`${d.delta>0?'+':''}${formatLocalizedNumber(d.delta)} cm ${translateUiText('od početka')}`;return `<div class="body-callout body-callout-${x.side} body-callout-${x.pos}"><i class="body-callout-line" aria-hidden="true"></i><small>${escapeHtml(translateUiText(x.label))}</small><strong>${formatLocalizedNumber(d.value)} cm</strong><em class="${d.delta==null?'is-neutral':d.delta>0?'is-positive':'is-negative'}">${escapeHtml(t)}</em></div>`}).join('');
+      const weight=delta('weightKg'), weightCard=weight?`<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v2m-7 2h14l2 14H3L5 7Zm7 3-2 4h4l-2-4Z"/></svg></span><div><small>${escapeHtml(translateUiText('Tvoja težina'))}</small><strong>${formatLocalizedNumber(weight.value)} kg</strong><em class="${weight.delta==null?'is-neutral':weight.delta>0?'is-positive':'is-negative'}">${escapeHtml(weight.delta==null?translateUiText('Dodaj još jedno mjerenje'):`${weight.delta>0?'+':''}${formatLocalizedNumber(weight.delta)} kg ${translateUiText('od početka')}`)}</em><small>${escapeHtml(translateUiText('Posljednje mjerenje:'))} ${escapeHtml(formatDateClean(weight.date))}</small></div></div>`:`<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true">⚖</span><div><small>${escapeHtml(translateUiText('Tvoja težina'))}</small><strong>${escapeHtml(translateUiText('Nema zapisa'))}</strong><em class="is-neutral">${escapeHtml(translateUiText('Dodaj prvo mjerenje.'))}</em></div></div>`;
       const metric=delta(selected.key), week=delta(selected.key,7), month=delta(selected.key,30);
       const select=`<label class="body-manual-select-label" for="body-manual-metric-select">Izaberi mjeru</label><select id="body-manual-metric-select" class="custom-input body-manual-select">${defs.map(x=>`<option value="${x.key}" ${x.key===selected.key?'selected':''}>${x.label}</option>`).join('')}</select>`;
-      const manual=metric?`<div class="body-manual-result"><span class="body-manual-icon" aria-hidden="true">↗</span><div><small>${selected.label}</small><strong>${metric.value.toFixed(1)} cm</strong><em class="${metric.delta==null?'is-neutral':metric.delta>0?'is-positive':'is-negative'}">${escapeHtml(metric.delta==null?'Prvo mjerenje':`${sign(metric.delta)} cm od početka`)}</em></div></div><div class="body-manual-periods"><div><small>Ove sedmice</small><strong>${escapeHtml(sign(week?.delta))} ${week?'cm':''}</strong></div><div><small>Ovaj mjesec</small><strong>${escapeHtml(sign(month?.delta))} ${month?'cm':''}</strong></div></div>`:`<p class="body-empty-state body-manual-empty">Još nema mjerenja za ${selected.label.toLowerCase()}. Dodaj mjeru da bi se napredak prikazao.</p>`;
+      const manual=metric?`<div class="body-manual-result"><span class="body-manual-icon" aria-hidden="true">↗</span><div><small>${escapeHtml(translateUiText(selected.label))}</small><strong>${formatLocalizedNumber(metric.value)} cm</strong><em class="${metric.delta==null?'is-neutral':metric.delta>0?'is-positive':'is-negative'}">${escapeHtml(metric.delta==null?translateUiText('Prvo mjerenje'):`${sign(metric.delta)} cm ${translateUiText('od početka')}`)}</em></div></div><div class="body-manual-periods"><div><small>${escapeHtml(translateUiText('Ove sedmice'))}</small><strong>${escapeHtml(sign(week?.delta))} ${week?'cm':''}</strong></div><div><small>${escapeHtml(translateUiText('Ovaj mjesec'))}</small><strong>${escapeHtml(sign(month?.delta))} ${month?'cm':''}</strong></div></div>`:`<p class="body-empty-state body-manual-empty">${escapeHtml(translateUiText('Još nema mjerenja za'))} ${escapeHtml(translateUiText(selected.label).toLowerCase())}. ${escapeHtml(translateUiText('Dodaj mjeru da bi se napredak prikazao.'))}</p>`;
       root.innerHTML=`<div class="card body-silhouette-card ${female?'body-gender-female':'body-gender-male'}"><div class="body-auto-heading"><span class="settings-eyebrow">TVOJ PREGLED</span><h3>Šta se promijenilo</h3><p>Prikazujemo samo mjere koje si unio/la. Izaberi kako želiš pregledati napredak.</p></div><div class="body-view-switch" role="group" aria-label="Način prikaza"><button type="button" data-action="set-body-progress-mode" data-mode="silhouette" aria-pressed="${mode==='silhouette'}">Silueta</button><button type="button" data-action="set-body-progress-mode" data-mode="manual" aria-pressed="${mode==='manual'}">Izaberi mjeru</button></div><div class="body-progress-views ${mode==='manual'?'is-manual':''}"><section class="body-silhouette-view" aria-label="Napredak na silueti"><div class="body-silhouette-stage">${svg}<div class="body-callouts">${callouts||'<p class="body-empty-state">Dodaj mjerenje obima da vidiš napredak uz siluetu.</p>'}</div></div>${weightCard}</section><section class="body-manual-view" aria-label="Ručno izabrana mjera">${select}${manual}</section></div></div>`;
     }
     if (bodyTrackingEnabled() && bodyMeasurements.length) renderBodyMeasurementsSummary(root);
@@ -4525,14 +4865,14 @@ function renderPendingSyncStatus() {
     if (list) list.innerHTML = bodyMeasurements.length
       ? bodyMeasurements.map((item) => {
         const values = [
-          item.weightKg != null && `Težina ${item.weightKg} kg`, item.waistCm != null && `struk ${item.waistCm} cm`,
-          item.chestCm != null && `grudi ${item.chestCm} cm`, item.armCm != null && `ruka ${item.armCm} cm`,
-          item.legCm != null && `noga ${item.legCm} cm`, item.thighCm != null && `bedro ${item.thighCm} cm`,
-          item.calfCm != null && `list ${item.calfCm} cm`, item.hipsCm != null && `kukovi ${item.hipsCm} cm`
+          item.weightKg != null && `${translateUiText('Težina')} ${formatLocalizedNumber(item.weightKg)} kg`, item.waistCm != null && `${translateUiText('Struk')} ${formatLocalizedNumber(item.waistCm)} cm`,
+          item.chestCm != null && `${translateUiText('Grudi')} ${formatLocalizedNumber(item.chestCm)} cm`, item.armCm != null && `${translateUiText('Ruka')} ${formatLocalizedNumber(item.armCm)} cm`,
+          item.legCm != null && `${translateUiText('Noga')} ${formatLocalizedNumber(item.legCm)} cm`, item.thighCm != null && `${translateUiText('Bedro')} ${formatLocalizedNumber(item.thighCm)} cm`,
+          item.calfCm != null && `${translateUiText('List')} ${formatLocalizedNumber(item.calfCm)} cm`, item.hipsCm != null && `${translateUiText('Kukovi')} ${formatLocalizedNumber(item.hipsCm)} cm`
         ].filter(Boolean).join(' · ');
-        return `<li class="body-measurement-item"><div class="body-measurement-item-copy"><strong>${escapeHtml(formatDateClean(item.measuredAt))}</strong><span>${escapeHtml(values || 'Bez unesenih vrijednosti')}${item.note ? `<small>${escapeHtml(item.note)}</small>` : ''}</span></div><div class="body-measurement-actions" ${bodyMeasurementsEditMode ? '' : 'hidden'}><button class="btn btn-secondary" type="button" data-action="edit-body-measurement" data-measurement-id="${escapeHtml(item.id)}">Uredi</button><button class="btn btn-danger" type="button" data-action="delete-body-measurement" data-measurement-id="${escapeHtml(item.id)}">Obriši</button></div></li>`;
+        return `<li class="body-measurement-item"><div class="body-measurement-item-copy"><strong>${escapeHtml(formatDateClean(item.measuredAt))}</strong><span>${escapeHtml(values || translateUiText('Bez unesenih vrijednosti'))}${item.note ? `<small data-no-translate>${escapeHtml(item.note)}</small>` : ''}</span></div><div class="body-measurement-actions" ${bodyMeasurementsEditMode ? '' : 'hidden'}><button class="btn btn-secondary" type="button" data-action="edit-body-measurement" data-measurement-id="${escapeHtml(item.id)}">${escapeHtml(translateUiText('Uredi'))}</button><button class="btn btn-danger" type="button" data-action="delete-body-measurement" data-measurement-id="${escapeHtml(item.id)}">${escapeHtml(translateUiText('Obriši'))}</button></div></li>`;
       }).join('')
-      : '<li class="body-empty-state">Nema sačuvanih mjerenja. Dodaj prvo mjerenje da pratiš promjene kroz vrijeme.</li>';
+      : `<li class="body-empty-state">${escapeHtml(translateUiText('Nema sačuvanih mjerenja. Dodaj prvo mjerenje da pratiš promjene kroz vrijeme.'))}</li>`;
     renderBodyChart();
   }
 
@@ -4541,7 +4881,7 @@ function renderPendingSyncStatus() {
     if (!canvas || typeof Chart === 'undefined') return;
     if (bodyChartInstance) bodyChartInstance.destroy();
     const metric = document.getElementById('body-metric-select')?.value || 'weightKg';
-    const labels = { weightKg: 'Težina (kg)', waistCm: 'Struk (cm)', chestCm: 'Grudi (cm)', armCm: 'Ruka (cm)', legCm: 'Noga (cm)', thighCm: 'Bedro (cm)', calfCm: 'List (cm)', hipsCm: 'Kukovi (cm)' };
+    const labels = { weightKg: `${translateUiText('Težina')} (kg)`, waistCm: `${translateUiText('Struk')} (cm)`, chestCm: `${translateUiText('Grudi')} (cm)`, armCm: `${translateUiText('Ruka')} (cm)`, legCm: `${translateUiText('Noga')} (cm)`, thighCm: `${translateUiText('Bedro')} (cm)`, calfCm: `${translateUiText('List')} (cm)`, hipsCm: `${translateUiText('Kukovi')} (cm)` };
     const entries = [...bodyMeasurements].reverse().filter((item) => item[metric] != null);
     const values = entries.map((item) => Number(item[metric]));
     const changeSummary = document.getElementById('body-change-summary');
@@ -4549,9 +4889,9 @@ function renderPendingSyncStatus() {
       const first = values[0];
       const last = values[values.length - 1];
       const delta = values.length > 1 ? last - first : 0;
-      changeSummary.textContent = values.length > 1 ? `${labels[metric]}: ${delta > 0 ? '+' : ''}${delta.toFixed(1)} ${metric === 'weightKg' ? 'kg' : 'cm'} od prvog mjerenja.` : 'Dodaj još jedno mjerenje da vidiš promjenu.';
+      changeSummary.textContent = values.length > 1 ? `${labels[metric]}: ${delta > 0 ? '+' : ''}${formatLocalizedNumber(delta)} ${metric === 'weightKg' ? 'kg' : 'cm'} ${translateUiText('od prvog mjerenja.')}` : translateUiText('Dodaj još jedno mjerenje da vidiš promjenu.');
     }
-    bodyChartInstance = new Chart(canvas, { type: 'line', data: { labels: entries.map((item) => formatDateClean(item.measuredAt, false)), datasets: [{ label: labels[metric], data: values, borderColor: '#38BDF8', backgroundColor: 'rgba(56,189,248,.16)', fill: true, tension: .35, pointRadius: 3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94A3B8' } }, tooltip: { callbacks: { title: (items) => entries[items[0]?.dataIndex] ? formatDateClean(entries[items[0].dataIndex].measuredAt, true) : '' } } }, scales: { x: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } }, y: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } } } } });
+    bodyChartInstance = new Chart(canvas, { type: 'line', data: { labels: entries.map((item) => formatDateClean(item.measuredAt, false)), datasets: [{ label: labels[metric], data: values, borderColor: '#38BDF8', backgroundColor: 'rgba(56,189,248,.16)', fill: true, tension: .35, pointRadius: 3 }] }, options: { locale: getCurrentLocale(), responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94A3B8' } }, tooltip: { callbacks: { title: (items) => entries[items[0]?.dataIndex] ? formatDateClean(entries[items[0].dataIndex].measuredAt, true) : '' } } }, scales: { x: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } }, y: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148,163,184,.08)' } } } } });
   }
 
   window.openBodyMeasurementModal = function() {
@@ -4614,11 +4954,13 @@ function renderPendingSyncStatus() {
     try {
       if (editingBodyMeasurementId) {
         const id = editingBodyMeasurementId;
-        await setDoc(doc(db, 'bodyMeasurements', id), data);
+        const result = await writeUserDocument(`bodyMeasurements/${id}`, data, { merge: false });
         bodyMeasurements = bodyMeasurements.map((item) => item.id === id ? { ...item, ...data } : item).sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)));
+        if (result.queued) ShowToast('Mjerenje je sačuvano lokalno i čeka sinhronizaciju.');
       } else {
-        const saved = await addDoc(collection(db, 'bodyMeasurements'), data);
+        const saved = await createUserDocument('bodyMeasurements', data);
         bodyMeasurements = [...bodyMeasurements, { id: saved.id, ...data }].sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)));
+        if (saved.queued) ShowToast('Mjerenje je sačuvano lokalno i čeka sinhronizaciju.');
       }
       writeBodyMeasurementsCache(currentUser.uid, bodyMeasurements);
       document.getElementById('body-measurement-modal').style.display = 'none';
@@ -4650,7 +4992,7 @@ function renderPendingSyncStatus() {
     const button = document.getElementById('confirm-body-measurement-delete');
     if (button) button.disabled = true;
     try {
-      await deleteDoc(doc(db, 'bodyMeasurements', measurementId));
+      const result = await deleteUserDocument(`bodyMeasurements/${measurementId}`);
       bodyMeasurements = bodyMeasurements.filter((measurement) => measurement.id !== measurementId);
       writeBodyMeasurementsCache(currentUser.uid, bodyMeasurements);
       if (editingBodyMeasurementId === measurementId) {
@@ -4660,7 +5002,7 @@ function renderPendingSyncStatus() {
       if (modal) modal.style.display = 'none';
       pendingBodyMeasurementDeleteId = null;
       renderBodyMeasurements();
-      ShowToast('Mjerenje je obrisano.');
+      ShowToast(result.queued ? 'Mjerenje je obrisano lokalno i čeka sinhronizaciju.' : 'Mjerenje je obrisano.');
     } catch (error) {
       console.error('Body measurement delete diagnostic:', error);
       ShowToast('Mjerenje nije moguće obrisati. Provjeri internet i pokušaj ponovo.', 'error');
@@ -4732,7 +5074,7 @@ function renderPendingSyncStatus() {
   }
 
   function formatFoodNumber(value) {
-    return Number(value || 0).toLocaleString(getCurrentLanguage() === 'de' ? 'de-DE' : getCurrentLanguage() === 'en' ? 'en-GB' : 'sr-Latn-RS', { maximumFractionDigits: 1 });
+    return Number(value || 0).toLocaleString(getCurrentLocale(), { maximumFractionDigits: 1 });
   }
 
   function getFoodMealLabel(type) {
@@ -4741,7 +5083,7 @@ function renderPendingSyncStatus() {
       en: { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', other: 'Other' },
       de: { breakfast: 'Frühstück', lunch: 'Mittagessen', dinner: 'Abendessen', snack: 'Snack', other: 'Andere' }
     };
-    return (labels[getCurrentLanguage()] || labels.sr)[type] || labels.sr.other;
+    return translateUiText((labels[getCurrentLanguage()] || labels.sr)[type] || labels.sr.other);
   }
 
   function getFoodFavoritesStorageKey(userId = currentUser?.uid) {
@@ -4763,7 +5105,7 @@ function renderPendingSyncStatus() {
   function getFoodLibraryCategoryLabel(category) {
     const language = getCurrentLanguage();
     return FOOD_LIBRARY_CATEGORIES.find((item) => item.id === category)?.labels?.[language]
-      || FOOD_LIBRARY_CATEGORIES.find((item) => item.id === category)?.labels?.sr
+      || translateUiText(FOOD_LIBRARY_CATEGORIES.find((item) => item.id === category)?.labels?.sr)
       || category;
   }
 
@@ -4798,10 +5140,10 @@ function renderPendingSyncStatus() {
     const language = getCurrentLanguage();
     categories.innerHTML = [`<button type="button" class="${foodLibraryCategory === 'all' ? 'is-active' : ''}" data-action="set-food-library-category" data-food-category="all">Sve</button>`, ...FOOD_LIBRARY_CATEGORIES.map((category) => `<button type="button" class="${foodLibraryCategory === category.id ? 'is-active' : ''}" data-action="set-food-library-category" data-food-category="${category.id}">${escapeHtml(getFoodLibraryCategoryLabel(category.id))}</button>`)].join('');
     const matches = FOOD_LIBRARY.filter((item) => {
-      const names = normalizeFoodLibrarySearch(Object.values(item.names).join(' '));
-      return (foodLibraryCategory === 'all' || item.category === foodLibraryCategory) && (!queryText || names.includes(queryText));
+      const searchableText = normalizeFoodLibrarySearch([...Object.values(item.names), ...(item.searchTerms || [])].join(' '));
+      return (foodLibraryCategory === 'all' || item.category === foodLibraryCategory) && (!queryText || searchableText.includes(queryText));
     }).slice(0, 12);
-    results.innerHTML = matches.length ? matches.map((item) => `<button type="button" class="food-library-result" data-action="select-food-library-item" data-food-library-id="${item.id}"><span><strong>${escapeHtml(getFoodLibraryName(item, language))}</strong><small>${escapeHtml(getFoodLibraryCategoryLabel(item.category))} · ${item.portion} ${escapeHtml(item.unit)}${item.allergens.length ? ` · sadrži: ${escapeHtml(item.allergens.join(', '))}` : ''}</small></span><em>${formatFoodNumber(item.calories)} kcal</em></button>`).join('') : '<p class="food-library-empty">Nema rezultata. Možeš upisati vlastitu hranu ispod.</p>';
+    results.innerHTML = matches.length ? matches.map((item) => `<button type="button" class="food-library-result" data-action="select-food-library-item" data-food-library-id="${item.id}"><span><strong>${escapeHtml(getFoodLibraryName(item, language))}</strong><small>${escapeHtml(getFoodLibraryCategoryLabel(item.category))} · ${item.portion} ${escapeHtml(translateUiText(item.unit))}${item.allergens.length ? ` · ${translateUiText('sadrži:')} ${escapeHtml(item.allergens.map(allergenLabel).join(', '))}` : ''}</small></span><em>${formatFoodNumber(item.calories)} kcal</em></button>`).join('') : '<p class="food-library-empty">Nema rezultata. Možeš upisati vlastitu hranu ispod.</p>';
     renderFoodFavorites();
   }
 
@@ -4809,7 +5151,7 @@ function renderPendingSyncStatus() {
     const root = document.getElementById('food-favorites');
     if (!root) return;
     const favorites = getFoodFavorites();
-    root.innerHTML = favorites.length ? `<span>Omiljeni obroci</span><div>${favorites.map((item) => `<button type="button" data-action="select-food-favorite" data-food-favorite-id="${escapeHtml(item.id)}">${escapeHtml(item.name)}</button>`).join('')}</div>` : '';
+    root.innerHTML = favorites.length ? `<span>${escapeHtml(translateUiText('Omiljeni obroci'))}</span><div>${favorites.map((item) => `<button type="button" data-action="select-food-favorite" data-food-favorite-id="${escapeHtml(item.id)}"><span data-no-translate>${escapeHtml(item.name)}</span></button>`).join('')}</div>` : '';
   }
 
   function applyFoodLibraryItem(item) {
@@ -4878,17 +5220,19 @@ function renderPendingSyncStatus() {
       carbs: sum.carbs + Number(entry.carbsG || 0), fat: sum.fat + Number(entry.fatG || 0)
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
     const goals = getNutritionGoals();
+    const language = getCurrentLanguage();
+    const macroLabels = getMacroLabels();
     const progressCard = (label, value, goal, unit, isCalories = false) => {
-      if (!goal) return `<div><small>${label}</small><strong>${formatFoodNumber(value)} ${unit}</strong><em>Bez cilja</em></div>`;
+      if (!goal) return `<div><small>${escapeHtml(translateUiText(label))}</small><strong>${formatFoodNumber(value)} ${unit}</strong><em>${escapeHtml(translateUiText('Bez cilja'))}</em></div>`;
       const difference = goal - value;
       const isOver = difference < 0;
       const detail = isOver
-        ? `Preko cilja ${formatFoodNumber(Math.abs(difference))} ${unit}`
+        ? translateUiText('Preko cilja') + ` ${formatFoodNumber(Math.abs(difference))} ${unit}`
         : isCalories
-          ? `Još ${formatFoodNumber(difference)} ${unit}`
+          ? translateUiText('Još') + ` ${formatFoodNumber(difference)} ${unit}`
           : `${formatFoodNumber(value)} / ${formatFoodNumber(goal)} ${unit}`;
       const percent = Math.min(100, Math.max(0, (value / goal) * 100));
-      return `<div class="${isOver ? 'is-over' : ''}"><small>${label}</small><strong>${formatFoodNumber(value)} / ${formatFoodNumber(goal)} ${unit}</strong><div class="food-goal-progress" aria-hidden="true"><span style="width:${percent}%"></span></div><em>${detail}</em></div>`;
+      return `<div class="${isOver ? 'is-over' : ''}"><small>${escapeHtml(translateUiText(label))}</small><strong>${formatFoodNumber(value)} / ${formatFoodNumber(goal)} ${unit}</strong><div class="food-goal-progress" aria-hidden="true"><span style="width:${percent}%"></span></div><em>${escapeHtml(detail)}</em></div>`;
     };
     summary.innerHTML = [
       progressCard('Kalorije', totals.calories, goals.calories, 'kcal', true),
@@ -4898,22 +5242,28 @@ function renderPendingSyncStatus() {
     ].join('');
     const foodGoalHelp = document.getElementById('food-goal-help');
     if (foodGoalHelp) foodGoalHelp.textContent = Object.values(goals).some(Boolean)
-      ? 'Lični dnevni ciljevi. Možeš ih promijeniti kad god želiš.'
-      : 'Opcionalno. Dnevnik hrane radi i bez ciljeva.';
+      ? translateUiText('Lični dnevni ciljevi. Možeš ih promijeniti kad god želiš.')
+      : translateUiText('Opcionalno. Dnevnik hrane radi i bez ciljeva.');
     const foodGoalHeading = document.querySelector('.food-goal-row strong');
     const foodGoalButton = document.querySelector('.food-goal-row [data-action="open-food-goal-modal"]');
-    if (foodGoalHeading) foodGoalHeading.textContent = 'Ciljevi ishrane';
-    if (foodGoalButton) foodGoalButton.textContent = 'Podesi ciljeve';
-    if (count) count.textContent = foodEntries.length ? `${foodEntries.length} ${foodEntries.length === 1 ? 'unos' : 'unosa'}` : '';
+    if (foodGoalHeading) foodGoalHeading.textContent = translateUiText('Ciljevi ishrane');
+    if (foodGoalButton) foodGoalButton.textContent = translateUiText('Podesi ciljeve');
+    if (count) count.textContent = foodEntries.length ? foodEntryCountLabel(foodEntries.length, language) : '';
     if (!foodEntries.length) {
-      list.innerHTML = '<div class="food-empty-state"><strong>Još nema unosa za ovaj dan.</strong><span>Dodaj obrok kada želiš pratiti kalorije i makronutrijente.</span></div>';
+      list.innerHTML = `<div class="food-empty-state"><strong>${escapeHtml(translateUiText('Još nema unosa za ovaj dan.'))}</strong><span>${escapeHtml(translateUiText('Dodaj obrok kada želiš pratiti kalorije i makronutrijente.'))}</span></div>`;
       return;
     }
     list.innerHTML = foodEntries.map((entry) => {
       const quantity = entry.quantity != null ? `${formatFoodNumber(entry.quantity)} ${escapeHtml(entry.unit || '')}`.trim() : '';
-      const macros = [`${formatFoodNumber(entry.calories)} kcal`, `P ${formatFoodNumber(entry.proteinG)} g`, `UH ${formatFoodNumber(entry.carbsG)} g`, `M ${formatFoodNumber(entry.fatG)} g`].join(' · ');
-      return `<article class="food-entry-item"><div class="food-entry-main"><span class="food-meal-type">${escapeHtml(getFoodMealLabel(entry.mealType))}</span><strong>${escapeHtml(entry.name)}</strong><small>${escapeHtml(quantity)}${quantity && entry.note ? ' · ' : ''}${escapeHtml(entry.note || '')}</small><span>${escapeHtml(macros)}</span></div><div class="food-entry-actions"><button class="btn btn-secondary" data-action="edit-food-entry" data-food-entry-id="${escapeHtml(entry.id)}" type="button">Uredi</button><button class="food-delete-button" data-action="delete-food-entry" data-food-entry-id="${escapeHtml(entry.id)}" type="button">Obriši</button></div></article>`;
+      const macros = [`${formatFoodNumber(entry.calories)} kcal`, `${macroLabels.protein} ${formatFoodNumber(entry.proteinG)} g`, `${macroLabels.carbs} ${formatFoodNumber(entry.carbsG)} g`, `${macroLabels.fat} ${formatFoodNumber(entry.fatG)} g`].join(' · ');
+      return `<article class="food-entry-item"><div class="food-entry-main"><span class="food-meal-type">${escapeHtml(getFoodMealLabel(entry.mealType))}</span><strong data-no-translate>${escapeHtml(entry.name)}</strong><small>${escapeHtml(quantity)}${quantity && entry.note ? ' · ' : ''}<span data-no-translate>${escapeHtml(entry.note || '')}</span></small><span>${escapeHtml(macros)}</span></div><div class="food-entry-actions"><button class="btn btn-secondary" data-action="edit-food-entry" data-food-entry-id="${escapeHtml(entry.id)}" type="button">${escapeHtml(translateUiText('Uredi'))}</button><button class="food-delete-button" data-action="delete-food-entry" data-food-entry-id="${escapeHtml(entry.id)}" type="button">${escapeHtml(translateUiText('Obriši'))}</button></div></article>`;
     }).join('');
+  }
+
+  function foodEntryCountLabel(count, language = getCurrentLanguage()) {
+    if (language === 'en') return `${count} ${count === 1 ? 'entry' : 'entries'}`;
+    if (language === 'de') return `${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+    return translateUiText(`${count} ${count === 1 ? 'unos' : 'unosa'}`, language);
   }
 
   async function loadFoodEntriesForSelectedDay({ force = false } = {}) {
@@ -5009,11 +5359,13 @@ function renderPendingSyncStatus() {
     if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
     try {
       if (editingFoodEntryId) {
-        await setDoc(doc(db, 'foodEntries', editingFoodEntryId), data);
+        const result = await writeUserDocument(`foodEntries/${editingFoodEntryId}`, data, { merge: false });
         foodEntries = foodEntries.map((item) => item.id === editingFoodEntryId ? { ...item, ...data } : item);
+        if (result.queued) ShowToast('Obrok je sačuvan lokalno i čeka sinhronizaciju.');
       } else {
-        const saved = await addDoc(collection(db, 'foodEntries'), data);
+        const saved = await createUserDocument('foodEntries', data);
         foodEntries = [...foodEntries, { id: saved.id, ...data }];
+        if (saved.queued) ShowToast('Obrok je sačuvan lokalno i čeka sinhronizaciju.');
       }
       foodEntries.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
       writeFoodEntriesCache(currentUser.uid, date, foodEntries);
@@ -5042,13 +5394,13 @@ function renderPendingSyncStatus() {
     const button = document.getElementById('confirm-food-entry-delete');
     if (button) button.disabled = true;
     try {
-      await deleteDoc(doc(db, 'foodEntries', id));
+      const result = await deleteUserDocument(`foodEntries/${id}`);
       foodEntries = foodEntries.filter((item) => item.id !== id);
       writeFoodEntriesCache(currentUser.uid, getFoodSelectedDate(), foodEntries);
       pendingFoodEntryDeleteId = null;
       document.getElementById('food-entry-delete-modal').style.display = 'none';
       renderFoodEntries();
-      ShowToast('Unos je obrisan.');
+      ShowToast(result.queued ? 'Unos je obrisan lokalno i čeka sinhronizaciju.' : 'Unos je obrisan.');
     } catch (error) { console.error('Food entry delete diagnostic:', error); ShowToast('Unos nije moguće obrisati. Provjeri internet i pokušaj ponovo.', 'error'); }
     finally { if (button) button.disabled = false; }
   };
@@ -5108,13 +5460,15 @@ function renderPendingSyncStatus() {
       return;
     }
     const updates = {};
+    const deleteFields = [];
     Object.entries(NUTRITION_GOAL_FIELDS).forEach(([key, field]) => {
-      updates[field] = values[key].value == null ? deleteField() : values[key].value;
+      if (values[key].value == null) deleteFields.push(field);
+      else updates[field] = values[key].value;
     });
     const button = document.querySelector('#food-goal-modal [data-action="save-food-goal"]');
     if (button) { button.disabled = true; button.textContent = 'Čuvam…'; }
     try {
-      await updateDoc(doc(db, 'users', currentUser.uid), updates);
+      const result = await writeUserDocument(`users/${currentUser.uid}`, updates, { deleteFields });
       const nextProfile = { ...(currentProfileData || {}) };
       Object.entries(NUTRITION_GOAL_FIELDS).forEach(([key, field]) => {
         if (values[key].value == null) delete nextProfile[field];
@@ -5125,7 +5479,7 @@ function renderPendingSyncStatus() {
       document.getElementById('food-goal-modal').style.display = 'none';
       renderFoodEntries();
       renderProfileSettings();
-      ShowToast('Ciljevi ishrane su sačuvani.');
+      ShowToast(result.queued ? 'Ciljevi ishrane su sačuvani lokalno i čekaju sinhronizaciju.' : 'Ciljevi ishrane su sačuvani.');
     } catch (error) {
       console.error('Nutrition goals save diagnostic:', error);
       status.textContent = 'Ciljeve trenutno nije moguće sačuvati. Provjeri internet i pokušaj ponovo.';
@@ -5137,9 +5491,10 @@ function renderPendingSyncStatus() {
   window.clearFoodGoal = async function() {
     if (!currentUser) return;
     const status = document.getElementById('food-goal-status');
-    const updates = Object.fromEntries(Object.values(NUTRITION_GOAL_FIELDS).map((field) => [field, deleteField()]));
+    const updates = {};
+    const deleteFields = Object.values(NUTRITION_GOAL_FIELDS);
     try {
-      await updateDoc(doc(db, 'users', currentUser.uid), updates);
+      const result = await writeUserDocument(`users/${currentUser.uid}`, updates, { deleteFields });
       const nextProfile = { ...(currentProfileData || {}) };
       Object.values(NUTRITION_GOAL_FIELDS).forEach((field) => delete nextProfile[field]);
       currentProfileData = nextProfile;
@@ -5147,12 +5502,34 @@ function renderPendingSyncStatus() {
       document.getElementById('food-goal-modal').style.display = 'none';
       renderFoodEntries();
       renderProfileSettings();
-      ShowToast('Ciljevi ishrane su uklonjeni.');
+      ShowToast(result.queued ? 'Ciljevi ishrane su uklonjeni lokalno i čekaju sinhronizaciju.' : 'Ciljevi ishrane su uklonjeni.');
     } catch (error) {
       console.error('Nutrition goals clear diagnostic:', error);
       status.textContent = 'Ciljeve trenutno nije moguće ukloniti. Provjeri internet i pokušaj ponovo.';
     }
   };
+
+  function mealPlannerFastCopy() {
+    if (getCurrentLanguage() === 'en') return {
+      title: 'Orthodox fasting', waterTitle: 'Fast without oil', waterHelp: 'Plant-based food without oil or fish.', oilTitle: 'Fast with oil', oilHelp: 'Plant-based food with vegetable oil.', fishTitle: 'Fast with fish', fishHelp: 'Fasting food with fish, without meat, dairy or eggs.', note: 'Fasting rules can depend on the day and personal practice. Check your choice before generating the plan.', labels: { orthodox_fast_water: 'Fast without oil', orthodox_fast_oil: 'Fast with oil', orthodox_fast_fish: 'Fish + oil' }
+    };
+    if (getCurrentLanguage() === 'de') return {
+      title: 'Orthodoxes Fasten', waterTitle: 'Fasten ohne Öl', waterHelp: 'Pflanzliche Nahrung ohne Öl und Fisch.', oilTitle: 'Fasten mit Öl', oilHelp: 'Pflanzliche Nahrung mit Pflanzenöl.', fishTitle: 'Fasten mit Fisch', fishHelp: 'Fastenspeisen mit Fisch, ohne Fleisch, Milchprodukte oder Eier.', note: 'Fastenregeln können vom Tag und der persönlichen Praxis abhängen. Prüfe deine Auswahl vor der Planerstellung.', labels: { orthodox_fast_water: 'Fasten ohne Öl', orthodox_fast_oil: 'Fasten mit Öl', orthodox_fast_fish: 'Fisch + Öl' }
+    };
+    return localizeCopy({
+      title: 'Pravoslavni post', waterTitle: 'Post na vodi', waterHelp: 'Biljna hrana bez ulja i ribe.', oilTitle: 'Post na ulju', oilHelp: 'Biljna hrana uz dozvoljeno biljno ulje.', fishTitle: 'Post sa ribom', fishHelp: 'Posna hrana uz ribu, bez mesa, mlijeka i jaja.', note: 'Pravila posta mogu zavisiti od dana i lične prakse. Provjeri svoj izbor prije generisanja plana.', labels: { orthodox_fast_water: 'Post na vodi', orthodox_fast_oil: 'Post na ulju', orthodox_fast_fish: 'Riba + ulje' }
+    });
+  }
+
+  function refreshMealPlannerFastCopy() {
+    const copy = mealPlannerFastCopy();
+    const note = document.getElementById('meal-plan-fast-note');
+    if (note) note.textContent = copy.note;
+    Object.entries(copy.labels).forEach(([value, label]) => {
+      const option = document.querySelector(`#meal-plan-diet option[value="${value}"]`);
+      if (option) option.textContent = `${copy.title}: ${label}`;
+    });
+  }
 
   function mealPlanOptionsFromForm() {
     const value = (id) => document.getElementById(id)?.value;
@@ -5177,7 +5554,7 @@ function renderPendingSyncStatus() {
       || !Number.isInteger(options.dayCount) || options.dayCount < 1 || options.dayCount > 7
       || !Number.isInteger(options.mealCount) || options.mealCount < 2 || options.mealCount > 5
       || !Number.isFinite(options.budget) || options.budget < 1 || options.budget > 1000000
-      || !MEAL_CURRENCIES[options.currency] || !['none', 'vegetarian', 'vegan', 'halal'].includes(options.diet)
+      || !MEAL_CURRENCIES[options.currency] || !['none', 'vegetarian', 'vegan', 'halal', 'orthodox_fast_water', 'orthodox_fast_oil', 'orthodox_fast_fish'].includes(options.diet)
       || !Number.isInteger(options.maxMinutes) || options.maxMinutes < 5 || options.maxMinutes > 180
       || options.allergies.length > 1000 || options.disliked.length > 1000) return null;
     return options;
@@ -5185,12 +5562,12 @@ function renderPendingSyncStatus() {
 
   function mealPlanCurrencyAmount(eur, currency) {
     const config = MEAL_CURRENCIES[currency] || MEAL_CURRENCIES.EUR;
-    return `${formatFoodNumber(Math.round(eur * config.factor * 100) / 100)} ${config.symbol}`;
+    return new Intl.NumberFormat(getCurrentLocale(), { style: 'currency', currency: MEAL_CURRENCIES[currency] ? currency : 'EUR' }).format(Math.round(eur * config.factor * 100) / 100);
   }
 
   function formatMealPlanDate(date) {
     const language = getCurrentLanguage();
-    const locale = language === 'de' ? 'de-DE' : language === 'en' ? 'en-GB' : 'sr-Latn-RS';
+    const locale = getCurrentLocale();
     const parsed = new Date(`${date}T12:00:00`);
     return Number.isNaN(parsed.getTime()) ? String(date) : new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'short' }).format(parsed);
   }
@@ -5199,6 +5576,13 @@ function renderPendingSyncStatus() {
     return values.map((value) => String(value || '').trim())
       .filter((value) => value && !/^(nemam|nema|none|no allergies|no restrictions|keine)/i.test(value))
       .join(', ');
+  }
+
+  function mealPlannerNavigationCopy() {
+    const language = getCurrentLanguage();
+    if (language === 'en') return { previous: 'Previous day', next: 'Next day', dayOf: (current, total) => `Day ${current} of ${total}`, shopping: 'Shopping list', shoppingTitle: 'Shopping list', shoppingHelp: 'Total quantities for the full plan.' };
+    if (language === 'de') return { previous: 'Vorheriger Tag', next: 'Nächster Tag', dayOf: (current, total) => `Tag ${current} von ${total}`, shopping: 'Einkaufsliste', shoppingTitle: 'Einkaufsliste', shoppingHelp: 'Gesamtmengen für den gesamten Plan.' };
+    return localizeCopy({ previous: 'Prethodni dan', next: 'Sljedeći dan', dayOf: (current, total) => `Dan ${current} od ${total}`, shopping: 'Lista za kupovinu', shoppingTitle: 'Lista za kupovinu', shoppingHelp: 'Ukupne količine za cijeli plan.' });
   }
 
   function mealPlannerCopy() {
@@ -5264,7 +5648,7 @@ function renderPendingSyncStatus() {
         deleted: 'Gespeicherter Plan gelöscht.', deleteFailed: 'Der Plan konnte nicht gelöscht werden.'
       }
     };
-    return copy[getCurrentLanguage()] || copy.sr;
+    return localizeCopy(copy.sr);
   }
 
   function mealPlanRecipeAllowed(item, options) {
@@ -5314,36 +5698,31 @@ function renderPendingSyncStatus() {
     const allowedIds = new Set(available.recipes.map((item) => item.id));
     const unsafe = available.unknown.length > 0 || plan.days.some((day) => day.meals.some((meal) => !allowedIds.has(meal.recipeId)));
     const cost = mealPlanCurrencyAmount(plan.estimatedCostEur, options.currency);
-    const days = plan.days.map((day, dayIndex) => {
-      const totals = mealPlanTotals(day);
-      if (!totals) return '';
-      const meals = day.meals.map((meal, mealIndex) => {
-        const item = getMealRecipe(meal.recipeId);
-        const nutrition = recipeNutrition(item);
-        const ingredients = recipeIngredients(item, getCurrentLanguage());
-        const allowed = allowedIds.has(item.id);
-        const slotLabel = copy[meal.slot] || copy.snack;
-        const portions = ingredients.map((ingredient) => `${escapeHtml(ingredient.name)} ${formatFoodNumber(ingredient.quantity * options.people)} ${escapeHtml(ingredient.unit)}`).join(' · ');
-        return `<article class="meal-planner-meal"><small>${slotLabel} · ${item.minutes} min · ${copy.estimate} ${escapeHtml(mealPlanCurrencyAmount(item.costEur * options.people, options.currency))}</small><strong>${escapeHtml(getMealRecipeName(item, getCurrentLanguage()))}</strong><p>${copy.people(options.people)}: ${portions}</p><p>${copy.perPerson} ${formatFoodNumber(nutrition.calories)} kcal · P ${formatFoodNumber(nutrition.proteinG)} g · UH ${formatFoodNumber(nutrition.carbsG)} g · M ${formatFoodNumber(nutrition.fatG)} g</p>${allowed ? `<div class="meal-planner-meal-actions"><button class="btn btn-secondary" data-action="replace-meal-plan-meal" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.replace}</button><button class="btn btn-secondary" data-action="add-meal-plan-meal-to-diary" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.addDiary}</button></div>` : `<p>${copy.unsafe}</p>`}</article>`;
-      }).join('');
-      return `<section class="card meal-planner-day"><h4>${escapeHtml(formatMealPlanDate(day.date))}</h4><div class="meal-planner-meals">${meals}</div><div class="meal-planner-day-totals">${copy.dailyEstimate} ${formatFoodNumber(totals.calories)} kcal · P ${formatFoodNumber(totals.proteinG)} g · UH ${formatFoodNumber(totals.carbsG)} g · M ${formatFoodNumber(totals.fatG)} g</div></section>`;
+    activeMealPlanDayIndex = Math.min(Math.max(activeMealPlanDayIndex, 0), plan.days.length - 1);
+    const dayIndex = activeMealPlanDayIndex;
+    const day = plan.days[dayIndex];
+    const totals = mealPlanTotals(day);
+    const navigation = mealPlannerNavigationCopy();
+    const fastLabel = mealPlannerFastCopy().labels[options.diet] || '';
+    const meals = day.meals.map((meal, mealIndex) => {
+      const item = getMealRecipe(meal.recipeId);
+      const nutrition = recipeNutrition(item);
+      const ingredients = recipeIngredients(item, getCurrentLanguage());
+      const allowed = allowedIds.has(item.id);
+      const slotLabel = copy[meal.slot] || copy.snack;
+      const portions = ingredients.map((ingredient) => `${escapeHtml(ingredient.name)} ${formatFoodNumber(ingredient.quantity * options.people)} ${escapeHtml(ingredient.unit)}`).join(' · ');
+      return `<article class="meal-planner-meal"><small>${slotLabel} · ${item.minutes} min · ${copy.estimate} ${escapeHtml(mealPlanCurrencyAmount(item.costEur * options.people, options.currency))}</small><strong>${escapeHtml(getMealRecipeName(item, getCurrentLanguage()))}</strong><p>${copy.people(options.people)}: ${portions}</p><p>${copy.perPerson} ${formatFoodNumber(nutrition.calories)} kcal · ${getMacroLabels().protein} ${formatFoodNumber(nutrition.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(nutrition.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(nutrition.fatG)} g</p>${allowed ? `<div class="meal-planner-meal-actions"><button class="btn btn-secondary" data-action="replace-meal-plan-meal" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.replace}</button><button class="btn btn-secondary" data-action="add-meal-plan-meal-to-diary" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.addDiary}</button></div>` : `<p>${copy.unsafe}</p>`}</article>`;
     }).join('');
-    root.innerHTML = `<div class="card meal-planner-result-head"><span class="settings-eyebrow">${copy.proposal}</span><h3>${copy.day(plan.days.length)} · ${copy.mealsPerDay(options.mealCount)}</h3><div class="meal-planner-summary"><span>${copy.people(options.people)}</span><span>${copy.totalEstimate} ${escapeHtml(cost)}</span><span>${copy.budget} ${formatFoodNumber(options.budget)} ${escapeHtml(options.currency)}</span></div><p>${copy.disclaimer}</p>${unsafe ? `<p>${copy.unsafePlan}</p>` : ''}<div class="meal-planner-result-actions">${!plan.id && !unsafe ? `<button class="btn" data-action="save-meal-plan" type="button">${copy.save}</button>` : ''}<button class="btn btn-secondary" data-action="open-meal-planner" type="button">${copy.newPlan}</button><button class="btn btn-secondary" data-action="discard-meal-plan" type="button">${copy.close}</button></div><p id="meal-planner-save-status" class="settings-status" role="status"></p></div>${days}`;
+    root.innerHTML = `<div class="card meal-planner-result-head"><span class="settings-eyebrow">${copy.proposal}</span><h3>${copy.day(plan.days.length)} · ${copy.mealsPerDay(options.mealCount)}</h3><div class="meal-planner-summary"><span>${copy.people(options.people)}</span><span>${copy.totalEstimate} ${escapeHtml(cost)}</span><span>${copy.budget} ${formatFoodNumber(options.budget)} ${escapeHtml(options.currency)}</span>${fastLabel ? `<span class="meal-planner-fast-badge">${escapeHtml(fastLabel)}</span>` : ''}</div><p>${copy.disclaimer}</p>${unsafe ? `<p>${copy.unsafePlan}</p>` : ''}<div class="meal-planner-result-actions">${!plan.id && !unsafe ? `<button class="btn" data-action="save-meal-plan" type="button">${copy.save}</button>` : ''}<button class="btn btn-secondary" data-action="open-meal-plan-shopping-list" type="button">${navigation.shopping}</button><button class="btn btn-secondary" data-action="open-meal-planner" type="button">${copy.newPlan}</button><button class="btn btn-secondary" data-action="discard-meal-plan" type="button">${copy.close}</button></div><p id="meal-planner-save-status" class="settings-status" role="status"></p></div><section class="card meal-planner-day"><div class="meal-planner-day-navigation"><button class="btn btn-secondary" data-action="view-previous-meal-plan-day" type="button" aria-label="${navigation.previous}" ${dayIndex === 0 ? 'disabled' : ''}>‹</button><div><span>${navigation.dayOf(dayIndex + 1, plan.days.length)}</span><h4>${escapeHtml(formatMealPlanDate(day.date))}</h4></div><button class="btn btn-secondary" data-action="view-next-meal-plan-day" type="button" aria-label="${navigation.next}" ${dayIndex === plan.days.length - 1 ? 'disabled' : ''}>›</button></div><div class="meal-planner-day-totals">${copy.dailyEstimate} <strong>${formatFoodNumber(totals.calories)} kcal</strong> · ${getMacroLabels().protein} ${formatFoodNumber(totals.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(totals.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(totals.fatG)} g</div><div class="meal-planner-meals">${meals}</div></section>`;
   }
 
   window.openMealPlanner = function() {
     if (!currentUser) return;
-    const language = getCurrentLanguage();
-    if (language !== 'sr') {
-      document.querySelectorAll('#meal-plan-goal option, #meal-plan-diet option').forEach((option) => { option.textContent = translateUiText(option.textContent, language); });
-      document.querySelectorAll('#meal-plan-days option').forEach((option) => { const count = Number(option.value); option.textContent = `${count} ${language === 'de' ? (count === 1 ? 'Tag' : 'Tage') : (count === 1 ? 'day' : 'days')}`; });
-      document.querySelectorAll('#meal-plan-count option').forEach((option) => { const count = Number(option.value); option.textContent = `${count} ${language === 'de' ? 'Mahlzeiten' : 'meals'}`; });
-      document.querySelectorAll('#meal-plan-minutes option').forEach((option) => { option.textContent = `${option.value} ${language === 'de' ? 'Minuten' : 'minutes'}`; });
-    }
     const profileGoal = currentProfileData?.goal;
     document.getElementById('meal-plan-goal').value = ['lose_weight', 'maintain', 'gain_weight'].includes(profileGoal) ? profileGoal : 'maintain';
     document.getElementById('meal-plan-start').value = getFoodSelectedDate();
     document.getElementById('meal-plan-allergies').value = currentProfileData?.foodAllergies || '';
+    refreshMealPlannerFastCopy();
     document.getElementById('meal-planner-form-status').textContent = '';
     document.getElementById('meal-planner-modal').style.display = 'flex';
   };
@@ -5365,6 +5744,7 @@ function renderPendingSyncStatus() {
     if (result.error === 'budget') { status.textContent = copy.lowBudget(mealPlanCurrencyAmount(result.minimumCostEur, options.currency)); return; }
     activeMealPlanOptions = options;
     activeMealPlan = { ...result, ...options, userId: currentUser.uid, createdAt: new Date().toISOString() };
+    activeMealPlanDayIndex = 0;
     document.getElementById('meal-planner-modal').style.display = 'none';
     renderMealPlan();
     document.getElementById('meal-planner-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5395,14 +5775,14 @@ function renderPendingSyncStatus() {
     if (button) button.disabled = true;
     const { id: ignoredId, ...data } = activeMealPlan;
     try {
-      const saved = await addDoc(collection(db, 'users', userId, 'mealPlans'), data);
+      const saved = await createUserDocument(`users/${userId}/mealPlans`, data);
       if (currentUser?.uid !== userId) return;
       activeMealPlan = { ...data, id: saved.id };
       savedMealPlans = [{ ...data, id: saved.id }, ...savedMealPlans].slice(0, 10);
       savedMealPlansLoaded = true;
       renderSavedMealPlans();
       renderMealPlan();
-      ShowToast(mealPlannerCopy().saved);
+      ShowToast(saved.queued ? 'Plan obroka je sačuvan lokalno i čeka sinhronizaciju.' : mealPlannerCopy().saved);
     } catch (error) {
       console.error('Meal plan save diagnostic:', error);
       const status = document.getElementById('meal-planner-save-status');
@@ -5416,8 +5796,41 @@ function renderPendingSyncStatus() {
     if (!plan) return;
     activeMealPlan = { ...plan, days: plan.days.map((day) => ({ ...day, meals: day.meals.map((meal) => ({ ...meal })) })) };
     activeMealPlanOptions = { ...plan };
+    activeMealPlanDayIndex = 0;
     renderMealPlan();
     document.getElementById('meal-planner-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  window.viewMealPlanDay = function(direction) {
+    if (!activeMealPlan?.days?.length) return;
+    const nextIndex = activeMealPlanDayIndex + direction;
+    if (nextIndex < 0 || nextIndex >= activeMealPlan.days.length) return;
+    activeMealPlanDayIndex = nextIndex;
+    renderMealPlan();
+  };
+
+  window.openMealPlanShoppingList = function() {
+    if (!activeMealPlan || !activeMealPlanOptions) return;
+    const copy = mealPlannerNavigationCopy();
+    const ingredients = new Map();
+    activeMealPlan.days.forEach((day) => day.meals.forEach((meal) => {
+      recipeIngredients(getMealRecipe(meal.recipeId), getCurrentLanguage()).forEach((ingredient) => {
+        const key = `${ingredient.name}|${ingredient.unit}`;
+        const entry = ingredients.get(key) || { name: ingredient.name, unit: ingredient.unit, quantity: 0 };
+        entry.quantity += ingredient.quantity * activeMealPlanOptions.people;
+        ingredients.set(key, entry);
+      });
+    }));
+    const existing = document.getElementById('meal-planner-shopping-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'meal-planner-shopping-modal';
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML = `<div class="modal-content settings-editor-modal meal-shopping-modal-content"><button class="modal-close" data-action="close-modal" data-modal-id="meal-planner-shopping-modal" aria-label="${escapeHtml(copy.close)}" type="button">×</button><span class="settings-eyebrow">${escapeHtml(copy.shopping)}</span><h3>${escapeHtml(copy.shoppingTitle)}</h3><p class="profile-modal-help">${escapeHtml(copy.shoppingHelp)}</p><ul class="meal-shopping-list">${[...ingredients.values()].sort((a, b) => a.name.localeCompare(b.name, getCurrentLanguage())).map((ingredient) => `<li><strong>${escapeHtml(ingredient.name)}</strong><span>${formatFoodNumber(ingredient.quantity)} ${escapeHtml(ingredient.unit)}</span></li>`).join('')}</ul></div>`;
+    document.body.appendChild(modal);
   };
 
   window.deleteMealPlan = function(id) {
@@ -5438,13 +5851,13 @@ function renderPendingSyncStatus() {
     const button = document.getElementById('confirm-meal-plan-delete');
     if (button) button.disabled = true;
     try {
-      await deleteDoc(doc(db, 'users', userId, 'mealPlans', id));
+      const result = await deleteUserDocument(`users/${userId}/mealPlans/${id}`);
       if (currentUser?.uid !== userId) return;
       savedMealPlans = savedMealPlans.filter((item) => item.id !== id);
       if (activeMealPlan?.id === id) { activeMealPlan = null; activeMealPlanOptions = null; renderMealPlan(); }
       renderSavedMealPlans();
       window.cancelMealPlanDelete();
-      ShowToast(mealPlannerCopy().deleted);
+      ShowToast(result.queued ? 'Plan obroka je obrisan lokalno i čeka sinhronizaciju.' : mealPlannerCopy().deleted);
     } catch (error) {
       console.error('Meal plan delete diagnostic:', error);
       ShowToast(mealPlannerCopy().deleteFailed, 'error');
@@ -5480,14 +5893,14 @@ function renderPendingSyncStatus() {
   async function setBodyTrackingEnabled(enabled) {
     if (!currentUser) return;
     try {
-      await updateDoc(doc(db, 'users', currentUser.uid), { bodyTrackingEnabled: enabled });
+      const result = await writeUserDocument(`users/${currentUser.uid}`, { bodyTrackingEnabled: enabled });
       currentProfileData = { ...(currentProfileData || {}), bodyTrackingEnabled: enabled };
       const bodyToggle = document.getElementById('body-tracking-toggle');
       const settingsToggle = document.getElementById('settings-body-tracking-toggle');
       if (bodyToggle) bodyToggle.checked = enabled;
       if (settingsToggle) settingsToggle.checked = enabled;
       renderBodyMeasurements();
-      ShowToast(enabled ? 'Praćenje tijela je uključeno.' : 'Praćenje tijela je isključeno.');
+      ShowToast(result.queued ? 'Podešavanje je sačuvano na uređaju i čeka internet.' : (enabled ? 'Praćenje tijela je uključeno.' : 'Praćenje tijela je isključeno.'));
     } catch (error) {
       console.error('Body tracking setting diagnostic:', error);
       ShowToast('Podešavanje nije moguće sačuvati.', 'error');
@@ -5834,8 +6247,8 @@ function renderPendingSyncStatus() {
     const container = document.getElementById('profile-wizard-review');
     if (!container || profileWizardState.steps[profileWizardState.current] !== 'review') return;
     const values = readRequiredProfileForm();
-    const rows = [['Ime', values.fullName], ['Godine', values.age], ['Visina', values.heightCm ? `${values.heightCm} cm` : ''], ['Težina', values.weightKg ? `${values.weightKg} kg` : ''], ['Cilj', getProfileValueLabel(values.goal)], ['Fokus', getProfileValueLabel(values.trainingFocus)], ['Treninga sedmično', values.trainingFrequency], ['Mjesto', getProfileValueLabel(values.trainingLocation)], ['Iskustvo', getProfileValueLabel(values.experienceLevel)], ['Trajanje', values.sessionMinutes ? `${values.sessionMinutes} min` : ''], ['Mišići', values.targetMuscleGroups.map(getProfileValueLabel).join(', ')]].filter(([, value]) => String(value || '').trim());
-    container.innerHTML = rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    const rows = [['Ime', values.fullName], ['Godine', values.age], ['Visina', values.heightCm ? `${values.heightCm} cm` : ''], ['Težina', values.weightKg ? `${formatLocalizedNumber(values.weightKg)} kg` : ''], ['Cilj', getProfileValueLabel(values.goal)], ['Fokus', getProfileValueLabel(values.trainingFocus)], ['Treninga sedmično', values.trainingFrequency], ['Mjesto', getProfileValueLabel(values.trainingLocation)], ['Iskustvo', getProfileValueLabel(values.experienceLevel)], ['Trajanje', values.sessionMinutes ? `${values.sessionMinutes} min` : ''], ['Mišići', values.targetMuscleGroups.map(getProfileValueLabel).join(', ')]].filter(([, value]) => String(value || '').trim());
+    container.innerHTML = rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong data-no-translate>${escapeHtml(value)}</strong></div>`).join('');
   }
 
   function populateRequiredProfileForm() {
@@ -5978,7 +6391,7 @@ function renderPendingSyncStatus() {
     if (!profileValues.foodAllergies) errors.push('alergije ili ograničenja hrane');
     if (profileValues.preferredExercises.length > 1000 || profileValues.avoidedExercises.length > 1000 || profileValues.foodAllergies.length > 1000) errors.push('predugačke preferencije');
     if (errors.length) {
-      if (status) { status.textContent = `Nedostaje: ${errors.join(', ')}.`; status.style.color = 'var(--danger)'; }
+      if (status) { status.textContent = uiMessage('Nedostaje: {fields}.', { fields: errors.map(value => translateUiText(value)).join(', ') }); status.style.color = 'var(--danger)'; }
       return;
     }
     if (button) { button.disabled = true; button.textContent = 'Čuvam profil…'; }
@@ -5989,14 +6402,14 @@ function renderPendingSyncStatus() {
         email: currentUser.email || currentProfileData?.email || '',
         createdAt: currentProfileData?.createdAt || new Date().toISOString()
       };
-      await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
+      const result = await writeUserDocument(`users/${currentUser.uid}`, profile, { merge: true });
       currentProfileData = { ...(currentProfileData || {}), ...profile };
       clearProfileWizardDraft();
       document.getElementById('profile-required-modal').style.display = 'none';
       profileRequiredEditMode = false;
       renderProfileSettings();
       renderDashboard();
-      ShowToast('Profil je sačuvan. GymLeader je spreman.');
+      ShowToast(result.queued ? 'Profil je sačuvan lokalno i biće sinhronizovan kada se veza vrati.' : 'Profil je sačuvan. GymLeader je spreman.');
       if (hasPendingNewUserOnboarding()) {
         clearPendingNewUserOnboarding();
         window.openOnboardingModal();
@@ -6025,9 +6438,9 @@ function renderPendingSyncStatus() {
         createdAt: currentProfileData?.createdAt || new Date().toISOString(),
         gender
       };
-      await setDoc(doc(db, 'users', currentUser.uid), profile, { merge: true });
+      const result = await writeUserDocument(`users/${currentUser.uid}`, profile, { merge: true });
       currentProfileData = { ...(currentProfileData || {}), ...profile };
-      if (status) status.textContent = 'Podatak je sačuvan.';
+      if (status) status.textContent = result.queued ? 'Podatak je sačuvan lokalno i čeka sinhronizaciju.' : 'Podatak je sačuvan.';
       renderProfileSettings();
       renderDashboard();
       showGenderProfileGateIfRequired();
@@ -6077,27 +6490,30 @@ function renderPendingSyncStatus() {
     const genderSummary = document.getElementById('settings-gender-summary');
     const foodGoalsSummary = document.getElementById('settings-food-goals-summary');
     const selectedLanguage = getCurrentLanguage();
-    const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch' };
+    const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' };
     const themeNames = {
       sr: isLight => isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
       en: isLight => isLight ? 'Light mode' : 'Dark mode',
-      de: isLight => isLight ? 'Heller Modus' : 'Dunkler Modus'
+      de: isLight => isLight ? 'Heller Modus' : 'Dunkler Modus',
+      fr: isLight => isLight ? 'Mode clair' : 'Mode sombre',
+      it: isLight => isLight ? 'Tema chiaro' : 'Tema scuro',
+      es: isLight => isLight ? 'Modo claro' : 'Modo oscuro'
     };
     const isLight = document.documentElement.dataset.theme === 'light';
     if (nameSummary) nameSummary.textContent = name;
     if (emailSummary) emailSummary.textContent = email || '—';
     if (languageSummary) languageSummary.textContent = languageNames[selectedLanguage] || languageNames.sr;
-    if (themeSummary) themeSummary.textContent = (themeNames[selectedLanguage] || themeNames.sr)(isLight);
+    if (themeSummary) themeSummary.textContent = translateUiText((themeNames[selectedLanguage] || themeNames.sr)(isLight));
     if (genderSummary) genderSummary.textContent = getGenderLabel();
     if (foodGoalsSummary) {
       const goals = getNutritionGoals();
       const configured = [
         goals.calories ? `${formatFoodNumber(goals.calories)} kcal` : '',
         goals.protein ? `P ${formatFoodNumber(goals.protein)} g` : '',
-        goals.carbs ? `UH ${formatFoodNumber(goals.carbs)} g` : '',
-        goals.fat ? `M ${formatFoodNumber(goals.fat)} g` : ''
+        goals.carbs ? `${selectedLanguage === 'sr' ? 'UH' : selectedLanguage === 'de' ? 'KH' : 'C'} ${formatFoodNumber(goals.carbs)} g` : '',
+        goals.fat ? `${selectedLanguage === 'sr' ? 'M' : 'F'} ${formatFoodNumber(goals.fat)} g` : ''
       ].filter(Boolean);
-      foodGoalsSummary.textContent = configured.length ? configured.join(' · ') : 'Nisu postavljeni';
+      foodGoalsSummary.textContent = configured.length ? configured.join(' · ') : translateUiText('Nisu postavljeni', selectedLanguage);
     }
     renderWeeklyGoalSettingsSummary();
     document.querySelectorAll('input[name="profile-gender-option"]').forEach((input) => {
@@ -6107,9 +6523,7 @@ function renderPendingSyncStatus() {
     const photo = localStorage.getItem(getProfilePhotoKey(currentUser.uid)) || '';
     const initial = name.trim().charAt(0).toUpperCase() || 'K';
     if (nameInitial) nameInitial.textContent = initial;
-    if (photoSummary) photoSummary.textContent = photo
-      ? ({ sr: 'Dodana', en: 'Added', de: 'Hinzugefügt' }[selectedLanguage] || 'Dodana')
-      : ({ sr: 'Nije dodata', en: 'Not added', de: 'Nicht hinzugefügt' }[selectedLanguage] || 'Nije dodata');
+    if (photoSummary) photoSummary.textContent = translateUiText(photo ? 'Dodana' : 'Nije dodata', selectedLanguage);
     ['profile-avatar', 'settings-photo-avatar'].forEach((id) => {
       const avatar = document.getElementById(id);
       if (!avatar) return;
@@ -6299,20 +6713,20 @@ function renderPendingSyncStatus() {
       return;
     }
     try {
-      await setDoc(doc(db, 'users', currentUser.uid), {
+      const result = await writeUserDocument(`users/${currentUser.uid}`, {
         fullName: name,
         email: currentUser.email || '',
         createdAt: currentProfileData?.createdAt || new Date().toISOString()
-      }, { merge: true });
-      await updateProfile(currentUser, { displayName: name });
+      });
+      if (!result.queued) await updateProfile(currentUser, { displayName: name });
       currentProfileData = { ...(currentProfileData || {}), fullName: name, email: currentUser.email };
       const headerName = document.getElementById('user-email-display');
       if (headerName) headerName.textContent = name;
       renderProfileSettings();
       document.getElementById('settings-name-modal').style.display = 'none';
-      ShowToast('Ime i prezime su sačuvani.');
+      ShowToast(result.queued ? 'Ime je sačuvano na uređaju i čeka internet.' : 'Ime i prezime su sačuvani.');
     } catch (error) {
-      ShowToast(error.message || 'Ime nije moguće sačuvati.', 'error');
+      ShowToast(translateUiText(error.message || 'Ime nije moguće sačuvati.'), 'error');
     }
   };
 
@@ -6325,8 +6739,8 @@ function renderPendingSyncStatus() {
     const status = document.getElementById('account-delete-status');
     const confirmButton = document.querySelector('.settings-delete-confirm');
     const language = getCurrentLanguage();
-    const words = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN' };
-    const prompts = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN' };
+    const words = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' };
+    const prompts = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' };
     if (details) details.value = '';
     if (phrase) { phrase.value = ''; phrase.dataset.requiredPhrase = prompts[language] || prompts.sr; }
     const word = document.getElementById('account-delete-confirm-word');
@@ -6348,7 +6762,7 @@ function renderPendingSyncStatus() {
   }
 
   async function clearLocalUserData(userId) {
-    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_pending_workouts_v', 'gym_legal_acceptance_v1_', 'gym_weekly_goal_v1_', 'gym_food_entries_cache_v1_', 'gym_food_daily_goal_v1_', 'gym_food_favorites_v1_'];
+    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_profile_cache_v1_', 'gym_pending_workouts_v', 'gym_pending_operations_v1_', 'gym_legal_acceptance_v1_', 'gym_weekly_goal_v1_', 'gym_food_entries_cache_v1_', 'gym_food_daily_goal_v1_', 'gym_food_favorites_v1_'];
     const matchingKeys = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
@@ -6360,17 +6774,21 @@ function renderPendingSyncStatus() {
     activeWorkoutEditMode = false;
     pendingWorkoutsMemory = [];
     pendingWorkoutsLoaded = false;
+    pendingOperationsMemory = [];
+    pendingOperationsLoaded = false;
     cachedHistory = [];
     userRoutines = [];
 
     try {
       const dbInstance = await openPendingWorkoutsDb();
       await new Promise((resolve, reject) => {
-        const transaction = dbInstance.transaction('pendingWorkouts', 'readwrite');
-        const store = transaction.objectStore('pendingWorkouts');
-        const request = store.getAll();
-        request.onsuccess = () => (request.result || []).forEach((item) => {
-          if (item.userId === userId) store.delete(item.id);
+        const transaction = dbInstance.transaction(['pendingWorkouts', PENDING_OPERATIONS_STORE], 'readwrite');
+        ['pendingWorkouts', PENDING_OPERATIONS_STORE].forEach((storeName) => {
+          const store = transaction.objectStore(storeName);
+          const request = store.getAll();
+          request.onsuccess = () => (request.result || []).forEach((item) => {
+            if (item.userId === userId) store.delete(item.id);
+          });
         });
         transaction.oncomplete = resolve;
         transaction.onerror = () => reject(transaction.error);
@@ -6418,7 +6836,7 @@ function renderPendingSyncStatus() {
       await signOut(auth);
       ShowToast('Nalog i podaci su trajno obrisani.');
     } catch (error) {
-      if (status) status.textContent = error.message || 'Brisanje nije uspjelo. Pokušaj ponovo.';
+      if (status) status.textContent = translateUiText(error.message || 'Brisanje nije uspjelo. Pokušaj ponovo.');
       if (button) { button.disabled = false; button.textContent = originalButtonText; }
     }
   };
@@ -6510,11 +6928,10 @@ function renderPendingSyncStatus() {
       pendingProfilePhotoImage = null;
       document.getElementById('profile-photo-modal').style.display = 'none';
       renderProfileSettings();
-      ShowToast('Profilna slika je sa\u010duvana na ovom ure\u0111aju.');
+      ShowToast(translateUiText('Profilna slika je sačuvana na ovom uređaju.'));
       return;
-      ShowToast('Profilna slika je saÄuvana na ovom ureÄ‘aju.');
     } catch {
-      ShowToast('Slika je prevelika za lokalno Äuvanje.', 'error');
+      ShowToast(translateUiText('Slika je prevelika za lokalno čuvanje.'), 'error');
     }
   };
 
@@ -6561,7 +6978,7 @@ function renderPendingSyncStatus() {
       const status = document.getElementById('profile-email-modal-status');
       if (status) status.textContent = 'Kod je poslat na novu email adresu.';
     } catch (error) {
-      ShowToast(error.message, 'error');
+      ShowToast(translateUiText(error.message), 'error');
     }
   };
 
@@ -6581,14 +6998,14 @@ function renderPendingSyncStatus() {
     }
     if (!emailChanged) {
       try {
-        await updateDoc(doc(db, 'users', currentUser.uid), { fullName: name, email: currentUser.email });
-        await updateProfile(currentUser, { displayName: name });
+        const result = await writeUserDocument(`users/${currentUser.uid}`, { fullName: name, email: currentUser.email });
+        if (!result.queued) await updateProfile(currentUser, { displayName: name });
         currentProfileData = { ...(currentProfileData || {}), fullName: name, email: currentUser.email };
         document.getElementById('user-email-display').innerText = name;
-        document.getElementById('profile-settings-status').textContent = 'Profil je uspješno sačuvan.';
-        ShowToast('Profil je ažuriran.');
+        document.getElementById('profile-settings-status').textContent = result.queued ? 'Profil je sačuvan na uređaju i čeka internet.' : 'Profil je uspješno sačuvan.';
+        ShowToast(result.queued ? 'Profil je sačuvan na uređaju i čeka internet.' : 'Profil je ažuriran.');
       } catch (error) {
-        ShowToast(error.message, 'error');
+        ShowToast(translateUiText(error.message), 'error');
       }
       return;
     }
@@ -6615,7 +7032,7 @@ function renderPendingSyncStatus() {
       document.getElementById('profile-settings-status').textContent = 'Profil je uspješno sačuvan.';
       ShowToast('Profil je ažuriran.');
     } catch (error) {
-      ShowToast(error.message, 'error');
+      ShowToast(translateUiText(error.message), 'error');
     }
   };
 
@@ -6633,58 +7050,57 @@ function renderPendingSyncStatus() {
         de: isLight ? 'Heller Modus' : 'Dunkler Modus'
       };
       toggle.setAttribute('aria-checked', String(isLight));
-      toggle.setAttribute('aria-label', labels[language] || labels.sr);
+      toggle.setAttribute('aria-label', labels[language] || translateUiText(labels.sr));
       const label = document.getElementById('theme-toggle-label');
-      if (label) label.textContent = labels[language] || labels.sr;
+      if (label) label.textContent = labels[language] || translateUiText(labels.sr);
     }
   }
 
   function getCurrentLanguage() {
     const language = localStorage.getItem('gym-language');
-    return ['sr', 'en', 'de'].includes(language) ? language : 'sr';
+    return ['sr', 'en', 'de', 'fr', 'it', 'es'].includes(language) ? language : 'sr';
   }
 
-  function normalizeTranslationKey(value) {
-    return String(value)
-      .replace(/\s+/g, ' ')
-      .trim()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .replace(/Đ/g, 'D');
+  function getCanonicalTranslationSource(value) { return canonicalUiText(value); }
+  function translateUiText(value, language = getCurrentLanguage()) { return translateText(value, language); }
+  function uiMessage(source, values, language = getCurrentLanguage()) { return formatUiMessage(source, values, language); }
+  function localizeCopy(value, language = getCurrentLanguage()) {
+    if (typeof value === 'string') return translateUiText(value, language);
+    if (typeof value === 'function') return (...args) => translateUiText(value(...args), language);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, localizeCopy(entry, language)]));
+    return value;
+  }
+  function getMacroLabels() {
+    return { sr: { protein: 'P', carbs: 'UH', fat: 'M' }, en: { protein: 'P', carbs: 'C', fat: 'F' }, de: { protein: 'P', carbs: 'KH', fat: 'F' }, fr: { protein: 'P', carbs: 'G', fat: 'L' }, it: { protein: 'P', carbs: 'C', fat: 'G' }, es: { protein: 'P', carbs: 'C', fat: 'G' } }[getCurrentLanguage()];
   }
 
-  const translationLookup = Object.fromEntries(
-    Object.entries(TRANSLATIONS).map(([language, phrases]) => [
-      language,
-      Object.fromEntries(Object.entries(phrases).map(([source, target]) => [normalizeTranslationKey(source), target]))
-    ])
-  );
-
-  function translateUiText(value, language = getCurrentLanguage()) {
-    if (language === 'sr' || typeof value !== 'string') return value;
-    const leading = value.match(/^\s*/)?.[0] || '';
-    const trailing = value.match(/\s*$/)?.[0] || '';
-    const translated = translationLookup[language]?.[normalizeTranslationKey(value.trim())];
-    return translated ? `${leading}${translated}${trailing}` : value;
+  function allergenLabel(value) {
+    return translateUiText({ milk: 'mlijeko', eggs: 'jaja', gluten: 'gluten', peanuts: 'kikiriki', nuts: 'orašasti plodovi', soy: 'soja', fish: 'riba', shellfish: 'školjke', seeds: 'sjemenke', sesame: 'sezam' }[value] || value);
   }
 
   const localizedTextSources = new WeakMap();
+  const localizedTextLastApplied = new WeakMap();
   const localizedAttributeSources = new WeakMap();
+  const localizedAttributeLastApplied = new WeakMap();
 
   function localizeElement(element) {
-    if (!(element instanceof Element)) return;
+    if (!(element instanceof Element) || element.closest('[data-no-translate]')) return;
     let sources = localizedAttributeSources.get(element);
+    let lastApplied = localizedAttributeLastApplied.get(element);
     if (!sources) {
       sources = new Map();
       localizedAttributeSources.set(element, sources);
+      lastApplied = new Map();
+      localizedAttributeLastApplied.set(element, lastApplied);
     }
     for (const attribute of ['placeholder', 'title', 'aria-label', 'alt']) {
       if (element.hasAttribute(attribute)) {
-        if (!sources.has(attribute)) sources.set(attribute, element.getAttribute(attribute));
+        const current = element.getAttribute(attribute);
+        if (!sources.has(attribute) || (lastApplied.has(attribute) && current !== lastApplied.get(attribute))) sources.set(attribute, getCanonicalTranslationSource(current));
         const original = sources.get(attribute);
         const translated = translateUiText(original);
         if (translated !== element.getAttribute(attribute)) element.setAttribute(attribute, translated);
+        lastApplied.set(attribute, translated);
       }
     }
   }
@@ -6698,36 +7114,36 @@ function renderPendingSyncStatus() {
     let node;
     while ((node = walker.nextNode())) {
       const parent = node.parentElement;
-      if (!parent || parent.closest('script, style, textarea, option, code')) continue;
-      if (!localizedTextSources.has(node)) localizedTextSources.set(node, node.nodeValue);
-      const translated = translateUiText(localizedTextSources.get(node));
-      if (translated !== node.nodeValue) node.nodeValue = translated;
+      if (!parent || parent.closest('script, style, textarea, code, [data-no-translate]')) continue;
+      localizeTextNode(node);
     }
   }
 
   function localizeTextNode(node) {
-    if (!localizedTextSources.has(node)) localizedTextSources.set(node, node.nodeValue);
+    if (!localizedTextSources.has(node) || (localizedTextLastApplied.has(node) && node.nodeValue !== localizedTextLastApplied.get(node))) localizedTextSources.set(node, getCanonicalTranslationSource(node.nodeValue));
     const translated = translateUiText(localizedTextSources.get(node));
     if (translated !== node.nodeValue) node.nodeValue = translated;
+    localizedTextLastApplied.set(node, translated);
   }
 
   function observeLocalization() {
     const observer = new MutationObserver((changes) => {
       if (getCurrentLanguage() === 'sr') return;
       changes.forEach((change) => {
+        if (change.type === 'attributes') localizeElement(change.target);
         if (change.type === 'characterData') {
           const parent = change.target.parentElement;
-          if (parent && !parent.closest('script, style, textarea, option, code')) {
+          if (parent && !parent.closest('script, style, textarea, code, [data-no-translate]')) {
             localizeTextNode(change.target);
           }
         }
         change.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) localizeSubtree(node);
-          if (node.nodeType === Node.TEXT_NODE) localizeTextNode(node);
+          if (node.nodeType === Node.TEXT_NODE && !node.parentElement?.closest('script, style, textarea, code, [data-no-translate]')) localizeTextNode(node);
         });
       });
     });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'title', 'aria-label', 'alt'] });
   }
 
   function showLanguageLoading(language) {
@@ -6748,61 +7164,102 @@ function renderPendingSyncStatus() {
   }
 
   function changeAppLanguage(language) {
-    const selectedLanguage = ['sr', 'en', 'de'].includes(language) ? language : 'sr';
+    const selectedLanguage = ['sr', 'en', 'de', 'fr', 'it', 'es'].includes(language) ? language : 'sr';
+    const shoppingListIsOpen = document.getElementById('meal-planner-shopping-modal')?.style.display === 'flex';
     localStorage.setItem('gym-language', selectedLanguage);
     localStorage.setItem('gym-language-source', 'manual');
     applyLanguage(selectedLanguage);
+    applyTheme(localStorage.getItem('gym-theme') || 'dark');
+    updateAuthModePresentation();
     localizeSubtree(document.body);
     window.renderWorkouts?.();
     renderDashboard();
+    renderSavedMealPlans();
     refreshLanguageSensitiveSettingsSummaries();
+    refreshMealPlannerFastCopy();
+    updatePlanGeneratorConfiguration(false);
+    renderProfileWizardControls();
+    renderProfileWizardReview();
+    document.querySelectorAll('[data-library-picker-for]').forEach(renderExerciseLibraryPicker);
+    refreshExerciseNameDisplays();
+    if (document.getElementById('onboardingModal')?.style.display === 'flex') renderOnboardingStep();
+    const deletePhrase = document.getElementById('account-delete-confirm-text');
+    if (deletePhrase) {
+      const phrase = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' }[selectedLanguage];
+      deletePhrase.dataset.requiredPhrase = phrase;
+      const label = document.getElementById('account-delete-confirm-word');
+      if (label) { label.dataset.noTranslate = ''; label.textContent = phrase; }
+      updateDeleteAccountButton();
+    }
+    if (activeMealPlan) renderMealPlan();
+    if (shoppingListIsOpen) window.openMealPlanShoppingList?.();
     if (document.getElementById('plan-generator-modal')?.style.display === 'flex' && generatedPlanSuggestions.length) renderGeneratedPlanSuggestions();
+    const activeViewId = document.querySelector('.view.active')?.id;
+    if (activeViewId === 'view-body') renderBodyMeasurements();
+    if (activeViewId === 'view-food') renderFoodEntries();
+    if (activeViewId === 'view-history') renderHistory();
+    if (activeViewId === 'view-analytics') {
+      const selectedExercise = document.getElementById('analytics-ex-select')?.value;
+      setupAnalyticsUI();
+      const exerciseSelect = document.getElementById('analytics-ex-select');
+      if (exerciseSelect && Array.from(exerciseSelect.options).some((option) => option.value === selectedExercise)) exerciseSelect.value = selectedExercise;
+      renderAnalyticsChart();
+    }
+    if (document.getElementById('food-library-picker')) {
+      renderFoodLibraryPicker();
+      renderFoodFavorites();
+    }
     localizeSubtree(document.body);
   }
 
   function refreshLanguageSensitiveSettingsSummaries() {
     if (!currentUser) return;
     const language = getCurrentLanguage();
-    const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch' };
+    const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' };
     const isLight = document.documentElement.dataset.theme === 'light';
     const themeNames = {
       sr: isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
       en: isLight ? 'Light mode' : 'Dark mode',
-      de: isLight ? 'Heller Modus' : 'Dunkler Modus'
+      de: isLight ? 'Heller Modus' : 'Dunkler Modus',
+      fr: isLight ? 'Mode clair' : 'Mode sombre',
+      it: isLight ? 'Tema chiaro' : 'Tema scuro',
+      es: isLight ? 'Modo claro' : 'Modo oscuro'
     };
     const languageSummary = document.getElementById('settings-language-summary');
     const themeSummary = document.getElementById('settings-theme-summary');
     const photoSummary = document.getElementById('settings-photo-summary');
     const foodGoalsSummary = document.getElementById('settings-food-goals-summary');
+    const genderSummary = document.getElementById('settings-gender-summary');
     if (languageSummary) languageSummary.textContent = languageNames[language];
-    if (themeSummary) themeSummary.textContent = themeNames[language];
+    if (themeSummary) themeSummary.textContent = themeNames[language] || translateUiText(themeNames.sr);
+    if (genderSummary) genderSummary.textContent = getGenderLabel();
     if (photoSummary) {
       const hasPhoto = Boolean(localStorage.getItem(getProfilePhotoKey(currentUser.uid)));
       photoSummary.textContent = hasPhoto
-        ? ({ sr: 'Dodana', en: 'Added', de: 'Hinzugefügt' }[language])
-        : ({ sr: 'Nije dodata', en: 'Not added', de: 'Nicht hinzugefügt' }[language]);
+        ? translateUiText('Dodana')
+        : translateUiText('Nije dodata');
     }
     if (foodGoalsSummary) {
       const goals = getNutritionGoals();
       const configured = [
         goals.calories ? `${formatFoodNumber(goals.calories)} kcal` : '',
         goals.protein ? `P ${formatFoodNumber(goals.protein)} g` : '',
-        goals.carbs ? `${language === 'sr' ? 'UH' : 'C'} ${formatFoodNumber(goals.carbs)} g` : '',
-        goals.fat ? `${language === 'sr' ? 'M' : 'F'} ${formatFoodNumber(goals.fat)} g` : ''
+        goals.carbs ? `${getMacroLabels().carbs} ${formatFoodNumber(goals.carbs)} g` : '',
+        goals.fat ? `${getMacroLabels().fat} ${formatFoodNumber(goals.fat)} g` : ''
       ].filter(Boolean);
-      foodGoalsSummary.textContent = configured.length ? configured.join(' · ') : ({ sr: 'Nisu postavljeni', en: 'Not set', de: 'Nicht festgelegt' }[language]);
+      foodGoalsSummary.textContent = configured.length ? configured.join(' · ') : translateUiText('Nisu postavljeni');
     }
     renderWeeklyGoalSettingsSummary();
   }
 
   function applyLanguage(language) {
-    const selectedLanguage = ['sr', 'en', 'de'].includes(language) ? language : 'sr';
+    const selectedLanguage = ['sr', 'en', 'de', 'fr', 'it', 'es'].includes(language) ? language : 'sr';
     const pageTitles = {
       sr: 'GymLeader | Planiraj trening i prati napredak',
       en: 'GymLeader | Plan your workouts and track progress',
       de: 'GymLeader | Plane dein Training und verfolge deinen Fortschritt'
     };
-    document.title = pageTitles[selectedLanguage];
+    document.title = pageTitles[selectedLanguage] || translateUiText('GymLeader | Planiraj trening i prati napredak', selectedLanguage);
     document.documentElement.lang = selectedLanguage === 'sr' ? 'sr-Latn' : selectedLanguage;
     const loadingCopy = getLoadingCopy(selectedLanguage);
     const bootText = document.getElementById('auth-boot-text');
@@ -6819,20 +7276,26 @@ function renderPendingSyncStatus() {
     });
     const status = document.getElementById('language-settings-status');
     if (status) {
-      status.textContent = 'Odabran je srpski jezik.';
-      if (status.firstChild) localizedTextSources.set(status.firstChild, 'Odabran je srpski jezik.');
+      const statusSource = 'Jezik je promijenjen.';
+      status.textContent = translateUiText(statusSource, selectedLanguage);
+      if (status.firstChild) localizedTextSources.set(status.firstChild, statusSource);
     }
   }
 
   function renderLanguageFlagIcons() {
     const flags = {
-      sr: '<span class="flag-image"><img src="assets/flag-sr.svg" alt="Srpska zastava"></span>',
-      en: '<span class="flag-image"><img class="flag-uk" src="assets/flag-en.svg" alt="British flag"></span>',
-      de: '<span class="flag-image"><img src="assets/flag-de.svg" alt="Njemačka zastava"></span>'
+      sr: '<span class="flag-image"><img src="assets/flag-sr.svg" alt=""></span>',
+      en: '<span class="flag-image"><img class="flag-uk" src="assets/flag-en.svg" alt=""></span>',
+      de: '<span class="flag-image"><img src="assets/flag-de.svg" alt=""></span>',
+      fr: '<span class="flag-image"><img src="assets/flag-fr.svg" alt=""></span>',
+      it: '<span class="flag-image"><img src="assets/flag-it.svg" alt=""></span>',
+      es: '<span class="flag-image"><img src="assets/flag-es.svg" alt=""></span>'
     };
     document.querySelectorAll('.language-option').forEach((button) => {
       const language = button.dataset.language;
-      const label = language === 'sr' ? 'Srpski' : language === 'en' ? 'English' : 'Deutsch';
+      const label = { sr: 'Srpski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' }[language];
+      button.dataset.noTranslate = '';
+      button.lang = language;
       if (flags[language]) button.innerHTML = `${flags[language]}<small>${label}</small>`;
     });
   }
@@ -6842,7 +7305,7 @@ function renderPendingSyncStatus() {
     renderLanguageFlagIcons();
     const savedLanguage = localStorage.getItem('gym-language');
     let initialLanguage;
-    if (['sr', 'en', 'de'].includes(savedLanguage)) {
+    if (['sr', 'en', 'de', 'fr', 'it', 'es'].includes(savedLanguage)) {
       initialLanguage = savedLanguage;
       // Before the source marker existed, a saved value may have come from an
       // explicit choice. Preserve it instead of guessing from the device.
@@ -6867,7 +7330,7 @@ function renderPendingSyncStatus() {
       const baseLanguage = String(preference || '').trim().toLowerCase().replace(/_/g, '-').split('-')[0];
       if (baseLanguage === 'sr') return 'sr';
       if (baseLanguage === 'en') return 'en';
-      if (baseLanguage === 'de') return 'de';
+      if (['de', 'fr', 'it', 'es'].includes(baseLanguage)) return baseLanguage;
       if (['hr', 'bs', 'cnr'].includes(baseLanguage)) return 'sr';
     }
     return 'en';
@@ -6875,12 +7338,15 @@ function renderPendingSyncStatus() {
 
   function showConfirm(message) {
     return new Promise((resolve) => {
-      const confirmed = window.confirm(message);
+      const confirmed = window.confirm(translateUiText(message));
       resolve(confirmed);
     });
   }
 
   function setupEventHandlers() {
+    document.addEventListener('change', event => {
+      if (event.target.matches?.('.routine-exercise-name, .history-editor-exercise-name')) localizeExerciseNameInput(event.target);
+    });
     const authForm = document.getElementById('auth-form');
     if (authForm) authForm.addEventListener('submit', window.handleAuthSubmit);
     document.getElementById('auth-password')?.addEventListener('input', updatePasswordRuleState);
@@ -6934,7 +7400,7 @@ function renderPendingSyncStatus() {
     document.getElementById('plan-generator-modal')?.addEventListener('change', (event) => {
       const input = event.target;
       if (!(input instanceof HTMLInputElement) || !['plan-generator-mode', 'plan-generator-muscle'].includes(input.name)) return;
-      if (profileUsesFullBody(currentProfileData)) {
+      if (profileUsesFullBody(getEffectiveCurrentProfile())) {
         const fullBodyInput = document.querySelector('input[name="plan-generator-mode"][value="full_body"]');
         if (fullBodyInput) fullBodyInput.checked = true;
       }
@@ -7097,6 +7563,15 @@ function renderPendingSyncStatus() {
           break;
         case 'replace-meal-plan-meal':
           window.replaceMealPlanMeal(Number(button.dataset.dayIndex), Number(button.dataset.mealIndex));
+          break;
+        case 'view-previous-meal-plan-day':
+          window.viewMealPlanDay(-1);
+          break;
+        case 'view-next-meal-plan-day':
+          window.viewMealPlanDay(1);
+          break;
+        case 'open-meal-plan-shopping-list':
+          window.openMealPlanShoppingList();
           break;
         case 'add-meal-plan-meal-to-diary':
           window.addMealPlanMealToDiary(Number(button.dataset.dayIndex), Number(button.dataset.mealIndex));
@@ -7532,7 +8007,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261002-static-carousel-arrows-v94';
+    const build = '20261003-i18n-v111';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });

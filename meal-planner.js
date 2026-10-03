@@ -1,7 +1,8 @@
-import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js?v=20261001-offline-startup-v71';
+import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js?v=20261003-i18n-v111';
 
 // A small, reviewed recipe set built only from individual catalogue ingredients.
 // Prices are illustrative local estimates in EUR, not shop prices or live rates.
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v111';
 const recipe = (id, name, slots, ingredients, minutes, costEur, diet, simple = true) => ({
   id, name, slots, ingredients: ingredients.map(([foodId, quantity]) => ({ foodId, quantity })),
   minutes, costEur, diet, simple
@@ -87,6 +88,16 @@ const allergenAliases = {
   sesame: ['sezam', 'sesame', 'sesam']
 };
 const additionalAllergens = { 'tuna-water': ['fish'], salmon: ['fish'] };
+// Localized input aliases share the existing restriction resolver and rules.
+const localizedAllergenAliases = {
+  milk: ['lait', 'laitier', 'laitiers', 'latte', 'latticini', 'lattosio', 'leche', 'lacteos', 'lactosa'],
+  eggs: ['oeuf', 'œuf', 'oeufs', 'œufs', 'uovo', 'uova', 'huevo', 'huevos'],
+  gluten: ['ble', 'frumento', 'grano', 'trigo', 'celiaque', 'celiachia', 'celiaquia'],
+  peanuts: ['arachide', 'arachidi', 'cacahuete'], nuts: ['fruits a coque', 'frutta a guscio', 'frutos secos', 'noix', 'noci', 'nueces', 'mandorle', 'almendras'],
+  soy: ['soia'], fish: ['poisson', 'pesce', 'pescado'], shellfish: ['crustaces', 'mollusques', 'crostacei', 'molluschi', 'mariscos'],
+  seeds: ['graines', 'semi', 'semillas'], sesame: ['sesamo']
+};
+for (const [allergen, aliases] of Object.entries(localizedAllergenAliases)) allergenAliases[allergen].push(...aliases);
 const foodAliases = {
   'chicken-breast': ['piletina', 'pilece', 'pileca', 'chicken'],
   'beef-lean': ['junetina', 'govedina', 'beef'],
@@ -100,6 +111,7 @@ export const MEAL_CATALOG_VERSION = 1;
 export const getMealRecipe = (id) => recipes.get(id) || null;
 export function getMealRecipeName(item, language = 'sr') {
   if (!item) return '';
+  if (CATALOG_TRANSLATIONS[language]?.[item.name]) return CATALOG_TRANSLATIONS[language][item.name];
   const translated = recipeTranslations[item.id];
   return language === 'en' ? (translated?.[0] || item.name) : language === 'de' ? (translated?.[1] || item.name) : item.name;
 }
@@ -117,9 +129,9 @@ function matchesWord(text, candidate) {
 function restrictionTerms(value) {
   const text = String(value || '').trim();
   if (!text) return [];
-  return text.split(/[,;\n/]|\s+i\s+|\s+and\s+|\s+und\s+/i)
+  return text.split(/[,;\n/]|\s+(?:i|and|und|et|e|y)\s+/i)
     .map((part) => part.trim())
-    .filter((part) => part && !/^(nemam|nema|none|no allergies|no restrictions|keine)/i.test(normalizeMealText(part)));
+    .filter((part) => part && !/^(nemam|nema|none|no allergies|no restrictions|keine|aucun|pas d.allerg|nessun|sin alerg|sin restric)/i.test(normalizeMealText(part)));
 }
 
 function resolveRestrictions(value) {
@@ -147,6 +159,9 @@ function recipeAllergens(item) {
 }
 
 function allowedByDiet(item, diet) {
+  if (diet === 'orthodox_fast_water') return item.diet === 'vegan' && !item.ingredients.some(({ foodId }) => foodId === 'olive-oil');
+  if (diet === 'orthodox_fast_oil') return item.diet === 'vegan';
+  if (diet === 'orthodox_fast_fish') return item.diet === 'vegan' || item.diet === 'fish';
   if (diet === 'vegan') return item.diet === 'vegan';
   if (diet === 'vegetarian') return item.diet === 'vegan' || item.diet === 'vegetarian';
   // For MVP, halal uses only plant, egg and plain dairy recipes. This is not certification.
@@ -175,7 +190,7 @@ export function recipeNutrition(item) {
 export function recipeIngredients(item, language = 'sr') {
   return item.ingredients.map(({ foodId, quantity }) => {
     const food = foods.get(foodId);
-    const unit = food?.unit === 'komad' ? (language === 'en' ? 'piece' : language === 'de' ? 'Stück' : 'komad') : food?.unit;
+    const unit = food?.unit === 'komad' ? ({ sr: 'komad', en: 'piece', de: 'Stück', fr: 'pièce', it: 'pezzo', es: 'unidad' }[language] || 'komad') : food?.unit;
     return food ? { foodId, name: getFoodLibraryName(food, language), quantity, unit } : null;
   });
 }
@@ -288,7 +303,7 @@ export function replaceMealInPlan(plan, dayIndex, mealIndex, options) {
 export function validStoredMealPlan(data) {
   if (!data || !Array.isArray(data.days) || data.days.length < 1 || data.days.length > 7 || !planSlots(data.mealCount).length) return false;
   if (!MEAL_CURRENCIES[data.currency] || !['lose_weight', 'maintain', 'gain_weight'].includes(data.goal)
-    || !['none', 'vegetarian', 'vegan', 'halal'].includes(data.diet) || !Number.isInteger(data.people) || data.people < 1 || data.people > 10
+    || !['none', 'vegetarian', 'vegan', 'halal', 'orthodox_fast_water', 'orthodox_fast_oil', 'orthodox_fast_fish'].includes(data.diet) || !Number.isInteger(data.people) || data.people < 1 || data.people > 10
     || !Number.isFinite(data.budget) || data.budget <= 0 || !Number.isInteger(data.maxMinutes) || data.maxMinutes < 5 || data.maxMinutes > 180
     || !Number.isInteger(data.dayCount) || data.dayCount !== data.days.length
     || !/^\d{4}-\d{2}-\d{2}$/.test(data.startDate || '')

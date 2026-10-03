@@ -1,7 +1,8 @@
 // Local starter catalogue. Nutritional values are approximate per listed portion,
 // so users can always adjust the amount before saving an entry.
-const f = (id, sr, en, de, category, portion, unit, calories, proteinG, carbsG, fatG, allergens = []) => ({
-  id, names: { sr, en, de }, category, portion, unit, calories, proteinG, carbsG, fatG, allergens, estimated: true
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v111';
+const f = (id, sr, en, de, category, portion, unit, calories, proteinG, carbsG, fatG, allergens = [], searchTerms = []) => ({
+  id, names: { sr, en, de, ...Object.fromEntries(['fr', 'it', 'es'].map(language => [language, CATALOG_TRANSLATIONS[language][sr]])) }, searchTerms, category, portion, unit, calories, proteinG, carbsG, fatG, allergens, estimated: true
 });
 
 export const FOOD_LIBRARY_CATEGORIES = [
@@ -35,7 +36,7 @@ export const FOOD_LIBRARY = [
   f('seitan','Seitan','Seitan','Seitan','protein',100,'g',141,25,12,2,['gluten']),
   f('lentils-cooked','Kuhana leća','Cooked lentils','Gekochte Linsen','protein',100,'g',116,9,20,0.4),
   f('chickpeas-cooked','Kuhani slanutak','Cooked chickpeas','Gekochte Kichererbsen','protein',100,'g',164,9,27,2.6),
-  f('beans-cooked','Kuhani grah','Cooked beans','Gekochte Bohnen','protein',100,'g',127,8.7,23,0.5),
+  f('beans-cooked','Kuhani grah','Cooked beans','Gekochte Bohnen','protein',100,'g',127,8.7,23,0.5,[],['pasulj', 'fažol']),
   f('protein-powder','Whey protein','Whey protein','Whey-Protein','protein',30,'g',120,24,3,1.5,['milk']),
   // Dairy
   f('greek-yogurt','Grčki jogurt','Greek yogurt','Griechischer Joghurt','dairy',150,'g',146,15,5,6,['milk']),
@@ -66,7 +67,7 @@ export const FOOD_LIBRARY = [
   f('sweet-potato','Slatki krompir','Sweet potato','Süßkartoffel','grains',200,'g',172,3.2,40,0.2),
   f('couscous','Kuhani kus-kus','Cooked couscous','Gekochter Couscous','grains',150,'g',168,5.7,35,0.3,['gluten']),
   f('bulgur','Kuhani bulgur','Cooked bulgur','Gekochter Bulgur','grains',150,'g',125,4.7,28,0.3,['gluten']),
-  f('polenta','Kuhana palenta','Cooked polenta','Gekochte Polenta','grains',200,'g',140,3,30,0.4),
+  f('polenta','Kuhana palenta','Cooked polenta','Gekochte Polenta','grains',200,'g',140,3,30,0.4,[],['kačamak', 'kacamak', 'pura']),
   f('cornflakes','Kukuruzne pahuljice','Cornflakes','Cornflakes','grains',40,'g',143,3,33,0.2,['gluten']),
   f('muesli','Musli','Muesli','Müsli','grains',60,'g',222,6,39,5,['gluten','nuts']),
   f('rice-cakes','Rižini krekeri','Rice cakes','Reiswaffeln','grains',3,'komad',105,2.1,23,0.9),
@@ -117,7 +118,7 @@ export const FOOD_LIBRARY = [
   f('dark-chocolate','Tamna čokolada','Dark chocolate','Dunkle Schokolade','fats',25,'g',150,2,12,10),
   f('coconut-milk','Kokosovo mlijeko','Coconut milk','Kokosmilch','fats',100,'ml',185,2,3,18),
   // Simple meals
-  f('chicken-rice','Piletina i riža','Chicken and rice','Hähnchen mit Reis','meals',1,'porcija',620,48,73,14),
+  f('chicken-rice','Piletina i riža','Chicken and rice','Hähnchen mit Reis','meals',1,'porcija',620,48,73,14,[],['pilav']),
   f('chicken-potato','Piletina i krompir','Chicken and potatoes','Hähnchen mit Kartoffeln','meals',1,'porcija',580,48,58,16),
   f('tuna-sandwich','Sendvič s tunom','Tuna sandwich','Thunfischsandwich','meals',1,'porcija',430,30,45,14,['gluten','fish']),
   f('eggs-toast','Jaja i tost','Eggs and toast','Eier mit Toast','meals',1,'porcija',390,23,31,19,['eggs','gluten']),
@@ -127,7 +128,7 @@ export const FOOD_LIBRARY = [
   f('pasta-tuna','Tjestenina s tunom','Tuna pasta','Thunfischpasta','meals',1,'porcija',590,40,74,13,['gluten','fish']),
   f('omelette','Omlet sa povrćem','Vegetable omelette','Gemüseomelett','meals',1,'porcija',330,24,10,21,['eggs']),
   f('chili-con-carne','Chili con carne','Chili con carne','Chili con Carne','meals',1,'porcija',560,38,57,18),
-  f('bean-stew','Grah','Bean stew','Bohneneintopf','meals',1,'porcija',420,20,63,10),
+  f('bean-stew','Grah','Bean stew','Bohneneintopf','meals',1,'porcija',420,20,63,10,[],['pasulj', 'fažol']),
   f('lentil-stew','Leća','Lentil stew','Linseneintopf','meals',1,'porcija',390,23,58,7),
   f('cevapi','Ćevapi','Ćevapi','Ćevapi','meals',10,'komada',650,38,20,45),
   f('burek','Burek','Burek','Burek','meals',1,'porcija',720,23,65,40,['gluten','milk']),

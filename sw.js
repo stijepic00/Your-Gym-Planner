@@ -1,4 +1,4 @@
-const BUILD = '20261002-static-carousel-arrows-v94';
+const BUILD = '20261003-i18n-v111';
 const CACHE_NAME = `gymleader-app-${BUILD}`;
 
 // Every app-shell file carries the same build identifier in index.html. A new
@@ -9,6 +9,10 @@ const APP_SHELL = [
   `/styles.css?v=${BUILD}`,
   `/javascript.js?v=${BUILD}`,
   `/translations.js?v=${BUILD}`,
+  `/translations-fr-it-es.js?v=${BUILD}`,
+  `/catalog-translations.js?v=${BUILD}`,
+  `/translations-dynamic.js?v=${BUILD}`,
+  `/ui-i18n.js?v=${BUILD}`,
   `/exercise-library.js?v=${BUILD}`,
   `/food-library.js?v=${BUILD}`,
   `/meal-planner.js?v=${BUILD}`,
@@ -18,6 +22,9 @@ const APP_SHELL = [
   '/assets/flag-sr.svg',
   '/assets/flag-en.svg',
   '/assets/flag-de.svg',
+  '/assets/flag-fr.svg',
+  '/assets/flag-it.svg',
+  '/assets/flag-es.svg',
   '/assets/gymleader-body-male.svg?v=20260930-20',
   '/assets/gymleader-body-female.svg?v=20260930-20'
 ];
