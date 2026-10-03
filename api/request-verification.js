@@ -4,6 +4,15 @@ import { getAdminAuth, getAdminDb, verifyAppCheckRequest } from './firebase-admi
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_DELAY_MS = 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SUPPORTED_LANGUAGES = new Set(['sr', 'en', 'de', 'fr', 'it', 'es']);
+const VERIFICATION_EMAIL_SUBJECTS = Object.freeze({
+  sr: 'Tvoj GymLeader verifikacioni kod',
+  en: 'Your GymLeader verification code',
+  de: 'Dein GymLeader-Bestätigungscode',
+  fr: 'Votre code de vérification GymLeader',
+  it: 'Il tuo codice di verifica GymLeader',
+  es: 'Tu código de verificación de GymLeader'
+});
 
 function allowedOrigins() {
   return (process.env.ALLOWED_ORIGINS || 'https://gymleader.app,https://stijepic404.rf.gd,https://your-gym-planner.vercel.app,http://127.0.0.1:5500,http://localhost:5500')
@@ -45,6 +54,10 @@ export default async function handler(req, res) {
   if (!(await verifyAppCheckRequest(req))) return res.status(401).json({ error: 'App Check provjera nije uspjela.' });
 
   const email = String(req.body?.email || '').trim().toLowerCase();
+  // Keep the fallback on the server so malformed or older clients cannot send
+  // an unsupported value to the transactional template.
+  const requestedLanguage = String(req.body?.language || '').trim().toLowerCase();
+    const language = SUPPORTED_LANGUAGES.has(requestedLanguage) ? requestedLanguage : 'en';
   if (!EMAIL_PATTERN.test(email) || email.length > 254) return res.status(400).json({ error: 'Unesite ispravan e-mail.' });
 
   try {
@@ -83,7 +96,12 @@ export default async function handler(req, res) {
     const brevoResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { accept: 'application/json', 'content-type': 'application/json', 'api-key': brevoKey },
-      body: JSON.stringify({ to: [{ email }], templateId: 1, params: { code, expirationMinutes: '10' } })
+      body: JSON.stringify({
+        to: [{ email }],
+        templateId: 1,
+      subject: VERIFICATION_EMAIL_SUBJECTS[language],
+        params: { code, expirationMinutes: '10', language }
+      })
     });
 
     if (!brevoResponse.ok) {
