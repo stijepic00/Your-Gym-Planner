@@ -1,8 +1,9 @@
 // Local starter catalogue. Nutritional values are approximate per listed portion,
 // so users can always adjust the amount before saving an entry.
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v114';
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261005-bcs-settings-v132';
+import { localizeBcsText } from './translations-bs-hr.js?v=20261005-bcs-settings-v132';
 const f = (id, sr, en, de, category, portion, unit, calories, proteinG, carbsG, fatG, allergens = [], searchTerms = []) => ({
-  id, names: { sr, en, de, ...Object.fromEntries(['fr', 'it', 'es'].map(language => [language, CATALOG_TRANSLATIONS[language][sr]])) }, searchTerms, category, portion, unit, calories, proteinG, carbsG, fatG, allergens, estimated: true
+  id, names: { sr, bs: localizeBcsText(sr, 'bs'), hr: localizeBcsText(sr, 'hr'), en, de, ...Object.fromEntries(['fr', 'it', 'es'].map(language => [language, CATALOG_TRANSLATIONS[language][sr]])) }, searchTerms, category, portion, unit, calories, proteinG, carbsG, fatG, allergens, estimated: true
 });
 
 export const FOOD_LIBRARY_CATEGORIES = [

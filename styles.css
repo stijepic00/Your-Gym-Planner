@@ -723,7 +723,7 @@ html[data-theme="light"] header { background: rgba(255, 255, 255, 0.9) !importan
 .language-option span { width: 48px; height: 48px; font-size: 1.55rem; }
 .language-option .flag-image { width: 46px; height: 32px; overflow: hidden; border-radius: 6px; background: var(--bg-input); box-shadow: 0 2px 7px rgba(0,0,0,0.22); }
 .language-option .flag-image svg { display: block; width: 100%; height: 100%; }
-.language-option .flag-image img { display: block; width: 100%; height: 100%; object-fit: fill; background: transparent; user-select: none; -webkit-user-drag: none; }
+.language-option .flag-image img { display: block; width: 100%; height: 100%; object-fit: contain; background: transparent; user-select: none; -webkit-user-drag: none; }
 .language-option[data-language="en"] .flag-image img.flag-uk { filter: none !important; opacity: 1 !important; mix-blend-mode: normal !important; }
 .language-option small { display: block; color: var(--text-main); font-size: .7rem; font-weight: 850; letter-spacing: .02em; line-height: 1; }
 .language-option.active { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-glow), 0 8px 18px rgba(0,0,0,0.16); }
@@ -2391,3 +2391,5 @@ html[data-theme="light"] .dashboard-hero { background: radial-gradient(circle at
   .dashboard-shortcut-card { display: grid; grid-template-columns: auto minmax(0,1fr) auto; min-height: 92px; }
   .dashboard-shortcut-chevron { position: static; }
 }
+
+.meal-planner-method-note { margin: 8px 0 0; color: var(--text-muted); font-size: .8rem; line-height: 1.5; }

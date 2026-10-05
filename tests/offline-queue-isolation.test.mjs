@@ -13,8 +13,8 @@ function section(start, end) {
 }
 const handlers = [
   section('  function getPendingWorkoutKey(', '  window.finishWorkout ='),
-  section('  onAuthStateChanged(auth,', '  window.handleLogout ='),
-  section('async function loadCloudData()', 'function renderPendingSyncStatus()')
+  section('  let authObserved = false;', '  window.handleLogout ='),
+  section('function getHistoryCacheKey(', 'function renderPendingSyncStatus()')
 ].join('\n');
 const clone = value => JSON.parse(JSON.stringify(value));
 const deferred = () => {
@@ -87,6 +87,10 @@ function harness({ fallback = false, storage = new Map(), database = fakeDatabas
     PENDING_SYNC_RETRY_MIN_MS: 5000, PENDING_SYNC_RETRY_MAX_MS: 60000,
     PENDING_OPERATIONS_STORE: 'pendingOperations', OFFLINE_DB_VERSION: 2,
     cachedHistory: [], currentProfileData: null, routinesUnsubscribe: null,
+    historyCoverage: { userId: '', complete: false, loading: false, fromCache: true, checkedAt: null },
+    historyRequest: null, HISTORY_PAGE_SIZE: 30, HISTORY_CACHE_VERSION: 1,
+    restoreMealPlanDraft() {}, clearMealPlanDraft() {},
+    getWorkoutTime: workout => new Date(workout.date || '').getTime() || 0,
     navigator: { onLine: false }, crypto: { randomUUID: () => `operation-${++serial}` },
     console: { warn() {}, error() {} },
     localStorage: {
@@ -94,7 +98,7 @@ function harness({ fallback = false, storage = new Map(), database = fakeDatabas
       setItem: (key, value) => storage.set(key, String(value)),
       removeItem: key => storage.delete(key)
     },
-    document: { getElementById: () => null },
+    document: { getElementById: id => id === 'user-email-display' ? { style: {}, innerText: '' } : null },
     setTimeout: (callback, delay) => { const id = ++serial; timers.set(id, { callback, delay }); return id; },
     clearTimeout: id => timers.delete(id),
     doc: (_, ...parts) => parts.join('/'), deleteField: () => '__DELETE__',
@@ -102,13 +106,17 @@ function harness({ fallback = false, storage = new Map(), database = fakeDatabas
     renderPendingSyncStatus() {}, ShowToast() {}, writeHistoryCache() {}, readHistoryCache: () => [],
     checkDraftState() {}, renderDashboard() {}, renderProgressOverview() {}, renderHistory() {},
     query: (...args) => args, collection: (_, name) => name, where: (...args) => args,
-    orderBy: (...args) => args, limit: value => value,
+    orderBy: (...args) => args, limit: value => value, startAfter: value => value,
     getDocs: async () => ({ forEach() {} }),
     resetActiveWorkoutState() {}, dismissFirstVisitPrompt() {}, renderMealPlan() {}, renderSavedMealPlans() {},
     showLegalAcceptanceIfRequired() {}, hasCurrentLegalAcceptance: () => false,
+    readProfileCache: uid => ({ userId: uid, fullName: 'Offline test' }),
+    getDoc: async () => ({ exists: () => true, data: () => ({ fullName: 'Online test' }) }),
+    writeProfileCache() {}, hasAcceptedCurrentLegalVersion: () => true,
+    writeLegalAcceptanceCache() {}, clearLegalAcceptanceCache() {}, showGenderProfileGateIfRequired() {},
     listenToUserRoutines() {}, switchTab() {}, ensureInAppHistory() {},
     showFirstVisitPromptIfNeeded() {}, hideAuthBootScreen() {},
-    onAuthStateChanged: (_, handler) => { app.authChanged = handler; }
+    onAuthStateChanged: () => { app.authChanged = user => c.processAuthState(user); }
   };
   const send = async (kind, path, data) => {
     const call = { kind, path, data: data && clone(data), uid: c.auth.currentUser?.uid };
@@ -120,16 +128,25 @@ function harness({ fallback = false, storage = new Map(), database = fakeDatabas
   c.setDoc = (path, data) => send('set', path, data);
   c.deleteDoc = path => send('delete', path);
   c.window = c;
+  c.getDocsFromServer = async (...args) => {
+    const snapshot = await c.getDocs(...args);
+    if (snapshot.docs) return snapshot;
+    const docs = [];
+    snapshot.forEach(doc => docs.push(doc));
+    return { docs };
+  };
   vm.createContext(c);
   vm.runInContext(handlers, c);
+  c.renderHistoryConsumers = () => {};
   c.openPendingWorkoutsDb = async () => {
     if (app.idbUnavailable) throw new Error('Injected IndexedDB unavailability');
     return database;
   };
   app.c = c;
-  app.login = async uid => {
+  app.login = async (uid, waitForQueue = true) => {
     c.auth.currentUser = uid ? { uid, email: `${uid}@example.test` } : null;
     await app.authChanged(c.auth.currentUser);
+    if (uid && waitForQueue) await until(() => c.pendingWorkoutsLoaded && c.pendingOperationsLoaded);
   };
   app.workout = (id, uid = c.currentUser.uid, name = id) => ({ id, userId: uid, queuedAt: 1, status: 'pending', data: { userId: uid, name, exercises: [] } });
   app.addWorkout = (id, uid = c.currentUser.uid) => c.queueWorkoutForSync(id, { userId: uid, name: id, exercises: [] });
@@ -437,7 +454,7 @@ test('Delayed queue load cannot repopulate memory after logout', async () => {
   let entered = false;
   a.database.seed('pendingWorkouts', [a.workout('A1', 'A')]);
   a.database.beforeCommit = () => { entered = true; return gate.promise; };
-  const login = a.login('A');
+  const login = a.login('A', false);
   await until(() => entered);
   await a.login(null);
   gate.resolve();
@@ -452,11 +469,13 @@ test('Delayed history refresh cannot cache A history under B after sync', async 
   await a.login('A');
   const gate = deferred();
   let started = false;
+  a.c.navigator.onLine = true;
   a.c.getDocs = () => { started = true; return gate.promise; };
   const loading = a.c.loadCloudData();
   await until(() => started);
   a.c.getDocs = async () => ({ forEach() {} });
   await a.login('B');
+  await a.c.historyRequest?.promise;
   let writes = 0;
   a.c.writeHistoryCache = () => { writes++; };
   gate.resolve({ forEach: visit => visit({ id: 'A1', data: () => ({ userId: 'A', date: '2026-10-05', exercises: [{}] }) }) });

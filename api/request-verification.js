@@ -4,9 +4,11 @@ import { getAdminAuth, getAdminDb, verifyAppCheckRequest } from './firebase-admi
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_DELAY_MS = 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SUPPORTED_LANGUAGES = new Set(['sr', 'en', 'de', 'fr', 'it', 'es']);
+const SUPPORTED_LANGUAGES = new Set(['sr', 'bs', 'hr', 'en', 'de', 'fr', 'it', 'es']);
 const VERIFICATION_EMAIL_SUBJECTS = Object.freeze({
   sr: 'Tvoj GymLeader verifikacioni kod',
+  bs: 'Tvoj GymLeader verifikacijski kod',
+  hr: 'Tvoj GymLeader verifikacijski kod',
   en: 'Your GymLeader verification code',
   de: 'Dein GymLeader-Bestätigungscode',
   fr: 'Votre code de vérification GymLeader',

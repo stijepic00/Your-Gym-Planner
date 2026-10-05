@@ -1,6 +1,7 @@
-import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261003-home-v127';
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-home-v127';
-import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261003-home-v127';
+import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261005-bcs-settings-v132';
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261005-bcs-settings-v132';
+import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261005-bcs-settings-v132';
+import { buildBcsTranslations } from './translations-bs-hr.js?v=20261005-bcs-settings-v132';
 // Text used by the app UI. User-created names, workout notes and exercise names
 // are intentionally never translated.
 export const TRANSLATIONS = {
@@ -1416,3 +1417,6 @@ const HISTORY_COVERAGE_TRANSLATIONS = {
 for (const [source, values] of Object.entries(HISTORY_COVERAGE_TRANSLATIONS)) {
   ['en', 'de', 'fr', 'it', 'es'].forEach((language, index) => { TRANSLATIONS[language][source] = values[index]; });
 }
+
+TRANSLATIONS.bs = buildBcsTranslations(TRANSLATIONS, 'bs');
+TRANSLATIONS.hr = buildBcsTranslations(TRANSLATIONS, 'hr');

@@ -1,4 +1,4 @@
-const BUILD = '20261003-home-v127';
+const BUILD = '20261005-bcs-settings-v132';
 const CACHE_NAME = `gymleader-app-${BUILD}`;
 
 // Every app-shell file carries the same build identifier in index.html. A new
@@ -10,10 +10,12 @@ const APP_SHELL = [
   `/javascript.js?v=${BUILD}`,
   `/translations.js?v=${BUILD}`,
   `/translations-fr-it-es.js?v=${BUILD}`,
+  `/translations-bs-hr.js?v=${BUILD}`,
   `/catalog-translations.js?v=${BUILD}`,
   `/translations-dynamic.js?v=${BUILD}`,
   `/ui-i18n.js?v=${BUILD}`,
   `/exercise-library.js?v=${BUILD}`,
+  `/exercise-history.js?v=${BUILD}`,
   `/food-library.js?v=${BUILD}`,
   `/meal-planner.js?v=${BUILD}`,
   `/manifest.webmanifest?v=${BUILD}`,
@@ -24,6 +26,8 @@ const APP_SHELL = [
   `/assets/home-hero-female-desktop.webp?v=${BUILD}`,
   `/assets/home-hero-female-mobile.webp?v=${BUILD}`,
   '/assets/flag-sr.svg',
+  '/assets/flag-bs.svg',
+  '/assets/flag-hr.svg',
   '/assets/flag-en.svg',
   '/assets/flag-de.svg',
   '/assets/flag-fr.svg',

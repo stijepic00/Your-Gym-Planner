@@ -25,11 +25,11 @@ for (const language of SUPPORTED_LANGUAGES) {
     check(display.startsWith(item.names[language]), `${language}: primary name ${item.id}`);
     if (language === 'en' || item.names[language].toLowerCase() === item.names.en.toLowerCase()) check(display === item.names[language], `duplicate English ${item.id}`);
     else check(display.endsWith(' · ' + item.names.en), `English subtitle ${item.id}`);
-    if (language !== 'sr') check(translateText(item.instruction, language) !== item.instruction, `${language}: instructions ${item.id}`);
+    if (!['sr','bs','hr'].includes(language)) check(translateText(item.instruction, language) !== item.instruction, `${language}: instructions ${item.id}`);
   }
   for (const food of FOOD_LIBRARY) check(getFoodLibraryName(food, language) === food.names[language] && Boolean(food.names[language]), `${language}: food ${food.id}`);
-  for (const recipe of MEAL_RECIPES) check(Boolean(getMealRecipeName(recipe, language)) && (language === 'sr' || getMealRecipeName(recipe, language) !== recipe.name), `${language}: recipe ${recipe.id}`);
-  for (const category of FOOD_LIBRARY_CATEGORIES) check(language === 'sr' || translateText(category.labels.sr, language) !== category.labels.sr, `${language}: category ${category.id}`);
+  for (const recipe of MEAL_RECIPES) check(Boolean(getMealRecipeName(recipe, language)) && (['sr','bs','hr'].includes(language) || getMealRecipeName(recipe, language) !== recipe.name), `${language}: recipe ${recipe.id}`);
+  for (const category of FOOD_LIBRARY_CATEGORIES) check(['sr','bs','hr'].includes(language) || translateText(category.labels.sr, language) !== category.labels.sr, `${language}: category ${category.id}`);
   const custom = { name: 'Moja vježba — Jelena 42', notes: 'Ne prevodi moje bilješke.' };
   check(getExerciseDisplayName(custom, language) === custom.name, `${language}: custom exercise changed`);
   const original = JSON.stringify(custom); getExerciseDisplayName(custom, language); check(JSON.stringify(custom) === original, 'Mutated custom data');
@@ -37,7 +37,7 @@ for (const language of SUPPORTED_LANGUAGES) {
   check(formatUiMessage('Plan {current} od {total}', {current: 2, total: 5}, language).includes('2'), 'plan template');
   check(!translateText('Pitanje 3 od 14', language).includes('{'), 'question template');
   const confirm = translateText('Odustati od treninga?', language);
-  check(language === 'sr' || confirm !== 'Odustati od treninga?', `${language}: stop workout confirmation`);
+  check(['sr','bs','hr'].includes(language) || confirm !== 'Odustati od treninga?', `${language}: stop workout confirmation`);
 }
 const legPress = getLibraryExerciseById('leg-press');
 assert.equal(getLibraryExerciseDisplayName(legPress, 'sr'), 'Potisak nogama · Leg press');
@@ -73,4 +73,4 @@ for (const [language, terms] of Object.entries({fr:'lait, œufs',it:'latte, uova
 assert.equal(new Intl.NumberFormat(LOCALES.fr).format(72.5),'72,5');
 assert.equal(new Intl.NumberFormat(LOCALES.it).format(72.5),'72,5');
 assert.equal(new Intl.NumberFormat(LOCALES.es).format(72.5),'72,5');
-console.log(`PASS: ${checks} translation, catalogue, bilingual display, search, locale, bootstrap and restriction checks; ${referenceKeys.length} keys across five dictionaries plus Serbian source.`);
+console.log(`PASS: ${checks} translation, catalogue, bilingual display, search, locale, bootstrap and restriction checks; ${referenceKeys.length} keys across seven dictionaries plus Serbian source.`);

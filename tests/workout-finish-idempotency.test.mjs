@@ -76,7 +76,7 @@ function harness(storage = new Map(), cloud = new Map(), queue = new Map()) {
     clearTimeout: id => timers.delete(id),
     normalizeRoutineExercise: value => value,
     getRoutineDisplayName: value => value, getGeneratedExerciseDisplayName: value => value,
-    escapeHtml: value => String(value ?? ''), getMaxWeightFromHistory: () => 0,
+    escapeHtml: value => String(value ?? ''), getMaxWeightFromHistory: () => 0, getLatestExerciseLog: () => null,
     calculateTargetGoal: () => '', formatRestTime: () => '',
     translateUiText: value => value, updateProgress() {}, checkPR() {}, vibrate() {},
     renderActiveWorkoutUI: () => { nodes.get('active-exercises-container').children = [exercise()]; },

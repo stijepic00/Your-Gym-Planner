@@ -12,6 +12,11 @@ const uiDiets = [...html.match(/<select id="meal-plan-diet"[^>]*>([\s\S]*?)<\/se
 assert.deepEqual([...MEAL_DIETS], expectedDiets);
 assert.deepEqual(ruleDiets, expectedDiets);
 assert.deepEqual(uiDiets, expectedDiets);
+assert.match(html, /meal-planner-basics-title/);
+assert.match(html, /meal-planner-restrictions-title/);
+assert.match(html, /meal-planner-advanced/);
+assert.match(html, /meal-planner-method-note/);
+assert.ok(source.includes('tačan kalorijski cilj se ne računa') || source.includes('no exact calorie target is calculated'), 'UI must not promise exact calorie optimization');
 
 export function optionsFor(diet = 'none') {
   return { goal: 'maintain', startDate: '2026-10-05', people: 1, dayCount: 3, mealCount: 3,
@@ -45,7 +50,9 @@ function harness(diet, queued = false) {
   const button = { disabled: false };
   const writes = [];
   const c = {
-    console: { error() {} }, currentUser: { uid: 'test-A' }, currentProfileData: {},
+    console: { error() {} }, currentUser: { uid: 'test-A' },
+    currentProfileData: { foodAllergies: 'Nemam alergije ni ograničenja hrane.' },
+    getEffectiveCurrentProfile: () => ({ foodAllergies: 'Nemam alergije ni ograničenja hrane.' }),
     activeMealPlan: null, activeMealPlanOptions: null, activeMealPlanDayIndex: 0,
     savedMealPlansLoaded: true, savedMealPlans: [], validMealPlanOptions, validStoredMealPlan,
     buildMealPlan, eligibleMealRecipes, getMealRecipe,
@@ -99,6 +106,22 @@ for (const diet of expectedDiets) {
     if (diet === 'orthodox_fast_water') check(meals.every(item => !item.ingredients.some(ingredient => ingredient.foodId === 'olive-oil')), 'Water fast: no added oil');
   }
 }
+
+for (const advanced of [
+  { highProtein: true, simpleOnly: true },
+  { highProtein: false, simpleOnly: true },
+  { highProtein: true, simpleOnly: false },
+  { highProtein: false, simpleOnly: false }
+]) {
+  const options = { ...optionsFor('none'), ...advanced };
+  const result = buildMealPlan(options);
+  check(!result.error, `Advanced options generate a plan: ${JSON.stringify(advanced)}`);
+  check(validStoredMealPlan({ ...result, ...options, userId: 'test-A', createdAt: '2026-10-05T12:00:00.000Z' }), 'Advanced options keep stored plan shape');
+}
+
+check(buildMealPlan({ ...optionsFor('none'), budget: 1 }).error === 'budget', 'Budget guard rejects an unrealistically low estimate');
+const replacement = replaceMealInPlan(documentFor('none'), 0, 0, optionsFor('none'));
+check(Boolean(replacement) && validStoredMealPlan({ ...replacement, userId: 'test-A', createdAt: '2026-10-05T12:00:00.000Z' }), 'Meal replacement keeps a valid plan shape');
 
 for (const badDiet of ['xx', 'balanced', '', null, undefined]) {
   const options = { ...optionsFor(), diet: badDiet };

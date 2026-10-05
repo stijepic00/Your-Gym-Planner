@@ -1,7 +1,7 @@
-import { TRANSLATIONS } from './translations.js?v=20261003-home-v127';
+import { TRANSLATIONS } from './translations.js?v=20261005-bcs-settings-v132';
 
-export const SUPPORTED_LANGUAGES = ['sr', 'en', 'de', 'fr', 'it', 'es'];
-export const LOCALES = { sr: 'sr-Latn-RS', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES' };
+export const SUPPORTED_LANGUAGES = ['sr', 'bs', 'hr', 'en', 'de', 'fr', 'it', 'es'];
+export const LOCALES = { sr: 'sr-Latn-RS', bs: 'bs-Latn-BA', hr: 'hr-HR', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES' };
 const normalize = value => String(value).replace(/\s+/g, ' ').trim().toLocaleLowerCase('sr-Latn').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 const sources = new Map(Object.keys(TRANSLATIONS.en).map(source => [normalize(source), source]));
 const lookup = Object.fromEntries(Object.entries(TRANSLATIONS).map(([language, phrases]) => [language, new Map(Object.entries(phrases).map(([source, target]) => [normalize(source), target]))]));

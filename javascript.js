@@ -1,9 +1,10 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261003-home-v127';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-home-v127';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-home-v127';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-home-v127';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261003-home-v127';
+  import { TRANSLATIONS } from './translations.js?v=20261005-bcs-settings-v132';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261005-bcs-settings-v132';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261005-bcs-settings-v132';
+  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261005-bcs-settings-v132';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261005-bcs-settings-v132';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261005-bcs-settings-v132';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -119,6 +120,7 @@
   let profileReadSucceeded = false;
   let pendingNewUserOnboarding = false;
   let profileRequiredEditMode = false;
+  let profileWizardReturnTo = '';
   let bodyMeasurements = [];
   let editingBodyMeasurementId = null;
   let pendingBodyMeasurementDeleteId = null;
@@ -171,7 +173,7 @@
   const pendingQueueWrites = new Map();
 
   const VALID_GENDER_VALUES = new Set(['male', 'female', 'unspecified']);
-  const REQUIRED_PROFILE_FIELDS = ['gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups', 'preferredExercises', 'avoidedExercises', 'foodAllergies'];
+  const BASIC_PROFILE_GOALS = ['lose_weight', 'maintain', 'gain_weight', 'gain_muscle', 'increase_strength', 'general_fitness'];
 
   function getProfileGender() {
     const gender = currentProfileData?.gender;
@@ -220,24 +222,20 @@
   }
 
   function isProfileComplete(profile = currentProfileData) {
-    if (!profile || !String(profile.fullName || '').trim() || !VALID_GENDER_VALUES.has(profile.gender)) return false;
-    const numericRanges = {
-      age: [13, 100], heightCm: [100, 250], weightKg: [25, 400],
-      trainingFrequency: [1, 14], sessionMinutes: [10, 300]
-    };
-    for (const [field, [min, max]] of Object.entries(numericRanges)) {
-      const value = Number(profile[field]);
-      if (!Number.isFinite(value) || value < min || value > max) return false;
-    }
-    return ['lose_weight', 'maintain', 'gain_weight', 'gain_muscle', 'increase_strength', 'general_fitness'].includes(profile.goal)
+    const frequency = profile?.trainingFrequency;
+    return Boolean(profile && String(profile.fullName || '').trim()
+      && BASIC_PROFILE_GOALS.includes(profile.goal)
+      && frequency !== '' && frequency !== null && frequency !== undefined
+      && Number.isInteger(Number(frequency)) && Number(frequency) >= 1 && Number(frequency) <= 14);
+  }
+
+  function isGeneratorProfileReady(profile) {
+    return isProfileComplete(profile)
       && ['strength', 'muscle_progress', 'general_fitness'].includes(profile.trainingFocus)
       && ['gym', 'home', 'street', 'other'].includes(profile.trainingLocation)
       && ['beginner', 'intermediate', 'advanced'].includes(profile.experienceLevel)
-      && Array.isArray(profile.targetMuscleGroups)
-      && profile.targetMuscleGroups.length > 0
-      && typeof profile.preferredExercises === 'string' && profile.preferredExercises.trim().length > 0
-      && typeof profile.avoidedExercises === 'string' && profile.avoidedExercises.trim().length > 0
-      && typeof profile.foodAllergies === 'string' && profile.foodAllergies.trim().length > 0;
+      && Number.isInteger(Number(profile.sessionMinutes)) && Number(profile.sessionMinutes) >= 10 && Number(profile.sessionMinutes) <= 300
+      && typeof profile.avoidedExercises === 'string' && Boolean(profile.avoidedExercises.trim());
   }
 
   function getProfileCacheKey(userId) {
@@ -313,7 +311,20 @@
   }
 
   function hideAuthBootScreen() {
-    document.getElementById('auth-boot-screen')?.classList.add('is-hidden');
+    const screen = document.getElementById('auth-boot-screen');
+    screen?.classList.remove('is-error');
+    screen?.classList.add('is-hidden');
+  }
+
+  function showAuthBootError(offline = false) {
+    const screen = document.getElementById('auth-boot-screen');
+    const message = document.getElementById('auth-boot-text');
+    const retry = document.getElementById('auth-boot-retry');
+    const copy = window.GymLeaderLoadingCopy?.[getCurrentLanguage()] || window.GymLeaderLoadingCopy?.en;
+    screen?.classList.remove('is-hidden');
+    screen?.classList.add('is-error');
+    if (message) message.textContent = offline ? copy?.offlineNoCache : copy?.error;
+    if (retry) retry.hidden = false;
   }
 
   const defaultWorkouts = [
@@ -922,10 +933,16 @@
     }
   };
 
-  onAuthStateChanged(auth, async (user) => {
+  let authObserved = false;
+  let authBootTimer = setTimeout(() => { if (!authObserved) showAuthBootError(!navigator.onLine); }, 15000);
+  async function processAuthState(user) {
+    authObserved = true;
+    clearTimeout(authBootTimer);
     const session = ++pendingQueueSession;
     const isCurrentSession = () => session === pendingQueueSession && auth.currentUser?.uid === user?.uid;
+    try {
     if (currentUser?.uid !== user?.uid) {
+      profileWizardReturnTo = '';
       resetActiveWorkoutState();
       resetHistoryCoverage();
       pendingWorkoutsMemory = [];
@@ -958,25 +975,30 @@
         renderSavedMealPlans();
       }
       currentUser = user;
-      restoreMealPlanDraft(user.uid);
+      try { restoreMealPlanDraft(user.uid); }
+      catch (error) { console.warn('Nacrt jelovnika nije učitan:', error); }
       
       if (bottomNav) bottomNav.style.display = 'flex';
       if (logoutBtn) logoutBtn.style.display = 'inline-block';
       
       if (mailDisplay) {
+        let profileTimeout;
         try {
-          const userDoc = await getDoc(doc(db, "users", user.uid));
+          const userDoc = navigator.onLine ? await Promise.race([
+            getDoc(doc(db, "users", user.uid)),
+            new Promise((_, reject) => { profileTimeout = setTimeout(() => reject(new Error('Profile read timeout')), 8000); })
+          ]) : null;
           if (!isCurrentSession()) return;
-          profileReadSucceeded = true;
-          currentProfileData = userDoc.exists() ? userDoc.data() : null;
+          profileReadSucceeded = Boolean(userDoc);
+          currentProfileData = userDoc?.exists() ? userDoc.data() : readProfileCache(user.uid);
           if (currentProfileData) writeProfileCache(user.uid, currentProfileData);
           if (hasAcceptedCurrentLegalVersion(currentProfileData)) {
             writeLegalAcceptanceCache(user.uid, currentProfileData);
           } else if (navigator.onLine) {
             clearLegalAcceptanceCache(user.uid);
           }
-          if (userDoc.exists() && userDoc.data().fullName) {
-            mailDisplay.innerText = userDoc.data().fullName;
+          if (currentProfileData?.fullName) {
+            mailDisplay.innerText = currentProfileData.fullName;
           } else {
             mailDisplay.innerText = user.email;
           }
@@ -985,24 +1007,41 @@
           profileReadSucceeded = false;
           currentProfileData = readProfileCache(user.uid);
           mailDisplay.innerText = currentProfileData?.fullName || user.email;
+        } finally {
+          clearTimeout(profileTimeout);
         }
         mailDisplay.style.display = 'inline-block';
+      }
+
+      if (!currentProfileData && !profileReadSucceeded) {
+        showAuthBootError(!navigator.onLine);
+        return;
       }
 
       showLegalAcceptanceIfRequired();
       if (hasCurrentLegalAcceptance()) showGenderProfileGateIfRequired();
 
-      await loadPendingWorkouts(user.uid);
-      if (!isCurrentSession()) return;
-      await loadPendingOperations(user.uid);
-      if (!isCurrentSession()) return;
-      await syncPendingWorkouts();
-      if (!isCurrentSession()) return;
-      void loadCloudData();
-      if (!isCurrentSession()) return;
-      listenToUserRoutines(user.uid);
+      try { listenToUserRoutines(user.uid); }
+      catch (error) {
+        console.warn('Rutine se trenutno prikazuju iz lokalnog cachea:', error);
+        userRoutines = readRoutineCache(user.uid);
+        renderWorkouts();
+      }
       switchTab('dashboard');
-      ensureInAppHistory();
+      try { ensureInAppHistory(); }
+      catch (error) { console.warn('Navigacija historije trenutno nije dostupna:', error); }
+      hideAuthBootScreen();
+      void (async () => {
+        try { await loadPendingWorkouts(user.uid); }
+        catch (error) { console.warn('Offline treninzi nisu učitani:', error); }
+        if (!isCurrentSession()) return;
+        try { await loadPendingOperations(user.uid); }
+        catch (error) { console.warn('Offline izmjene nisu učitane:', error); }
+        if (!isCurrentSession()) return;
+        try { await syncPendingWorkouts(); }
+        catch (error) { console.warn('Sinhronizacija će biti ponovljena:', error); }
+      })();
+      void loadCloudData().catch((error) => console.warn('Historija trenutno nije dostupna:', error));
     } else {
       if (routinesUnsubscribe) {
         routinesUnsubscribe();
@@ -1037,6 +1076,25 @@
       showFirstVisitPromptIfNeeded();
     }
     hideAuthBootScreen();
+    } catch (error) {
+      if (!isCurrentSession()) return;
+      console.error('Početno učitavanje nije završeno:', error);
+      showAuthBootError(!navigator.onLine);
+    }
+  }
+  window.retryGymLeaderBoot = async () => {
+    if (!authObserved && typeof auth.authStateReady === 'function') {
+      try { await Promise.race([auth.authStateReady(), new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 8000))]); }
+      catch { showAuthBootError(!navigator.onLine); return; }
+    }
+    if (!authObserved && !auth.currentUser) { showAuthBootError(!navigator.onLine); return; }
+    await processAuthState(auth.currentUser);
+  };
+  window.GymLeaderBootHandlerInstalled = true;
+  onAuthStateChanged(auth, (user) => { void processAuthState(user); }, (error) => {
+    console.error('Firebase Auth inicijalizacija nije uspjela:', error);
+    clearTimeout(authBootTimer);
+    showAuthBootError(!navigator.onLine);
   });
 
   window.handleLogout = async function() {
@@ -1061,7 +1119,7 @@
   }
 
   function getCurrentLocale() {
-    return ({ sr: 'sr-Latn-RS', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES' })[getCurrentLanguage()] || 'sr-Latn-RS';
+    return LOCALES[getCurrentLanguage()] || LOCALES.sr;
   }
 
   function formatLocalizedNumber(value, maximumFractionDigits = 1) {
@@ -2135,7 +2193,13 @@
     }
     if (!isProfileComplete(getEffectiveCurrentProfile())) {
       ShowToast('Prvo dovrši Profil i ciljeve da napravimo smislen prijedlog.', 'error');
+      profileWizardReturnTo = 'generator';
       window.openProfileDetailsEditor('onboarding');
+      return;
+    }
+    if (!isGeneratorProfileReady(getEffectiveCurrentProfile())) {
+      profileWizardReturnTo = 'generator';
+      window.openProfileDetailsEditor('generator');
       return;
     }
     const modal = document.getElementById('plan-generator-modal');
@@ -2158,6 +2222,12 @@
 
   window.generatePersonalizedPlans = function() {
     const currentProfile = getEffectiveCurrentProfile();
+    if (!isGeneratorProfileReady(currentProfile)) {
+      document.getElementById('plan-generator-modal')?.style.setProperty('display', 'none');
+      profileWizardReturnTo = 'generator';
+      window.openProfileDetailsEditor(isProfileComplete(currentProfile) ? 'generator' : 'onboarding');
+      return;
+    }
     if (Number(currentProfile.trainingFrequency) < 1) {
       ShowToast('U Profilu i ciljevima postavi barem jedan trening sedmično da napravimo raspored.', 'error');
       return;
@@ -2645,13 +2715,13 @@
       const exName = typeof ex === 'string' ? ex : (ex.name || 'Vježba');
       const exerciseConfig = normalizeRoutineExercise(ex);
       const measurementType = exerciseConfig.measurementType;
-      const maxW = getMaxWeightFromHistory(exName);
+      const maxW = getMaxWeightFromHistory(exerciseConfig);
       const targetGoal = calculateTargetGoal(exerciseConfig);
       const restTime = formatRestTime(exerciseConfig.restSeconds);
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
-      for (let i = 0; i < cachedHistory.length; i++) {
-        const pastEx = cachedHistory[i].exercises?.find((item) => item.name === exName);
+      {
+        const pastEx = getLatestExerciseLog(exerciseConfig);
         if (pastEx) {
           if (pastEx.sets && pastEx.sets.length > 0) {
             prevLogStr = pastEx.sets.map((set) => formatSetPerformance(set, exerciseConfig)).join(' | ');
@@ -2659,7 +2729,6 @@
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
           if (pastEx.notes) prevNote = pastEx.notes;
-          break;
         }
       }
       
@@ -2868,14 +2937,7 @@
   }
 
   function getMaxWeightFromHistory(exName) {
-    let maxW = 0;
-    cachedHistory.forEach(h => {
-      const pastEx = h.exercises?.find(e => e.name === exName);
-      if (pastEx && pastEx.sets) {
-        pastEx.sets.forEach(s => { if (s.weight > maxW) maxW = s.weight; });
-      }
-    });
-    return maxW;
+    return maxExerciseWeight(cachedHistory, currentUser?.uid, exName);
   }
 
   function isDurationExercise(exName) {
@@ -2912,11 +2974,7 @@
   }
 
   function getLatestExerciseLog(exerciseName) {
-    for (let i = 0; i < cachedHistory.length; i++) {
-      const match = cachedHistory[i].exercises?.find((item) => item.name === exerciseName);
-      if (match) return match;
-    }
-    return null;
+    return latestExerciseHistory(cachedHistory, currentUser?.uid, exerciseName);
   }
 
   function formatRestTime(seconds) {
@@ -2964,7 +3022,7 @@
 
   function calculateTargetGoal(exercise) {
     const config = normalizeRoutineExercise(exercise);
-    const previous = getLatestExerciseLog(config.name);
+    const previous = getLatestExerciseLog(config);
     if (!previous) return null;
 
     if (config.measurementType === 'cardio') {
@@ -3034,10 +3092,10 @@
       }
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
-      const maxW = getMaxWeightFromHistory(exName);
+      const maxW = getMaxWeightFromHistory(exerciseConfig);
       
-      for (let i = 0; i < cachedHistory.length; i++) {
-        const pastEx = cachedHistory[i].exercises?.find(e => e.name === exName);
+      {
+        const pastEx = getLatestExerciseLog(exerciseConfig);
         if (pastEx) {
           if (pastEx.sets && pastEx.sets.length > 0) {
             prevLogStr = pastEx.sets.map(s => formatSetPerformance(s, exerciseConfig)).join(' | ');
@@ -3045,7 +3103,6 @@
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
           if (pastEx.notes) prevNote = pastEx.notes;
-          break;
         }
       }
 
@@ -3218,18 +3275,18 @@
       container.appendChild(card);
       ensureExerciseEditControls(card);
     } else {
-      const maxW = getMaxWeightFromHistory(name);
-      const targetGoal = calculateTargetGoal(name);
       const isDuration = isDurationExercise(name);
+      const customExercise = { name, measurementType: isDuration ? 'seconds' : 'weight_reps' };
+      const maxW = getMaxWeightFromHistory(customExercise);
+      const targetGoal = calculateTargetGoal(customExercise);
 
       let prevLogStr = 'Nema prošlog zapisa';
       let prevNote = '';
-      for (let i = 0; i < cachedHistory.length; i++) {
-        const pastEx = cachedHistory[i].exercises?.find(e => e.name === name);
+      {
+        const pastEx = getLatestExerciseLog(customExercise);
         if (pastEx && pastEx.sets && pastEx.sets.length > 0) {
           prevLogStr = pastEx.sets.map(s => formatSetPerformance(s, name)).join(' | ');
           if (pastEx.notes) prevNote = pastEx.notes;
-          break;
         }
       }
 
@@ -3281,7 +3338,7 @@
   window.checkPR = function(inputEl) {
     const block = inputEl.closest('.exercise-block');
     if (!block) return;
-    const maxW = getMaxWeightFromHistory(block.getAttribute('data-name'));
+    const maxW = getMaxWeightFromHistory({ name: block.getAttribute('data-name'), measurementType: block.getAttribute('data-measurement-type') });
     const currentVal = parseFloat(inputEl.value) || 0;
     const badgeSlot = block.querySelector('.pr-badge-slot');
 
@@ -3938,7 +3995,9 @@ function historyCoverageMarkup() {
 }
 
 function renderHistoryCoverage() {
-  for (const id of ['dashboard', 'progress', 'history', 'analytics', 'active-workout']) {
+  const dashboard = document.getElementById('view-dashboard');
+  dashboard?.querySelector('[data-history-coverage]')?.remove();
+  for (const id of ['history', 'analytics', 'active-workout']) {
     const view = document.getElementById(`view-${id}`);
     if (!view) continue;
     let note = view.querySelector('[data-history-coverage]');
@@ -3975,7 +4034,7 @@ function refreshActiveWorkoutHistory() {
       weightIncrement: Number(block.getAttribute('data-weight-increment')) || undefined,
       timeIncrement: Number(block.getAttribute('data-time-increment')) || undefined
     });
-    const past = getLatestExerciseLog(name);
+    const past = getLatestExerciseLog(config);
     const previous = block.querySelector('.prev-perf');
     if (previous) {
       const performance = past?.sets?.length ? past.sets.map(set => formatSetPerformance(set, config)).join(' | ')
@@ -4156,8 +4215,8 @@ function renderPendingSyncStatus() {
       image.removeAttribute('src');
       visual.className = 'dashboard-hero-visual dashboard-hero-neutral';
     };
-    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261003-home-v127`;
-    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261003-home-v127`;
+    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261005-bcs-settings-v132`;
+    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261005-bcs-settings-v132`;
     picture.hidden = false;
   }
 
@@ -4319,7 +4378,7 @@ function renderPendingSyncStatus() {
       }
     }[language] || getWeeklyGoalCopy('sr');
 
-    if (language === 'sr') {
+    if (['sr', 'bs', 'hr'].includes(language)) {
       Object.assign(copy, {
         count: (count, goal) => `${count} od ${goal} dana treninga`,
         remaining: (count) => count === 1 ? 'Jo\u0161 jedan dan do cilja.' : `Jo\u0161 ${count} dana do cilja.`,
@@ -4968,13 +5027,16 @@ function renderPendingSyncStatus() {
 
   function getPersonalRecords() {
     const records = new Map();
-    [...cachedHistory].sort((a, b) => (getWorkoutTime(a) || 0) - (getWorkoutTime(b) || 0)).forEach((workout) => {
+    cachedHistory.filter((workout) => workout.userId === currentUser?.uid)
+      .sort((a, b) => (getWorkoutTime(a) || 0) - (getWorkoutTime(b) || 0)).forEach((workout) => {
       workout.exercises?.forEach((exercise) => {
         const result = getExerciseRecordValue(exercise);
         if (!result || !exercise?.name) return;
-        const current = records.get(exercise.name);
+        const key = exerciseKey(exercise);
+        if (!key) return;
+        const current = records.get(key);
         if (!current || current.unit !== result.unit || result.value > current.value) {
-          records.set(exercise.name, { name: exercise.name, ...result, date: workout.date, wasImprovement: Boolean(current) });
+          records.set(key, { name: exercise.name, ...result, date: workout.date, wasImprovement: Boolean(current) });
         }
       });
     });
@@ -5150,7 +5212,7 @@ function renderPendingSyncStatus() {
     const nutritionContent = loggedDays
       ? `<div class="progress-nutrition-content"><div class="progress-donut ${macroCalories ? '' : 'is-empty-macros'}" style="--protein:${proteinShare}%;--carbs:${proteinShare + carbsShare}%" role="img" aria-label="${escapeHtml(`${translateUiText('Proteini')} ${formatLocalizedNumber(protein)} g, ${translateUiText('Ugljikohidrati')} ${formatLocalizedNumber(carbs)} g, ${translateUiText('Masti')} ${formatLocalizedNumber(fat)} g`)}"><span><strong>${formatLocalizedNumber(calories / loggedDays, 0)}</strong><small>kcal / ${t('dan')}</small></span></div><div class="progress-macro-list"><div><i class="progress-macro-protein"></i><span>${t('Proteini')}</span><strong>${formatLocalizedNumber(protein / loggedDays)} g</strong></div><div><i class="progress-macro-carbs"></i><span>${t('Ugljikohidrati')}</span><strong>${formatLocalizedNumber(carbs / loggedDays)} g</strong></div><div><i class="progress-macro-fat"></i><span>${t('Masti')}</span><strong>${formatLocalizedNumber(fat / loggedDays)} g</strong></div></div></div>`
       : `<p class="progress-empty">${t('Dodaj prvi obrok da vidiš pregled ishrane.')}</p>`;
-    const exerciseCount = new Set(workouts.flatMap((workout) => (workout.exercises || []).map((exercise) => exercise?.name).filter(Boolean))).size;
+    const exerciseCount = new Set(workouts.flatMap((workout) => (workout.exercises || []).map(exerciseKey).filter(Boolean))).size;
     root.innerHTML = `<p class="progress-range-label">${escapeHtml(periodLabel)}</p>
       <div class="progress-stats"><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">🏋</span><span>${t('Završeni treninzi')}</span><strong>${formatLocalizedNumber(workouts.length, 0)}</strong><small>${t('U izabranom periodu')}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">◉</span><span>${t('Prosječne kalorije')}</span><strong>${meanCalories}</strong><small>${nutritionNote}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">↗</span><span>${t('Tjelesna težina')}</span><strong>${weightValue}</strong><small>${changeLabel}</small></article></div>
       <div class="progress-panels"><section class="progress-panel"><div class="progress-panel-heading"><div><h3>${t(period === 'month' ? 'Aktivnost po sedmicama' : 'Sedmična aktivnost')}</h3><p>${t('Završeni treninzi po danima')}</p></div><button data-action="switch-tab" data-tab="history" type="button">${t('Istorija treninga')} ›</button></div><div class="progress-bars" role="list" aria-label="${t('Završeni treninzi po danima')}">${progressBars(days, workouts, period)}</div>${workouts.length ? '' : `<p class="progress-data-note">${t('Nema treninga u izabranom periodu.')}</p>`}${workoutCoverageNote}</section>
@@ -5182,7 +5244,7 @@ function renderPendingSyncStatus() {
     const thisMonth = summarizeWorkouts(workoutsInRange(thisMonthStart, tomorrow));
     const lastMonth = summarizeWorkouts(workoutsInRange(lastMonthStart, thisMonthStart));
     const exerciseNames = new Set();
-    cachedHistory.forEach((workout) => workout.exercises?.forEach((exercise) => { if (exercise?.name) exerciseNames.add(exercise.name); }));
+    cachedHistory.filter((workout) => workout.userId === currentUser?.uid).forEach((workout) => workout.exercises?.forEach((exercise) => { const key = exerciseKey(exercise); if (key) exerciseNames.add(key); }));
     const records = getPersonalRecords();
     const recordsThisMonth = records.filter((record) => record.wasImprovement && (getWorkoutTime({ date: record.date }) || 0) >= thisMonthStart).length;
     const recentRecords = [...records].sort((a, b) => (getWorkoutTime({ date: b.date }) || 0) - (getWorkoutTime({ date: a.date }) || 0)).slice(0, 5);
@@ -5204,15 +5266,16 @@ function renderPendingSyncStatus() {
     const select = document.getElementById('analytics-ex-select');
     if (!select) return;
     renderAnalyticsOverview();
-    const exercisesSet = new Set();
+    const exercisesByKey = new Map();
 
-    cachedHistory.forEach(h => {
+    cachedHistory.filter((h) => h.userId === currentUser?.uid).forEach(h => {
       h.exercises?.forEach(e => {
-        if (e.sets && e.sets.length > 0) exercisesSet.add(e.name);
+        const key = exerciseKey(e);
+        if (key && e.sets?.length && !exercisesByKey.has(key)) exercisesByKey.set(key, e.name);
       });
     });
 
-    const list = Array.from(exercisesSet);
+    const list = Array.from(exercisesByKey);
     if (list.length === 0) {
       if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
       select.innerHTML = `<option>${escapeHtml(translateUiText('Nema sačuvanih vježbi'))}</option>`;
@@ -5222,8 +5285,8 @@ function renderPendingSyncStatus() {
     }
 
     const previousSelection = select.value;
-    select.innerHTML = list.map(ex => `<option data-no-translate value="${escapeHtml(ex)}">${escapeHtml(getGeneratedExerciseDisplayName(ex))}</option>`).join('');
-    if (list.includes(previousSelection)) select.value = previousSelection;
+    select.innerHTML = list.map(([key, name]) => `<option data-no-translate value="${escapeHtml(key)}">${escapeHtml(getGeneratedExerciseDisplayName(name))}</option>`).join('');
+    if (exercisesByKey.has(previousSelection)) select.value = previousSelection;
     const empty = document.getElementById('analytics-empty-state');
     if (empty) empty.style.display = 'none';
     renderAnalyticsChart();
@@ -5231,8 +5294,9 @@ function renderPendingSyncStatus() {
 
   window.renderAnalyticsChart = function() {
     const select = document.getElementById('analytics-ex-select');
-    const exName = select.value;
-    if (!exName) return;
+    const exKey = select.value;
+    if (!exKey) return;
+    const exName = select.selectedOptions[0]?.textContent || exKey;
     const metric = document.getElementById('analytics-metric-select')?.value || 'maxWeight';
     const period = document.getElementById('analytics-period-select')?.value || 'all';
     const { start, end } = analyticsPeriodRange(period);
@@ -5244,7 +5308,8 @@ function renderPendingSyncStatus() {
     const reversedHistory = workoutsInRange(start, end).sort((a, b) => getWorkoutTime(a) - getWorkoutTime(b));
 
     reversedHistory.forEach(h => {
-      const pastEx = h.exercises?.find(e => e.name === exName);
+      if (h.userId !== currentUser?.uid) return;
+      const pastEx = h.exercises?.find(e => exerciseKey(e) === exKey);
       if (pastEx && pastEx.sets) {
         let maxW = 0;
         let volume = 0;
@@ -6182,6 +6247,86 @@ function renderPendingSyncStatus() {
     });
   }
 
+  function mealPlannerFormCopy() {
+    const copy = {
+      sr: {
+        intro: 'Generator bira recepte iz GymLeader kataloga prema tvojim pravilima. Ne računa lični kalorijski cilj niti daje nutritivnu preporuku.',
+        basicsHelp: 'Datum, trajanje, broj osoba, budžet i režim ostaju na jednom mjestu.',
+        methodNote: 'Prijedlog bira recepte iz lokalnog GymLeader kataloga prema tvojim izborima. Cilj samo blago utiče na izbor; tačan kalorijski cilj se ne računa.',
+        goalNote: 'Ovaj izbor samo blago utiče na izbor recepata. Ne postavlja tačan kalorijski cilj.',
+        restrictionsHelp: 'Alergije i isključene namirnice su stroga ograničenja. Neprepoznat unos zaustavlja generisanje plana.',
+        advancedTitle: 'Proširene opcije', advancedHelp: 'Po želji prilagodi izbor recepata.',
+        disclaimer: 'Plan, nutritivne vrijednosti i cijene su procjene iz GymLeader kataloga. Cijene nisu podaci iz prodavnica. Provjeri sastojke i deklaracije, posebno kod alergija. GymLeader nije zamjena za doktora ili nutricionistu.'
+      },
+      en: {
+        intro: 'The generator selects recipes from the GymLeader catalogue using your rules. It does not calculate a personal calorie target or give nutrition advice.',
+        basicsHelp: 'Date, duration, people, budget and eating style stay in one place.',
+        methodNote: 'The suggestion selects recipes from the local GymLeader catalogue using your choices. The goal only gives a slight preference; no exact calorie target is calculated.',
+        goalNote: 'This choice only gives recipes a small preference. It does not set an exact calorie target.',
+        restrictionsHelp: 'Allergies and excluded foods are strict restrictions. An unrecognized entry stops plan generation.',
+        advancedTitle: 'More options', advancedHelp: 'Optionally refine recipe selection.',
+        disclaimer: 'The plan, nutrition values and prices are estimates from the GymLeader catalogue. Prices are not store data. Check ingredients and labels, especially for allergies. GymLeader does not replace a doctor or dietitian.'
+      },
+      de: {
+        intro: 'Der Generator wählt Rezepte aus dem GymLeader-Katalog nach deinen Regeln aus. Er berechnet kein persönliches Kalorienziel und gibt keine Ernährungsberatung.',
+        basicsHelp: 'Datum, Dauer, Personen, Budget und Ernährungsweise bleiben an einem Ort.',
+        methodNote: 'Der Vorschlag wählt Rezepte aus dem lokalen GymLeader-Katalog nach deinen Angaben. Das Ziel gibt nur eine leichte Präferenz; ein genaues Kalorienziel wird nicht berechnet.',
+        goalNote: 'Diese Auswahl gibt Rezepten nur eine leichte Präferenz. Sie setzt kein genaues Kalorienziel.',
+        restrictionsHelp: 'Allergien und ausgeschlossene Lebensmittel sind strikte Einschränkungen. Ein nicht erkannter Eintrag stoppt die Planerstellung.',
+        advancedTitle: 'Weitere Optionen', advancedHelp: 'Verfeinere die Rezeptauswahl bei Bedarf.',
+        disclaimer: 'Plan, Nährwerte und Preise sind Schätzungen aus dem GymLeader-Katalog. Preise sind keine Ladenpreise. Prüfe Zutaten und Etiketten, besonders bei Allergien. GymLeader ersetzt keinen Arzt oder Ernährungsberater.'
+      },
+      fr: {
+        intro: 'Le générateur choisit des recettes du catalogue GymLeader selon tes règles. Il ne calcule pas un objectif calorique personnel et ne donne pas de conseil nutritionnel.',
+        basicsHelp: 'La date, la durée, le nombre de personnes, le budget et le régime restent réunis.',
+        methodNote: 'La suggestion choisit des recettes du catalogue local GymLeader selon tes choix. L’objectif donne seulement une légère préférence ; aucun objectif calorique précis n’est calculé.',
+        goalNote: 'Ce choix donne seulement une légère préférence à certaines recettes. Il ne fixe pas un objectif calorique précis.',
+        restrictionsHelp: 'Les allergies et aliments exclus sont des restrictions strictes. Une entrée non reconnue bloque la génération.',
+        advancedTitle: 'Options supplémentaires', advancedHelp: 'Affinez la sélection de recettes si besoin.',
+        disclaimer: 'Le plan, les valeurs nutritionnelles et les prix sont des estimations du catalogue GymLeader. Les prix ne proviennent pas des magasins. Vérifiez les ingrédients et étiquettes, surtout en cas d’allergie. GymLeader ne remplace pas un médecin ou un diététicien.'
+      },
+      it: {
+        intro: 'Il generatore sceglie ricette dal catalogo GymLeader secondo le tue regole. Non calcola un obiettivo calorico personale e non fornisce consigli nutrizionali.',
+        basicsHelp: 'Data, durata, persone, budget e stile alimentare restano nello stesso punto.',
+        methodNote: 'Il suggerimento sceglie ricette dal catalogo locale GymLeader in base alle tue scelte. L’obiettivo dà solo una lieve preferenza; non viene calcolato un obiettivo calorico preciso.',
+        goalNote: 'Questa scelta assegna solo una lieve preferenza alle ricette. Non imposta un obiettivo calorico preciso.',
+        restrictionsHelp: 'Allergie e alimenti esclusi sono restrizioni rigide. Un inserimento non riconosciuto blocca la generazione.',
+        advancedTitle: 'Altre opzioni', advancedHelp: 'Personalizza la selezione delle ricette se vuoi.',
+        disclaimer: 'Il piano, i valori nutrizionali e i prezzi sono stime del catalogo GymLeader. I prezzi non provengono dai negozi. Controlla ingredienti ed etichette, soprattutto in caso di allergie. GymLeader non sostituisce un medico o un dietista.'
+      },
+      es: {
+        intro: 'El generador elige recetas del catálogo GymLeader según tus reglas. No calcula un objetivo calórico personal ni ofrece asesoramiento nutricional.',
+        basicsHelp: 'La fecha, la duración, las personas, el presupuesto y el tipo de alimentación permanecen juntos.',
+        methodNote: 'La sugerencia elige recetas del catálogo local de GymLeader según tus opciones. El objetivo solo da una ligera preferencia; no se calcula un objetivo calórico exacto.',
+        goalNote: 'Esta elección solo da una ligera preferencia a las recetas. No establece un objetivo calórico exacto.',
+        restrictionsHelp: 'Las alergias y alimentos excluidos son restricciones estrictas. Una entrada no reconocida detiene la generación.',
+        advancedTitle: 'Más opciones', advancedHelp: 'Ajusta la selección de recetas si lo deseas.',
+        disclaimer: 'El plan, los valores nutricionales y los precios son estimaciones del catálogo GymLeader. Los precios no proceden de tiendas. Revisa los ingredientes y las etiquetas, especialmente en caso de alergias. GymLeader no sustituye a un médico o dietista.'
+      }
+    };
+    return copy[getCurrentLanguage()] || localizeCopy(copy.sr);
+  }
+
+  function refreshMealPlannerFormCopy() {
+    const copy = mealPlannerFormCopy();
+    const strings = {
+      'meal-planner-form-intro': copy.intro,
+      'meal-planner-basics-title': translateUiText('Osnovni plan'),
+      'meal-planner-basics-help': copy.basicsHelp,
+      'meal-planner-method-note': copy.methodNote,
+      'meal-plan-goal-note': copy.goalNote,
+      'meal-planner-restrictions-title': translateUiText('Ograničenja'),
+      'meal-planner-restrictions-help': copy.restrictionsHelp,
+      'meal-planner-advanced-title': copy.advancedTitle,
+      'meal-planner-advanced-help': copy.advancedHelp,
+      'meal-planner-disclaimer': copy.disclaimer
+    };
+    Object.entries(strings).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    });
+  }
+
   function getMealPlanDraftKey(userId) {
     return userId ? `${MEAL_PLAN_DRAFT_PREFIX}${userId}` : '';
   }
@@ -6457,11 +6602,21 @@ function renderPendingSyncStatus() {
       const portions = ingredients.map((ingredient) => `${escapeHtml(ingredient.name)} ${formatFoodNumber(ingredient.quantity * options.people)} ${escapeHtml(ingredient.unit)}`).join(' · ');
       return `<article class="meal-planner-meal"><small>${slotLabel} · ${item.minutes} min · ${copy.estimate} ${escapeHtml(mealPlanCurrencyAmount(item.costEur * options.people, options.currency))}</small><strong>${escapeHtml(getMealRecipeName(item, getCurrentLanguage()))}</strong><p>${copy.people(options.people)}: ${portions}</p><p>${copy.perPerson} ${formatFoodNumber(nutrition.calories)} kcal · ${getMacroLabels().protein} ${formatFoodNumber(nutrition.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(nutrition.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(nutrition.fatG)} g</p>${allowed ? `<div class="meal-planner-meal-actions"><button class="btn btn-secondary" data-action="replace-meal-plan-meal" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.replace}</button><button class="btn btn-secondary" data-action="add-meal-plan-meal-to-diary" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.addDiary}</button></div>` : `<p>${copy.unsafe}</p>`}</article>`;
     }).join('');
-    root.innerHTML = `<div class="card meal-planner-result-head"><span class="settings-eyebrow">${copy.proposal}</span><h3>${copy.day(plan.days.length)} · ${copy.mealsPerDay(options.mealCount)}</h3><div class="meal-planner-summary"><span>${copy.people(options.people)}</span><span>${copy.totalEstimate} ${escapeHtml(cost)}</span><span>${copy.budget} ${formatFoodNumber(options.budget)} ${escapeHtml(options.currency)}</span>${fastLabel ? `<span class="meal-planner-fast-badge">${escapeHtml(fastLabel)}</span>` : ''}</div><p>${copy.disclaimer}</p>${unsafe ? `<p>${copy.unsafePlan}</p>` : ''}<div class="meal-planner-result-actions">${!plan.id && !unsafe ? `<button class="btn" data-action="save-meal-plan" type="button">${copy.save}</button>` : ''}<button class="btn btn-secondary" data-action="open-meal-plan-shopping-list" type="button">${navigation.shopping}</button><button class="btn btn-secondary" data-action="open-meal-planner" type="button">${copy.newPlan}</button><button class="btn btn-secondary" data-action="discard-meal-plan" type="button">${copy.close}</button></div><p id="meal-planner-save-status" class="settings-status" role="status"></p></div><section class="card meal-planner-day"><div class="meal-planner-day-navigation"><button class="btn btn-secondary" data-action="view-previous-meal-plan-day" type="button" aria-label="${navigation.previous}" ${dayIndex === 0 ? 'disabled' : ''}>‹</button><div><span>${navigation.dayOf(dayIndex + 1, plan.days.length)}</span><h4>${escapeHtml(formatMealPlanDate(day.date))}</h4></div><button class="btn btn-secondary" data-action="view-next-meal-plan-day" type="button" aria-label="${navigation.next}" ${dayIndex === plan.days.length - 1 ? 'disabled' : ''}>›</button></div><div class="meal-planner-day-totals">${copy.dailyEstimate} <strong>${formatFoodNumber(totals.calories)} kcal</strong> · ${getMacroLabels().protein} ${formatFoodNumber(totals.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(totals.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(totals.fatG)} g</div><div class="meal-planner-meals">${meals}</div></section>`;
+    root.innerHTML = `<div class="card meal-planner-result-head"><span class="settings-eyebrow">${copy.proposal}</span><h3>${copy.day(plan.days.length)} · ${copy.mealsPerDay(options.mealCount)}</h3><div class="meal-planner-summary"><span>${copy.people(options.people)}</span><span>${copy.totalEstimate} ${escapeHtml(cost)}</span><span>${copy.budget} ${formatFoodNumber(options.budget)} ${escapeHtml(options.currency)}</span>${fastLabel ? `<span class="meal-planner-fast-badge">${escapeHtml(fastLabel)}</span>` : ''}</div><p>${escapeHtml(mealPlannerFormCopy().disclaimer)}</p>${unsafe ? `<p>${copy.unsafePlan}</p>` : ''}<div class="meal-planner-result-actions">${!plan.id && !unsafe ? `<button class="btn" data-action="save-meal-plan" type="button">${copy.save}</button>` : ''}<button class="btn btn-secondary" data-action="open-meal-plan-shopping-list" type="button">${navigation.shopping}</button><button class="btn btn-secondary" data-action="open-meal-planner" type="button">${copy.newPlan}</button><button class="btn btn-secondary" data-action="discard-meal-plan" type="button">${copy.close}</button></div><p id="meal-planner-save-status" class="settings-status" role="status"></p></div><section class="card meal-planner-day"><div class="meal-planner-day-navigation"><button class="btn btn-secondary" data-action="view-previous-meal-plan-day" type="button" aria-label="${navigation.previous}" ${dayIndex === 0 ? 'disabled' : ''}>‹</button><div><span>${navigation.dayOf(dayIndex + 1, plan.days.length)}</span><h4>${escapeHtml(formatMealPlanDate(day.date))}</h4></div><button class="btn btn-secondary" data-action="view-next-meal-plan-day" type="button" aria-label="${navigation.next}" ${dayIndex === plan.days.length - 1 ? 'disabled' : ''}>›</button></div><div class="meal-planner-day-totals">${copy.dailyEstimate} <strong>${formatFoodNumber(totals.calories)} kcal</strong> · ${getMacroLabels().protein} ${formatFoodNumber(totals.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(totals.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(totals.fatG)} g</div><div class="meal-planner-meals">${meals}</div></section>`;
   }
 
   window.openMealPlanner = function() {
     if (!currentUser) return;
+    if (!isProfileComplete(getEffectiveCurrentProfile())) {
+      profileWizardReturnTo = 'meal';
+      window.openProfileDetailsEditor('onboarding');
+      return;
+    }
+    if (!String(getEffectiveCurrentProfile().foodAllergies || '').trim()) {
+      profileWizardReturnTo = 'meal';
+      window.openProfileDetailsEditor('meal');
+      return;
+    }
     const profileGoal = currentProfileData?.goal;
     document.getElementById('meal-plan-goal').value = ['lose_weight', 'maintain', 'gain_weight'].includes(profileGoal) ? profileGoal : 'maintain';
     document.getElementById('meal-plan-start').value = todayForDateInput();
@@ -6477,12 +6632,19 @@ function renderPendingSyncStatus() {
       }
     });
     refreshMealPlannerFastCopy();
+    refreshMealPlannerFormCopy();
     document.getElementById('meal-planner-form-status').textContent = '';
     document.getElementById('meal-planner-modal').style.display = 'flex';
   };
 
   window.generateMealPlan = function() {
     if (!currentUser) return;
+    if (!String(getEffectiveCurrentProfile().foodAllergies || '').trim()) {
+      document.getElementById('meal-planner-modal')?.style.setProperty('display', 'none');
+      profileWizardReturnTo = 'meal';
+      window.openProfileDetailsEditor('meal');
+      return;
+    }
     const status = document.getElementById('meal-planner-form-status');
     const copy = mealPlannerCopy();
     if (!validateMealPlanForm()) { status.textContent = copy.badForm; return; }
@@ -6896,20 +7058,26 @@ function renderPendingSyncStatus() {
     if (!modal) return;
     const missing = getProfileWizardMissingFields(profile);
     const scope = profileWizardState.scope || 'onboarding';
-    const scopeFields = scope === 'basics'
+    const scopeFields = scope === 'onboarding'
+      ? new Set(['name', 'goal', 'frequency'])
+      : scope === 'generator'
+        ? new Set(['focus', 'location', 'experience', 'minutes', 'avoided'])
+        : scope === 'meal'
+          ? new Set(['food'])
+          : scope === 'basics'
       ? new Set(['name', 'gender', 'age', 'body'])
       : scope === 'training'
         ? new Set(['goal', 'focus', 'frequency', 'location', 'experience', 'minutes', 'muscles', 'preferred', 'avoided', 'food'])
         : null;
     const steps = PROFILE_WIZARD_STEPS
       .filter((step) => !scopeFields || scopeFields.has(step.id))
-      .filter((step) => !onlyMissing || step.fields.some((field) => missing[field]))
+      .filter((step) => scope === 'onboarding' || !onlyMissing || step.fields.some((field) => missing[field]))
       .map((step) => step.id);
-    if (steps.length) steps.push('review');
+    steps.push('review');
     profileWizardState = { steps, current: Math.min(profileWizardState.current || 0, Math.max(0, steps.length - 1)), onlyMissing, scope };
     modal.querySelectorAll('.profile-wizard-field').forEach((field) => {
       const fieldName = field.dataset.profileField;
-      field.hidden = onlyMissing && !missing[fieldName];
+      field.hidden = onlyMissing && scope !== 'onboarding' && !missing[fieldName];
       field.classList.remove('has-error');
       const error = field.querySelector('.profile-field-error');
       if (error) error.textContent = '';
@@ -7009,14 +7177,19 @@ function renderPendingSyncStatus() {
     const container = document.getElementById('profile-wizard-review');
     if (!container || profileWizardState.steps[profileWizardState.current] !== 'review') return;
     const values = readRequiredProfileForm();
-    const rows = [['Ime', values.fullName], ['Godine', values.age], ['Visina', values.heightCm ? `${values.heightCm} cm` : ''], ['Težina', values.weightKg ? `${formatLocalizedNumber(values.weightKg)} kg` : ''], ['Cilj', getProfileValueLabel(values.goal)], ['Fokus', getProfileValueLabel(values.trainingFocus)], ['Treninga sedmično', values.trainingFrequency], ['Mjesto', getProfileValueLabel(values.trainingLocation)], ['Iskustvo', getProfileValueLabel(values.experienceLevel)], ['Trajanje', values.sessionMinutes ? `${values.sessionMinutes} min` : ''], ['Mišići', values.targetMuscleGroups.map(getProfileValueLabel).join(', ')]].filter(([, value]) => String(value || '').trim());
+    const rows = [['Ime', values.fullName], ['Pol', values.gender ? getProfileValueLabel(values.gender) : ''], ['Godine', values.age], ['Visina', values.heightCm ? `${values.heightCm} cm` : ''], ['Težina', values.weightKg ? `${formatLocalizedNumber(values.weightKg)} kg` : ''], ['Cilj', values.goal ? getProfileValueLabel(values.goal) : ''], ['Fokus', values.trainingFocus ? getProfileValueLabel(values.trainingFocus) : ''], ['Treninga sedmično', values.trainingFrequency], ['Mjesto', values.trainingLocation ? getProfileValueLabel(values.trainingLocation) : ''], ['Iskustvo', values.experienceLevel ? getProfileValueLabel(values.experienceLevel) : ''], ['Trajanje', values.sessionMinutes ? `${values.sessionMinutes} min` : ''], ['Mišići', values.targetMuscleGroups.map(getProfileValueLabel).join(', ')], ['Vježbe koje preferiraš', values.preferredExercises], ['Vježbe koje želiš izbjeći', values.avoidedExercises], ['Alergije i hrana koju izbjegavaš', values.foodAllergies]].filter(([, value]) => String(value ?? '').trim());
     container.innerHTML = rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong data-no-translate>${escapeHtml(value)}</strong></div>`).join('');
   }
 
   function populateRequiredProfileForm() {
     const modal = document.getElementById('profile-required-modal');
     ensureProfileWizardMarkup(modal);
-    const profile = { ...(currentProfileData || {}), ...readProfileWizardDraft() };
+    const draft = readProfileWizardDraft();
+    const profile = { ...(currentProfileData || {}) };
+    Object.entries(draft).forEach(([key, value]) => {
+      if (['age', 'heightCm', 'weightKg', 'trainingFrequency', 'sessionMinutes'].includes(key) && !(Number(value) > 0)) return;
+      if (value !== '' && value !== null && value !== undefined && (!Array.isArray(value) || value.length)) profile[key] = value;
+    });
     const values = {
       'required-profile-name': profile.fullName || currentUser?.displayName || '',
       'required-profile-age': profile.age ?? '',
@@ -7042,7 +7215,7 @@ function renderPendingSyncStatus() {
     document.querySelectorAll('input[name="required-profile-experience"]').forEach((input) => { input.checked = input.value === (profile.experienceLevel || ''); });
     const muscleGroups = new Set(Array.isArray(profile.targetMuscleGroups) ? profile.targetMuscleGroups : []);
     document.querySelectorAll('input[name="required-profile-muscles"]').forEach((input) => { input.checked = muscleGroups.has(input.value); });
-    configureProfileWizard(currentProfileData || {}, !profileRequiredEditMode);
+    configureProfileWizard(getEffectiveCurrentProfile(), !profileRequiredEditMode || ['generator', 'meal'].includes(profileWizardState.scope));
     const title = document.getElementById('profile-required-title');
     const intro = title?.nextElementSibling;
     const preferenceIntro = modal.querySelector('.profile-preferences-section .profile-modal-help');
@@ -7063,18 +7236,26 @@ function renderPendingSyncStatus() {
       if (title) title.textContent = 'Ciljevi i treniranje';
       if (intro) intro.textContent = 'Uredi cilj, način treniranja i prijedloge koje želiš dobiti.';
     }
+    if (profileWizardState.scope === 'generator') {
+      if (title) title.textContent = 'Ciljevi i treniranje';
+      if (intro) intro.textContent = 'Prikazujemo samo podatke koji još nedostaju.';
+    }
+    if (profileWizardState.scope === 'meal') {
+      if (title) title.textContent = 'Alergije i hrana koju izbjegavaš';
+      if (intro) intro.textContent = 'Upiši odgovor ili označi da ih nemaš.';
+    }
   }
 
   window.openProfileDetailsEditor = function(scope = 'basics') {
     if (!currentUser) return;
     const modal = document.getElementById('profile-required-modal');
-    profileRequiredEditMode = true;
+    profileRequiredEditMode = !['onboarding', 'generator', 'meal'].includes(scope);
     profileWizardState.current = 0;
     profileWizardState.scope = scope;
     populateRequiredProfileForm();
     const close = document.getElementById('profile-required-close');
     const button = document.getElementById('profile-wizard-next');
-    if (close) close.style.display = 'block';
+    if (close) close.style.display = scope === 'onboarding' ? 'none' : 'block';
     if (button) { button.dataset.action = 'profile-wizard-next'; renderProfileWizardControls(); }
     if (button) { button.dataset.action = 'save-profile-details'; button.textContent = 'Sačuvaj promjene'; }
     if (button) { button.dataset.action = 'profile-wizard-next'; renderProfileWizardControls(); }
@@ -7124,15 +7305,15 @@ function renderPendingSyncStatus() {
     return {
       fullName: document.getElementById('required-profile-name')?.value.trim() || '',
       gender: document.querySelector('input[name="required-profile-gender"]:checked')?.value || '',
-      age: Number(document.getElementById('required-profile-age')?.value),
-      heightCm: Number(document.getElementById('required-profile-height')?.value),
-      weightKg: Number(document.getElementById('required-profile-weight')?.value),
+      age: document.getElementById('required-profile-age')?.value ? Number(document.getElementById('required-profile-age').value) : null,
+      heightCm: document.getElementById('required-profile-height')?.value ? Number(document.getElementById('required-profile-height').value) : null,
+      weightKg: document.getElementById('required-profile-weight')?.value ? Number(document.getElementById('required-profile-weight').value) : null,
       goal: document.querySelector('input[name="required-profile-goal"]:checked')?.value || '',
       trainingFocus: document.querySelector('input[name="required-profile-focus"]:checked')?.value || '',
-      trainingFrequency: Number(document.getElementById('required-profile-frequency')?.value),
+      trainingFrequency: document.getElementById('required-profile-frequency')?.value ? Number(document.getElementById('required-profile-frequency').value) : null,
       trainingLocation: document.querySelector('input[name="required-profile-location"]:checked')?.value || '',
       experienceLevel: document.querySelector('input[name="required-profile-experience"]:checked')?.value || '',
-      sessionMinutes: Number(document.getElementById('required-profile-minutes')?.value),
+      sessionMinutes: document.getElementById('required-profile-minutes')?.value ? Number(document.getElementById('required-profile-minutes').value) : null,
       targetMuscleGroups: normalizedMuscles,
       preferredExercises: document.getElementById('required-profile-preferred-exercises')?.value.trim() || '',
       avoidedExercises: document.getElementById('required-profile-avoided-exercises')?.value.trim() || '',
@@ -7145,37 +7326,74 @@ function renderPendingSyncStatus() {
     const status = document.getElementById('profile-required-status');
     const button = document.getElementById('profile-wizard-next');
     const profileValues = readRequiredProfileForm();
-    const errors = [];
-    if (!Number.isInteger(profileValues.trainingFrequency) || profileValues.trainingFrequency < 1) errors.push('izaberi najmanje 1 trening sedmično');
-    if (!profileValues.fullName || profileValues.fullName.length > 100) errors.push('ime ili nadimak');
-    if (!VALID_GENDER_VALUES.has(profileValues.gender)) errors.push('pol');
-    if (!Number.isInteger(profileValues.age) || profileValues.age < 13 || profileValues.age > 100) errors.push('godine (13–100)');
-    if (!Number.isFinite(profileValues.heightCm) || profileValues.heightCm < 100 || profileValues.heightCm > 250) errors.push('visinu (100–250 cm)');
-    if (!Number.isFinite(profileValues.weightKg) || profileValues.weightKg < 25 || profileValues.weightKg > 400) errors.push('težinu (25–400 kg)');
-    if (!['lose_weight', 'maintain', 'gain_weight'].includes(profileValues.goal)) errors.push('cilj tjelesne težine');
-    if (!['strength', 'muscle_progress', 'general_fitness'].includes(profileValues.trainingFocus)) errors.push('fokus treninga');
-    if (!Number.isInteger(profileValues.trainingFrequency) || profileValues.trainingFrequency < 0 || profileValues.trainingFrequency > 14) errors.push('broj treninga sedmično');
-    if (!['gym', 'home', 'street', 'other'].includes(profileValues.trainingLocation)) errors.push('mjesto treninga');
-    if (!['beginner', 'intermediate', 'advanced'].includes(profileValues.experienceLevel)) errors.push('iskustvo');
-    if (!Number.isInteger(profileValues.sessionMinutes) || profileValues.sessionMinutes < 10 || profileValues.sessionMinutes > 300) errors.push('trajanje treninga');
-    if (!profileValues.targetMuscleGroups.length) errors.push('barem jednu mišićnu grupu');
-    if (!profileValues.preferredExercises) errors.push('vježbe koje želiš raditi');
-    if (!profileValues.avoidedExercises) errors.push('vježbe koje želiš izbjegavati');
-    if (!profileValues.foodAllergies) errors.push('alergije ili ograničenja hrane');
-    if (profileValues.preferredExercises.length > 1000 || profileValues.avoidedExercises.length > 1000 || profileValues.foodAllergies.length > 1000) errors.push('predugačke preferencije');
+    const fieldsByStep = {
+      name: ['fullName'], gender: ['gender'], age: ['age'], body: ['heightCm', 'weightKg'],
+      goal: ['goal'], focus: ['trainingFocus'], frequency: ['trainingFrequency'],
+      location: ['trainingLocation'], experience: ['experienceLevel'], minutes: ['sessionMinutes'],
+      muscles: ['targetMuscleGroups'], preferred: ['preferredExercises'],
+      avoided: ['avoidedExercises'], food: ['foodAllergies']
+    };
+    const activeFields = new Set(profileWizardState.steps.flatMap((step) => fieldsByStep[step] || []));
+    const valid = {
+      fullName: Boolean(profileValues.fullName && profileValues.fullName.length <= 100),
+      gender: VALID_GENDER_VALUES.has(profileValues.gender),
+      age: Number.isInteger(profileValues.age) && profileValues.age >= 13 && profileValues.age <= 100,
+      heightCm: Number.isFinite(profileValues.heightCm) && profileValues.heightCm >= 100 && profileValues.heightCm <= 250,
+      weightKg: Number.isFinite(profileValues.weightKg) && profileValues.weightKg >= 25 && profileValues.weightKg <= 400,
+      goal: BASIC_PROFILE_GOALS.includes(profileValues.goal),
+      trainingFocus: ['strength', 'muscle_progress', 'general_fitness'].includes(profileValues.trainingFocus),
+      trainingFrequency: Number.isInteger(profileValues.trainingFrequency) && profileValues.trainingFrequency >= 1 && profileValues.trainingFrequency <= 14,
+      trainingLocation: ['gym', 'home', 'street', 'other'].includes(profileValues.trainingLocation),
+      experienceLevel: ['beginner', 'intermediate', 'advanced'].includes(profileValues.experienceLevel),
+      sessionMinutes: Number.isInteger(profileValues.sessionMinutes) && profileValues.sessionMinutes >= 10 && profileValues.sessionMinutes <= 300,
+      targetMuscleGroups: profileValues.targetMuscleGroups.length > 0 && profileValues.targetMuscleGroups.length <= 12,
+      preferredExercises: profileValues.preferredExercises.length > 0 && profileValues.preferredExercises.length <= 1000,
+      avoidedExercises: profileValues.avoidedExercises.length > 0 && profileValues.avoidedExercises.length <= 1000,
+      foodAllergies: profileValues.foodAllergies.length > 0 && profileValues.foodAllergies.length <= 1000
+    };
+    const existing = getEffectiveCurrentProfile();
+    const patch = {};
+    const invalidDraftFields = [];
+    for (const [field, value] of Object.entries(profileValues)) {
+      if (activeFields.has(field)) {
+        if (valid[field]) patch[field] = value;
+        else if (['preferredExercises', 'avoidedExercises', 'foodAllergies'].includes(field) && value === '' && profileRequiredEditMode) patch[field] = '';
+      } else if (!existing[field] && valid[field]) {
+        // Carry valid answers from older, longer wizard drafts into the new profile.
+        patch[field] = value;
+      } else if (!existing[field] && value !== '' && value !== null && value !== undefined && (!Array.isArray(value) || value.length) && !valid[field]) {
+        invalidDraftFields.push(field);
+      }
+    }
+    const errors = [...activeFields].filter((field) => !(field in patch)).concat(invalidDraftFields);
+    const candidate = { ...existing, ...patch };
+    if (profileWizardState.scope === 'onboarding' && !isProfileComplete(candidate) && !errors.length) errors.push('goal');
+    if (profileWizardState.scope === 'generator' && !isGeneratorProfileReady(candidate) && !errors.length) errors.push('trainingLocation');
+    if (profileWizardState.scope === 'meal' && !String(candidate.foodAllergies || '').trim()) errors.push('alergije ili ograničenja hrane');
+    const errorLabels = {
+      fullName: 'ime ili nadimak', gender: 'pol', age: 'godine (13–100)',
+      heightCm: 'visinu (100–250 cm)', weightKg: 'težinu (25–400 kg)',
+      goal: 'cilj tjelesne težine', trainingFocus: 'fokus treninga',
+      trainingFrequency: 'broj treninga sedmično', trainingLocation: 'mjesto treninga',
+      experienceLevel: 'iskustvo', sessionMinutes: 'trajanje treninga',
+      targetMuscleGroups: 'barem jednu mišićnu grupu', preferredExercises: 'vježbe koje želiš raditi',
+      avoidedExercises: 'vježbe koje želiš izbjegavati', foodAllergies: 'alergije ili ograničenja hrane'
+    };
     if (errors.length) {
-      if (status) { status.textContent = uiMessage('Nedostaje: {fields}.', { fields: errors.map(value => translateUiText(value)).join(', ') }); status.style.color = 'var(--danger)'; }
+      if (status) { status.textContent = uiMessage('Nedostaje: {fields}.', { fields: [...new Set(errors)].map(value => translateUiText(errorLabels[value] || value)).join(', ') }); status.style.color = 'var(--danger)'; }
       return;
     }
     if (button) { button.disabled = true; button.textContent = 'Čuvam profil…'; }
     if (status) { status.textContent = ''; status.style.color = ''; }
+    const savingUserId = currentUser.uid;
     try {
       const profile = {
-        ...profileValues,
+        ...patch,
         email: currentUser.email || currentProfileData?.email || '',
         createdAt: currentProfileData?.createdAt || new Date().toISOString()
       };
-      const result = await writeUserDocument(`users/${currentUser.uid}`, profile, { merge: true });
+      const result = await writeUserDocument(`users/${savingUserId}`, profile, { merge: true });
+      if (currentUser?.uid !== savingUserId) return;
       currentProfileData = { ...(currentProfileData || {}), ...profile };
       clearProfileWizardDraft();
       document.getElementById('profile-required-modal').style.display = 'none';
@@ -7183,10 +7401,14 @@ function renderPendingSyncStatus() {
       renderProfileSettings();
       renderDashboard();
       ShowToast(result.queued ? 'Profil je sačuvan lokalno i biće sinhronizovan kada se veza vrati.' : 'Profil je sačuvan. GymLeader je spreman.');
+      const returnTo = profileWizardReturnTo;
+      profileWizardReturnTo = '';
       if (hasPendingNewUserOnboarding()) {
         clearPendingNewUserOnboarding();
-        window.openOnboardingModal();
+        if (!returnTo) window.openOnboardingModal();
       }
+      if (returnTo === 'generator') window.openPlanGenerator();
+      if (returnTo === 'meal') window.openMealPlanner();
     } catch (error) {
       console.error('Required profile save diagnostic:', error);
       if (status) { status.textContent = 'Profil trenutno nije moguće sačuvati. Provjeri internet i pokušaj ponovo.'; status.style.color = 'var(--danger)'; }
@@ -7263,9 +7485,11 @@ function renderPendingSyncStatus() {
     const genderSummary = document.getElementById('settings-gender-summary');
     const foodGoalsSummary = document.getElementById('settings-food-goals-summary');
     const selectedLanguage = getCurrentLanguage();
-    const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' };
+    const languageNames = { sr: 'Srpski', bs: 'Bosanski', hr: 'Hrvatski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' };
     const themeNames = {
       sr: isLight => isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
+      bs: isLight => isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
+      hr: isLight => isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
       en: isLight => isLight ? 'Light mode' : 'Dark mode',
       de: isLight => isLight ? 'Heller Modus' : 'Dunkler Modus',
       fr: isLight => isLight ? 'Mode clair' : 'Mode sombre',
@@ -7512,8 +7736,8 @@ function renderPendingSyncStatus() {
     const status = document.getElementById('account-delete-status');
     const confirmButton = document.querySelector('.settings-delete-confirm');
     const language = getCurrentLanguage();
-    const words = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' };
-    const prompts = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' };
+    const words = { sr: 'OBRIŠI', bs: 'IZBRIŠI', hr: 'IZBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' };
+    const prompts = words;
     if (details) details.value = '';
     if (phrase) { phrase.value = ''; phrase.dataset.requiredPhrase = prompts[language] || prompts.sr; }
     const word = document.getElementById('account-delete-confirm-word');
@@ -7819,6 +8043,8 @@ function renderPendingSyncStatus() {
       const language = localStorage.getItem('gym-language') || 'sr';
       const labels = {
         sr: isLight ? 'Svetli prikaz' : 'Tamni prikaz',
+        bs: isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
+        hr: isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
         en: isLight ? 'Light mode' : 'Dark mode',
         de: isLight ? 'Heller Modus' : 'Dunkler Modus'
       };
@@ -7831,7 +8057,7 @@ function renderPendingSyncStatus() {
 
   function getCurrentLanguage() {
     const language = localStorage.getItem('gym-language');
-    return ['sr', 'en', 'de', 'fr', 'it', 'es'].includes(language) ? language : 'sr';
+    return SUPPORTED_LANGUAGES.includes(language) ? language : 'sr';
   }
 
   function getCanonicalTranslationSource(value) { return canonicalUiText(value); }
@@ -7844,7 +8070,7 @@ function renderPendingSyncStatus() {
     return value;
   }
   function getMacroLabels() {
-    return { sr: { protein: 'P', carbs: 'UH', fat: 'M' }, en: { protein: 'P', carbs: 'C', fat: 'F' }, de: { protein: 'P', carbs: 'KH', fat: 'F' }, fr: { protein: 'P', carbs: 'G', fat: 'L' }, it: { protein: 'P', carbs: 'C', fat: 'G' }, es: { protein: 'P', carbs: 'C', fat: 'G' } }[getCurrentLanguage()];
+    return { sr: { protein: 'P', carbs: 'UH', fat: 'M' }, bs: { protein: 'P', carbs: 'UH', fat: 'M' }, hr: { protein: 'P', carbs: 'UH', fat: 'M' }, en: { protein: 'P', carbs: 'C', fat: 'F' }, de: { protein: 'P', carbs: 'KH', fat: 'F' }, fr: { protein: 'P', carbs: 'G', fat: 'L' }, it: { protein: 'P', carbs: 'C', fat: 'G' }, es: { protein: 'P', carbs: 'C', fat: 'G' } }[getCurrentLanguage()];
   }
 
   function allergenLabel(value) {
@@ -7937,7 +8163,7 @@ function renderPendingSyncStatus() {
   }
 
   function changeAppLanguage(language) {
-    const selectedLanguage = ['sr', 'en', 'de', 'fr', 'it', 'es'].includes(language) ? language : 'sr';
+    const selectedLanguage = SUPPORTED_LANGUAGES.includes(language) ? language : 'sr';
     const shoppingListIsOpen = document.getElementById('meal-planner-shopping-modal')?.style.display === 'flex';
     localStorage.setItem('gym-language', selectedLanguage);
     localStorage.setItem('gym-language-source', 'manual');
@@ -7956,10 +8182,10 @@ function renderPendingSyncStatus() {
     updateProfilePreferenceButtons();
     document.querySelectorAll('[data-library-picker-for]').forEach(renderExerciseLibraryPicker);
     refreshExerciseNameDisplays();
-    if (document.getElementById('onboardingModal')?.style.display === 'flex') renderOnboardingStep();
+    if (document.getElementById('onboardingModal')?.style.display === 'flex') window.openOnboardingModal();
     const deletePhrase = document.getElementById('account-delete-confirm-text');
     if (deletePhrase) {
-      const phrase = { sr: 'OBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' }[selectedLanguage];
+      const phrase = { sr: 'OBRIŠI', bs: 'IZBRIŠI', hr: 'IZBRIŠI', en: 'DELETE', de: 'LÖSCHEN', fr: 'SUPPRIMER', it: 'ELIMINA', es: 'ELIMINAR' }[selectedLanguage];
       deletePhrase.dataset.requiredPhrase = phrase;
       const label = document.getElementById('account-delete-confirm-word');
       if (label) { label.dataset.noTranslate = ''; label.textContent = phrase; }
@@ -7990,10 +8216,12 @@ function renderPendingSyncStatus() {
   function refreshLanguageSensitiveSettingsSummaries() {
     if (!currentUser) return;
     const language = getCurrentLanguage();
-    const languageNames = { sr: 'Srpski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' };
+    const languageNames = { sr: 'Srpski', bs: 'Bosanski', hr: 'Hrvatski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' };
     const isLight = document.documentElement.dataset.theme === 'light';
     const themeNames = {
       sr: isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
+      bs: isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
+      hr: isLight ? 'Svijetli prikaz' : 'Tamni prikaz',
       en: isLight ? 'Light mode' : 'Dark mode',
       de: isLight ? 'Heller Modus' : 'Dunkler Modus',
       fr: isLight ? 'Mode clair' : 'Mode sombre',
@@ -8028,7 +8256,7 @@ function renderPendingSyncStatus() {
   }
 
   function applyLanguage(language) {
-    const selectedLanguage = ['sr', 'en', 'de', 'fr', 'it', 'es'].includes(language) ? language : 'sr';
+    const selectedLanguage = SUPPORTED_LANGUAGES.includes(language) ? language : 'sr';
     const pageTitles = {
       sr: 'GymLeader | Planiraj trening i prati napredak',
       en: 'GymLeader | Plan your workouts and track progress',
@@ -8060,6 +8288,8 @@ function renderPendingSyncStatus() {
   function renderLanguageFlagIcons() {
     const flags = {
       sr: '<span class="flag-image"><img src="assets/flag-sr.svg" alt=""></span>',
+      bs: '<span class="flag-image"><img src="assets/flag-bs.svg" alt=""></span>',
+      hr: '<span class="flag-image"><img src="assets/flag-hr.svg" alt=""></span>',
       en: '<span class="flag-image"><img class="flag-uk" src="assets/flag-en.svg" alt=""></span>',
       de: '<span class="flag-image"><img src="assets/flag-de.svg" alt=""></span>',
       fr: '<span class="flag-image"><img src="assets/flag-fr.svg" alt=""></span>',
@@ -8068,7 +8298,7 @@ function renderPendingSyncStatus() {
     };
     document.querySelectorAll('.language-option').forEach((button) => {
       const language = button.dataset.language;
-      const label = { sr: 'Srpski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' }[language];
+      const label = { sr: 'Srpski', bs: 'Bosanski', hr: 'Hrvatski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' }[language];
       button.dataset.noTranslate = '';
       button.lang = language;
       if (flags[language]) button.innerHTML = `${flags[language]}<small>${label}</small>`;
@@ -8080,7 +8310,7 @@ function renderPendingSyncStatus() {
     renderLanguageFlagIcons();
     const savedLanguage = localStorage.getItem('gym-language');
     let initialLanguage;
-    if (['sr', 'en', 'de', 'fr', 'it', 'es'].includes(savedLanguage)) {
+    if (SUPPORTED_LANGUAGES.includes(savedLanguage)) {
       initialLanguage = savedLanguage;
       // Before the source marker existed, a saved value may have come from an
       // explicit choice. Preserve it instead of guessing from the device.
@@ -8105,8 +8335,8 @@ function renderPendingSyncStatus() {
       const baseLanguage = String(preference || '').trim().toLowerCase().replace(/_/g, '-').split('-')[0];
       if (baseLanguage === 'sr') return 'sr';
       if (baseLanguage === 'en') return 'en';
-      if (['de', 'fr', 'it', 'es'].includes(baseLanguage)) return baseLanguage;
-      if (['hr', 'bs', 'cnr'].includes(baseLanguage)) return 'sr';
+      if (SUPPORTED_LANGUAGES.includes(baseLanguage)) return baseLanguage;
+      if (baseLanguage === 'cnr') return 'sr';
     }
     return 'en';
   }
@@ -8446,24 +8676,6 @@ function renderPendingSyncStatus() {
         case 'start-onboarding':
           document.getElementById('onboardingModal')?.style.setProperty('display', 'none');
           window.switchTab('workouts');
-          break;
-        case 'onboarding-next':
-          onboardingStep = Math.min(3, onboardingStep + 1);
-          renderOnboardingStep();
-          break;
-        case 'onboarding-back':
-          onboardingStep = Math.max(0, onboardingStep - 1);
-          renderOnboardingStep();
-          break;
-        case 'onboarding-context':
-          onboardingContext = button.dataset.context || 'other';
-          if (currentUser) localStorage.setItem('gym-onboarding-context-' + currentUser.uid, onboardingContext);
-          onboardingStep = Math.min(3, onboardingStep + 1);
-          renderOnboardingStep();
-          break;
-        case 'onboarding-create-plan':
-          document.getElementById('onboardingModal')?.style.setProperty('display', 'none');
-          window.switchTab('workouts');
           setTimeout(() => window.openPlanCreationChoice(), 150);
           break;
         case 'resume-draft':
@@ -8623,6 +8835,7 @@ function renderPendingSyncStatus() {
           break;
         case 'close-modal':
           if (modalId) {
+            if (modalId === 'profile-required-modal') profileWizardReturnTo = '';
             const returnToGeneratedPlans = modalId === 'createRoutineModal' && Boolean(pendingGeneratedPlanId);
             document.getElementById(modalId).style.display = 'none';
             if (modalId === 'createRoutineModal') {
@@ -8797,7 +9010,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261003-home-v127';
+    const build = '20261005-bcs-settings-v132';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
@@ -9014,59 +9227,10 @@ window.openOnboardingModal = function() {
     modal = document.createElement('div');
     modal.id = 'onboardingModal';
     modal.className = 'modal';
-    modal.innerHTML = `
-      <div class="modal-content text-center">
-        <div style="font-size:2rem;margin-bottom:8px;">🏋️</div>
-        <h3 style="font-size:1.25rem;font-weight:900;margin:0 0 8px;">${escapeHtml(getDashboardGreeting())}</h3>
-        <p style="color:var(--text-muted);font-size:.88rem;line-height:1.5;margin:0 auto 16px;max-width:340px;">
-          Napravi svoj prvi plan treninga, izaberi vježbe i prati svaku kilažu i ponavljanje.
-        </p>
-        <div style="display:flex;gap:10px;justify-content:center;">
-          <button class="btn" data-action="start-onboarding">Napravi prvi plan →</button>
-          <button class="btn btn-secondary" data-action="close-modal" data-modal-id="onboardingModal">Kasnije</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-  modal.style.display = 'flex';
-};
-
-let onboardingStep = 0;
-let onboardingContext = '';
-
-function renderOnboardingStep() {
-  const modal = document.getElementById('onboardingModal');
-  const content = modal?.querySelector('.modal-content');
-  if (!content) return;
-  const contextOptions = [
-    ['gym', '🏋️', 'Treniram u teretani'],
-    ['home', '🏠', 'Treniram kod kuće'],
-    ['street', '🤸', 'Street workout'],
-    ['other', '✨', 'Nešto drugo']
-  ];
-  const steps = [
-    `<div class="onboarding-icon">🏋️</div><span class="onboarding-step-label">KORAK 1 OD 4</span><h3>${escapeHtml(getOnboardingGreeting())}</h3><p>GymLeader ti pomaže da napraviš svoje planove, pratiš kilaže i ponavljanja i vidiš napredak iz treninga u trening.</p>`,
-    '<div class="onboarding-icon">📋</div><span class="onboarding-step-label">KORAK 2 OD 4</span><h3>Kako počinješ?</h3><div class="onboarding-mini-list"><div><b>1.</b><span><strong>Napravi plan</strong><small>Nazovi ga, na primjer, Noge ili Dan A.</small></span></div><div><b>2.</b><span><strong>Pokreni trening</strong><small>Upiši serije, kilaže, ponavljanja ili sekunde.</small></span></div><div><b>3.</b><span><strong>Sačuvaj rezultat</strong><small>Sljedeći put vidiš prošle podatke i PR.</small></span></div></div>',
-    '<div class="onboarding-icon">🎯</div><span class="onboarding-step-label">KORAK 3 OD 4</span><h3>Šta najčešće treniraš?</h3><p>Ovo samo pomaže da ti prvi plan bude smislenije pripremljen. Možeš ga kasnije promijeniti.</p><div class="onboarding-context-grid">' + contextOptions.map(([value, icon, label]) => `<button type="button" class="onboarding-context ${onboardingContext === value ? 'is-selected' : ''}" data-action="onboarding-context" data-context="${value}"><span>${icon}</span><strong>${label}</strong></button>`).join('') + '</div>',
-    `<div class="onboarding-icon">🚀</div><span class="onboarding-step-label">KORAK 4 OD 4</span><h3>${genderText('Spreman si za prvi plan', 'Spremna si za prvi plan', 'Spreman/na si za prvi plan')}</h3><p>Jedan plan predstavlja jedan trening koji možeš ponavljati više puta. Dodaj vježbe jednu po jednu i izaberi način praćenja.</p>`
-  ];
-  const back = onboardingStep > 0 ? '<button class="btn btn-secondary" data-action="onboarding-back">Nazad</button>' : '';
-  const next = onboardingStep < 3 ? '<button class="btn" data-action="onboarding-next">Nastavi →</button>' : '<button class="btn" data-action="onboarding-create-plan">Napravi prvi plan →</button>';
-  content.innerHTML = steps[onboardingStep] + '<div class="onboarding-actions">' + back + next + '<button class="onboarding-skip" data-action="close-modal" data-modal-id="onboardingModal">Kasnije</button></div>';
-}
-
-window.openOnboardingModal = function() {
-  let modal = document.getElementById('onboardingModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'onboardingModal';
-    modal.className = 'modal';
     modal.innerHTML = '<div class="modal-content text-center"></div>';
     document.body.appendChild(modal);
   }
-  onboardingStep = 0;
-  onboardingContext = localStorage.getItem('gym-onboarding-context-' + (currentUser?.uid || 'guest')) || '';
-  renderOnboardingStep();
+  const content = modal.querySelector('.modal-content');
+  if (content) content.innerHTML = `<div class="onboarding-icon">🏋️</div><h3>${escapeHtml(getOnboardingGreeting())}</h3><p>${escapeHtml(translateUiText('Napravi svoj prvi plan treninga, izaberi vježbe i prati svaku kilažu i ponavljanje.'))}</p><div class="onboarding-actions"><button class="btn" data-action="start-onboarding">${escapeHtml(translateUiText('Napravi prvi plan'))} →</button><button class="btn btn-secondary" data-action="close-modal" data-modal-id="onboardingModal">${escapeHtml(translateUiText('Kasnije'))}</button></div>`;
   modal.style.display = 'flex';
 };

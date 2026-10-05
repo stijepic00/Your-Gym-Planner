@@ -18,7 +18,7 @@ const handlers = [
   section('  async function queueWorkoutForSync(', '  function hasPendingWorkoutsForCurrentUser('),
   section('  function isPendingQueueSession(', '  // All writes are deltas.'),
   section('  async function clearLocalUserData(', '  window.deleteAccount ='),
-  section('  onAuthStateChanged(auth,', '  window.handleLogout =')
+  section('  let authObserved = false;', '  window.handleLogout =')
 ].join('\n');
 
 class Element {
@@ -49,7 +49,7 @@ function strength() {
   return block;
 }
 function harness(storage = new Map()) {
-  const nodes = new Map(['active-exercises-container', 'active-workout-title', 'workout-progress', 'active-draft-alert', 'custom-ex-modal', 'custom-existing-select'].map(id => [id, new Element()]));
+  const nodes = new Map(['active-exercises-container', 'active-workout-title', 'workout-progress', 'active-draft-alert', 'custom-ex-modal', 'custom-existing-select', 'user-email-display'].map(id => [id, new Element()]));
   const modalInput = { value: '' };
   nodes.get('custom-ex-modal').querySelectorAll = () => [modalInput];
   const editButton = new Element();
@@ -59,7 +59,10 @@ function harness(storage = new Map()) {
     activeWorkoutEditMode: false, customExType: 'existing', auth: { currentUser: null }, db: {},
     currentProfileData: null, userRoutines: [], cachedHistory: [], routinesUnsubscribe: null,
     pendingWorkoutsMemory: [], pendingOperationsMemory: [], defaultWorkouts: [], navigator: { onLine: true },
-    pendingQueueSession: 0, clearPendingWorkoutSyncRetry() {},
+    pendingQueueSession: 0, setTimeout, clearTimeout, clearPendingWorkoutSyncRetry() {},
+    resetHistoryCoverage() { context.cachedHistory = []; },
+    restoreMealPlanDraft() {}, clearMealPlanDraft() {},
+    getWorkoutTime: workout => new Date(workout.date || '').getTime() || 0,
     localStorage: {
       getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key),
@@ -72,16 +75,19 @@ function harness(storage = new Map()) {
     },
     normalizeRoutineExercise: exercise => exercise,
     getRoutineDisplayName: name => name, getGeneratedExerciseDisplayName: exercise => exercise.name || exercise,
-    escapeHtml: value => String(value ?? ''), getMaxWeightFromHistory: () => 0,
+    escapeHtml: value => String(value ?? ''), getMaxWeightFromHistory: () => 0, getLatestExerciseLog: () => null,
     calculateTargetGoal: () => '', formatRestTime: () => '', updateProgress() {}, checkPR() {},
     translateUiText: text => text, renderActiveWorkoutUI() {},
     switchTab: tab => { context.lastTab = tab; }, ShowToast: text => { context.lastToast = text; },
     dismissFirstVisitPrompt() {}, renderMealPlan() {}, renderSavedMealPlans() {},
     showLegalAcceptanceIfRequired() {}, hasCurrentLegalAcceptance: () => false,
+    getDoc: async () => ({ exists: () => true, data: () => ({ fullName: 'Test' }) }),
+    readProfileCache: () => null, writeProfileCache() {}, hasAcceptedCurrentLegalVersion: () => true,
+    writeLegalAcceptanceCache() {}, clearLegalAcceptanceCache() {}, showGenderProfileGateIfRequired() {},
     loadPendingWorkouts: async () => {}, loadPendingOperations: async () => {}, syncPendingWorkouts: async () => {},
     loadCloudData: async () => { context.checkDraftState(); }, listenToUserRoutines() {},
     ensureInAppHistory() {}, showFirstVisitPromptIfNeeded() {}, hideAuthBootScreen() {},
-    onAuthStateChanged: (auth, handler) => { context.authChanged = handler; },
+    onAuthStateChanged: () => { context.authChanged = user => context.processAuthState(user); },
     showConfirm: async () => true, createWorkoutId: () => 'completed-id',
     doc: (...args) => args, setDocWithNetworkTimeout: async () => {}, vibrate() {},
     isOfflineError: error => error.code === 'unavailable',

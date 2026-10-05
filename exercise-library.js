@@ -1,8 +1,9 @@
 // GymLeader's initial offline exercise catalogue. It never writes to Firebase.
 export const EXERCISE_LIBRARY_VERSION = 1;
 
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-i18n-v114';
-const names = (sr, en, de) => ({ sr, en, de, ...Object.fromEntries(['fr', 'it', 'es'].map(language => [language, CATALOG_TRANSLATIONS[language][sr]])) });
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261005-bcs-settings-v132';
+import { localizeBcsText } from './translations-bs-hr.js?v=20261005-bcs-settings-v132';
+const names = (sr, en, de) => ({ sr, bs: localizeBcsText(sr, 'bs'), hr: localizeBcsText(sr, 'hr'), en, de, ...Object.fromEntries(['fr', 'it', 'es'].map(language => [language, CATALOG_TRANSLATIONS[language][sr]])) });
 const exercise = (id, title, muscles, equipment, measurementType, defaults, instruction, aliases = []) => ({
   id,
   names: names(...title),

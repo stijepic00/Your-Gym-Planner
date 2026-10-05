@@ -1,8 +1,9 @@
-import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js?v=20261003-home-v127';
+import { FOOD_LIBRARY, getFoodLibraryName } from './food-library.js?v=20261005-bcs-settings-v132';
 
 // A small, reviewed recipe set built only from individual catalogue ingredients.
 // Prices are illustrative local estimates in EUR, not shop prices or live rates.
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261003-home-v127';
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261005-bcs-settings-v132';
+import { localizeBcsText } from './translations-bs-hr.js?v=20261005-bcs-settings-v132';
 const recipe = (id, name, slots, ingredients, minutes, costEur, diet, simple = true) => ({
   id, name, slots, ingredients: ingredients.map(([foodId, quantity]) => ({ foodId, quantity })),
   minutes, costEur, diet, simple
@@ -130,6 +131,7 @@ export function validMealPlanOptions(options) {
 export const getMealRecipe = (id) => recipes.get(id) || null;
 export function getMealRecipeName(item, language = 'sr') {
   if (!item) return '';
+  if (language === 'bs' || language === 'hr') return localizeBcsText(item.name, language);
   if (CATALOG_TRANSLATIONS[language]?.[item.name]) return CATALOG_TRANSLATIONS[language][item.name];
   const translated = recipeTranslations[item.id];
   return language === 'en' ? (translated?.[0] || item.name) : language === 'de' ? (translated?.[1] || item.name) : item.name;
