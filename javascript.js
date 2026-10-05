@@ -24,6 +24,8 @@
     getFirestore, 
     collection, 
     getDocs, 
+    getDocsFromServer,
+    startAfter,
     getDoc, 
     doc, 
     setDoc, 
@@ -89,6 +91,9 @@
   const REGISTRATION_DRAFT_TTL_MS = 10 * 60 * 1000;
   let userRoutines = [];
   let cachedHistory = [];
+  let historyCoverage = { userId: '', complete: false, loading: false, fromCache: true, checkedAt: null };
+  let historyRequest = null;
+  const HISTORY_PAGE_SIZE = 30;
   let customExType = 'existing';
   let currentWorkout = null;
   const finishingWorkoutSessions = new Set();
@@ -922,6 +927,7 @@
     const isCurrentSession = () => session === pendingQueueSession && auth.currentUser?.uid === user?.uid;
     if (currentUser?.uid !== user?.uid) {
       resetActiveWorkoutState();
+      resetHistoryCoverage();
       pendingWorkoutsMemory = [];
       pendingOperationsMemory = [];
       pendingWorkoutsLoaded = false;
@@ -992,7 +998,7 @@
       if (!isCurrentSession()) return;
       await syncPendingWorkouts();
       if (!isCurrentSession()) return;
-      await loadCloudData();
+      void loadCloudData();
       if (!isCurrentSession()) return;
       listenToUserRoutines(user.uid);
       switchTab('dashboard');
@@ -1124,6 +1130,7 @@
     }
     if (tabId === 'food') { loadFoodEntriesForSelectedDay(); loadSavedMealPlans(); }
     if (tabId === 'settings') renderProfileSettings();
+    renderHistoryCoverage();
 
     if (tabId === 'dashboard' || tabId === 'login') {
       scrollAppToTop();
@@ -3274,11 +3281,11 @@
   window.checkPR = function(inputEl) {
     const block = inputEl.closest('.exercise-block');
     if (!block) return;
-    const maxW = parseFloat(block.getAttribute('data-maxw')) || 0;
+    const maxW = getMaxWeightFromHistory(block.getAttribute('data-name'));
     const currentVal = parseFloat(inputEl.value) || 0;
     const badgeSlot = block.querySelector('.pr-badge-slot');
 
-    if (maxW > 0 && currentVal > maxW && badgeSlot) {
+    if (historyCoverage.complete && !historyCoverage.loading && maxW > 0 && currentVal > maxW && badgeSlot) {
       badgeSlot.innerHTML = `<span class="pr-badge">🔥 NOVI PR!</span>`;
     } else if (badgeSlot) {
       badgeSlot.innerHTML = '';
@@ -3623,7 +3630,8 @@
     if (!isPendingQueueSession(userId, session)) return;
     if (getWorkoutDraftUserId() !== userId) return;
     const localCopy = { ...workoutData, _localId: workoutId, _syncStatus: 'pending' };
-    cachedHistory = [localCopy, ...cachedHistory.filter((item) => item._localId !== workoutId)].slice(0, 30);
+    cachedHistory = [localCopy, ...cachedHistory.filter((item) => (item._localId || item.id) !== workoutId)]
+      .sort((a, b) => (getWorkoutTime(b) || 0) - (getWorkoutTime(a) || 0));
     writeHistoryCache(userId, cachedHistory);
     schedulePendingWorkoutSync();
   }
@@ -3858,7 +3866,12 @@ function readHistoryCache(userId) {
     const raw = localStorage.getItem(getHistoryCacheKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
+    // Legacy arrays contain at most 30 rows and never prove full coverage.
+    if (Array.isArray(parsed)) return parsed.filter((item) => item?.userId === userId);
+    if (parsed?.userId !== userId || !Array.isArray(parsed.items)) return [];
+    historyCoverage.complete = parsed.complete === true;
+    historyCoverage.checkedAt = Number.isFinite(parsed.checkedAt) ? parsed.checkedAt : null;
+    return parsed.items.filter((item) => item?.userId === userId);
   } catch {
     return [];
   }
@@ -3866,45 +3879,187 @@ function readHistoryCache(userId) {
 
 function writeHistoryCache(userId, history) {
   try {
-    localStorage.setItem(getHistoryCacheKey(userId), JSON.stringify(history.slice(0, 30)));
+    localStorage.setItem(getHistoryCacheKey(userId), JSON.stringify({
+      userId, items: history.filter((item) => item.userId === userId),
+      complete: historyCoverage.userId === userId && historyCoverage.complete,
+      checkedAt: historyCoverage.userId === userId ? historyCoverage.checkedAt : null
+    }));
   } catch (error) {
     console.warn('Lokalni cache istorije nije mogao biti sačuvan:', error);
   }
+}
+
+function resetHistoryCoverage() {
+  historyRequest = null; // Invalidate in-flight requests, including A → B → A.
+  historyCoverage = { userId: '', complete: false, loading: false, fromCache: true, checkedAt: null };
+  cachedHistory = [];
+}
+
+function mergeHistoryRows(rows, userId) {
+  const byId = new Map();
+  for (const row of rows) {
+    if (row?.userId !== userId || !row.date || !Array.isArray(row.exercises)) continue;
+    const id = row.id || row._localId;
+    if (id) byId.set(id, row);
+  }
+  // Apply current local changes last, so a page cannot undo an offline edit or
+  // resurrect a pending deletion. Pending workouts retain their original IDs.
+  for (const item of pendingWorkoutsMemory) {
+    if (item.userId === userId) byId.set(item.id, { ...item.data, _localId: item.id, _syncStatus: 'pending' });
+  }
+  for (const operation of pendingOperationsMemory) {
+    if (operation.userId !== userId || !/^workouts\/[^/]+$/.test(operation.path || '')) continue;
+    const id = operation.path.split('/')[1];
+    if (operation.kind === 'delete') byId.delete(id);
+    else if (operation.data?.userId === userId || byId.has(id)) {
+      const row = { ...(operation.merge === false ? {} : byId.get(id)), ...operation.data, userId, id, _syncStatus: 'pending' };
+      for (const field of operation.deleteFields || []) delete row[field];
+      byId.set(id, row);
+    }
+  }
+  return [...byId.values()].filter((row) => row.date && Array.isArray(row.exercises))
+    .sort((a, b) => (getWorkoutTime(b) || 0) - (getWorkoutTime(a) || 0)
+      || String(a.id || a._localId).localeCompare(String(b.id || b._localId)));
+}
+
+function historyCoverageMarkup() {
+  if (!currentUser || historyCoverage.userId !== currentUser.uid) return '';
+  const t = (text) => escapeHtml(translateUiText(text));
+  const status = historyCoverage.loading ? 'Učitavanje istorije traje. Statistike i rekordi još nisu konačni.'
+    : historyCoverage.fromCache ? (historyCoverage.complete
+      ? 'Prikazan je posljednji potpuni lokalni pregled. Novije promjene nisu provjerene.'
+      : 'Dostupan je samo dio istorije. Stariji treninzi možda nedostaju u statistikama i rekordima.')
+      : 'Učitana je cijela istorija treninga.';
+  const dates = cachedHistory.map(getWorkoutDate).filter(Boolean).sort((a, b) => a - b);
+  const range = dates.length ? ` · ${escapeHtml(formatDateClean(dates[0].toISOString()))} – ${escapeHtml(formatDateClean(dates.at(-1).toISOString()))}` : '';
+  const checked = historyCoverage.checkedAt
+    ? ` ${t('Posljednji potpuni dohvat:')} ${escapeHtml(new Date(historyCoverage.checkedAt).toLocaleString(getCurrentLocale()))}.` : '';
+  return `<div class="progress-data-note" data-no-translate role="status"><p>${t('Učitano treninga:')} ${cachedHistory.length}${range}. ${t(status)}${checked}${navigator.onLine ? '' : ` ${t('Offline: prikazani su podaci dostupni na ovom uređaju.')}`}</p>${!historyCoverage.loading ? `<button class="btn btn-secondary" type="button" data-action="reload-history" ${navigator.onLine ? '' : 'disabled'}>${t('Osvježi istoriju')}</button>` : ''}</div>`;
+}
+
+function renderHistoryCoverage() {
+  for (const id of ['dashboard', 'progress', 'history', 'analytics', 'active-workout']) {
+    const view = document.getElementById(`view-${id}`);
+    if (!view) continue;
+    let note = view.querySelector('[data-history-coverage]');
+    if (!note) {
+      note = document.createElement('div');
+      note.dataset.historyCoverage = '';
+      view.prepend(note);
+    }
+    note.innerHTML = historyCoverageMarkup();
+  }
+}
+
+function renderHistoryConsumers() {
+  checkDraftState();
+  renderDashboard();
+  if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
+  if (document.getElementById('view-history')?.classList.contains('active')) renderHistory();
+  if (document.getElementById('view-analytics')?.classList.contains('active')) setupAnalyticsUI();
+  if (document.getElementById('view-active-workout')?.classList.contains('active')) {
+    refreshActiveWorkoutHistory();
+    document.querySelectorAll('#active-exercises-container .set-kg').forEach((input) => window.checkPR(input));
+  }
+  renderHistoryCoverage();
+}
+
+function refreshActiveWorkoutHistory() {
+  // Update only history hints, never the user's sets, notes, timers or draft.
+  document.querySelectorAll('#active-exercises-container .exercise-block').forEach((block) => {
+    const name = block.getAttribute('data-name');
+    const config = normalizeRoutineExercise({
+      name, measurementType: block.getAttribute('data-measurement-type'),
+      repRangeMin: Number(block.getAttribute('data-rep-range-min')) || undefined,
+      repRangeMax: Number(block.getAttribute('data-rep-range-max')) || undefined,
+      weightIncrement: Number(block.getAttribute('data-weight-increment')) || undefined,
+      timeIncrement: Number(block.getAttribute('data-time-increment')) || undefined
+    });
+    const past = getLatestExerciseLog(name);
+    const previous = block.querySelector('.prev-perf');
+    if (previous) {
+      const performance = past?.sets?.length ? past.sets.map(set => formatSetPerformance(set, config)).join(' | ')
+        : past?.minutes ? `${past.minutes} min${past.calories ? ` · ${past.calories} kcal` : ''}`
+          : translateUiText(historyCoverage.complete ? 'Nema prošlog zapisa' : 'Još nema učitanih treninga.');
+      previous.innerHTML = `${escapeHtml(translateUiText('Prošli put:'))} <strong>${escapeHtml(performance)}</strong>${past?.notes ? `<br><small data-no-translate>📝 ${escapeHtml(past.notes)}</small>` : ''}`;
+    }
+    const goal = calculateTargetGoal(config);
+    let badge = block.querySelector('.target-badge');
+    if (goal && !badge) {
+      badge = document.createElement('span');
+      badge.className = 'target-badge';
+      block.querySelector('.flex-between')?.after(badge);
+    }
+    if (badge) { badge.textContent = goal || ''; badge.hidden = !goal; }
+  });
 }
 
 async function loadCloudData() {
   if (!currentUser) return;
   const userId = currentUser.uid;
   const session = pendingQueueSession;
-  cachedHistory = readHistoryCache(userId);
-  checkDraftState();
-  renderDashboard();
-  try {
-    const q = query(
-      collection(db, "workouts"), 
-      where("userId", "==", userId),
-      orderBy("date", "desc"),
-      limit(30)
-    );
-    const querySnapshot = await getDocs(q);
-    if (!isPendingQueueSession(userId, session)) return;
-    cachedHistory = [];
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data.date && data.exercises && data.exercises.length > 0) {
-        // Keep the Firestore document ID only in local memory/cache. It is needed
-        // for targeted edits and deletes, but is never written into the workout.
-        cachedHistory.push({ id: docSnap.id, ...data });
-      }
-    });
-    writeHistoryCache(userId, cachedHistory);
-    checkDraftState();
-    renderDashboard();
-    if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
-    if (document.getElementById('view-history')?.classList.contains('active')) renderHistory();
-  } catch (e) {
-    console.error("Greška pri učitavanju sa clouda: ", e);
+  // A refresh after a write supersedes an older scan; its cursor may predate
+  // the new workout. Old requests cannot publish into this generation.
+  if (historyCoverage.userId !== userId) {
+    historyCoverage = { userId, complete: false, loading: false, fromCache: true, checkedAt: null };
+    cachedHistory = mergeHistoryRows(readHistoryCache(userId), userId);
   }
+  if (!navigator.onLine) {
+    historyCoverage.fromCache = true;
+    renderHistoryConsumers();
+    return;
+  }
+  const request = { userId, session, promise: null };
+  historyRequest = request;
+  historyCoverage.loading = true;
+  historyCoverage.complete = false;
+  const isCurrent = () => historyRequest === request && isPendingQueueSession(userId, session);
+  request.promise = (async () => {
+    let cursor = null;
+    const fetched = [];
+    renderHistoryConsumers();
+    try {
+      while (isCurrent()) {
+        if (!navigator.onLine) throw new Error('History fetch interrupted: offline');
+        const constraints = [where('userId', '==', userId), orderBy('date', 'desc'), limit(HISTORY_PAGE_SIZE)];
+        if (cursor) constraints.push(startAfter(cursor));
+        // A partial SDK cache must never be mistaken for the last server page.
+        let timer;
+        const snapshot = await Promise.race([
+          getDocsFromServer(query(collection(db, 'workouts'), ...constraints)),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('History fetch timeout')), 15000); })
+        ]).finally(() => clearTimeout(timer));
+        if (!isCurrent()) return;
+        for (const docSnap of snapshot.docs) {
+          const data = docSnap.data();
+          if (data.userId === userId && data.date && Array.isArray(data.exercises)) fetched.push({ ...data, id: docSnap.id });
+        }
+        const complete = snapshot.docs.length < HISTORY_PAGE_SIZE;
+        // Keep cached older rows visible until the entire server scan succeeds.
+        cachedHistory = mergeHistoryRows(complete ? fetched : [...cachedHistory, ...fetched], userId);
+        historyCoverage.complete = complete;
+        historyCoverage.fromCache = !complete;
+        if (complete) historyCoverage.checkedAt = Date.now();
+        writeHistoryCache(userId, cachedHistory);
+        renderHistoryConsumers();
+        if (complete) break;
+        const next = snapshot.docs.at(-1);
+        if (next.id === cursor?.id) throw new Error('History cursor did not advance');
+        cursor = next;
+      }
+    } catch (error) {
+      if (!isCurrent()) return;
+      historyCoverage.fromCache = true;
+      console.error('History pagination diagnostic:', error);
+    } finally {
+      if (isCurrent()) {
+        historyCoverage.loading = false;
+        historyRequest = null;
+        renderHistoryConsumers();
+      }
+    }
+  })();
+  return request.promise;
 }
 
 function renderPendingSyncStatus() {
@@ -3953,6 +4108,7 @@ function renderPendingSyncStatus() {
 }
 
   function renderDashboard() {
+    renderHistoryCoverage();
     renderDashboardHero();
     renderDashboardSummary();
     renderDashboardPrimaryAction();
@@ -4048,6 +4204,7 @@ function renderPendingSyncStatus() {
 
   function getWorkoutDate(workout) {
     const raw = workout?.date;
+    if (!raw) return null;
     // A date-only string represents the user's local training day, not midnight UTC.
     // Parsing it at local noon keeps the day stable across time zones and DST changes.
     if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
@@ -4086,17 +4243,16 @@ function renderPendingSyncStatus() {
 
     let weeks = 0;
     let cursor = new Date(previousWeekStart);
-    let reachedCacheLimit = false;
+    let reachedCacheLimit = !historyCoverage.complete || historyCoverage.loading;
     const validDates = cachedHistory.map(getWorkoutDate).filter(Boolean);
-    const oldestDate = validDates.length ? new Date(Math.min(...validDates.map((date) => date.getTime()))) : null;
+    const oldestDate = validDates.reduce((oldest, date) => !oldest || date < oldest ? date : oldest, null);
     const oldestWeekStart = oldestDate ? getLocalWeekStart(oldestDate) : null;
 
-    while (weeks < 260) {
+    while (oldestWeekStart && cursor >= oldestWeekStart) {
       if (getWeekCount(counts, cursor) < goal) break;
       weeks += 1;
       cursor.setDate(cursor.getDate() - 7);
       if (oldestWeekStart && cursor < oldestWeekStart) {
-        reachedCacheLimit = cachedHistory.length >= 30;
         break;
       }
     }
@@ -4441,7 +4597,7 @@ function renderPendingSyncStatus() {
   function renderHistory() {
     const container = document.getElementById('history-container');
     if (cachedHistory.length === 0) {
-      container.innerHTML = '<div class="card"><p style="color: var(--text-muted);">Prazno.</p></div>';
+      container.innerHTML = `<div class="card"><p>${escapeHtml(translateUiText(historyCoverage.complete ? 'Prazno.' : 'Još nema učitanih treninga.'))}</p></div>`;
       return;
     }
 
@@ -4589,11 +4745,14 @@ function renderPendingSyncStatus() {
 
   function refreshWorkoutViews() {
     if (!currentUser) return;
+    historyRequest = null;
+    historyCoverage.loading = false;
     writeHistoryCache(currentUser.uid, cachedHistory);
     renderHistory();
     renderDashboard();
     setupAnalyticsUI();
     if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
+    void loadCloudData();
   }
 
   window.openHistoryWorkoutEditor = function(workoutId) {
@@ -4722,7 +4881,7 @@ function renderPendingSyncStatus() {
   };
 
   function getWorkoutTime(workout) {
-    const timestamp = new Date(workout?.date || '').getTime();
+    const timestamp = getWorkoutDate(workout)?.getTime();
     return Number.isFinite(timestamp) ? timestamp : null;
   }
 
@@ -4787,7 +4946,9 @@ function renderPendingSyncStatus() {
     const difference = currentValue - previousValue;
     const state = !hasPrevious || difference === 0 ? 'analytics-delta-neutral' : difference > 0 ? 'analytics-delta-positive' : 'analytics-delta-negative';
     const differenceText = formatter(Math.abs(difference));
-    const detail = !hasPrevious
+    const detail = !historyCoverage.complete || historyCoverage.loading
+      ? translateUiText('Poređenje čeka potpuno učitavanje istorije.')
+      : !hasPrevious
       ? translateUiText('Nema ranijeg perioda')
       : difference === 0
         ? translateUiText('Isto kao prethodni period')
@@ -4831,6 +4992,20 @@ function renderPendingSyncStatus() {
     const end = new Date(today);
     end.setDate(end.getDate() + 1);
     return { start, end, period };
+  }
+
+  function analyticsPeriodRange(period, now = new Date()) {
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const start = period === 'week' ? getWeekStart(now.getTime())
+      : period === 'month' ? getMonthStart(now.getTime())
+      : period === 'threeMonths' ? getMonthStart(now.getTime(), -2) : -Infinity;
+    return { start, end };
+  }
+
+  function getProgressWeightChange(measurements) {
+    const rows = measurements.filter((row) => Number.isFinite(Number(row.weightKg)) && Number(row.weightKg) > 0)
+      .sort((a, b) => String(a.measuredAt).localeCompare(String(b.measuredAt)));
+    return rows.length >= 2 ? Number(rows.at(-1).weightKg) - Number(rows[0].weightKg) : null;
   }
 
   function progressDayKey(date) {
@@ -4955,8 +5130,8 @@ function renderPendingSyncStatus() {
       .sort((a, b) => String(a.measuredAt).localeCompare(String(b.measuredAt))) : [];
     const endKey = progressDayKey(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1));
     const latestWeight = weights.filter((item) => String(item.measuredAt).slice(0, 10) <= endKey).at(-1);
-    const periodWeights = weights.filter((item) => dayKeys.has(String(item.measuredAt).slice(0, 10))).slice(-30);
-    const weightChange = periodWeights.length > 1 ? Number(periodWeights.at(-1).weightKg) - Number(periodWeights[0].weightKg) : null;
+    const periodWeights = weights.filter((item) => dayKeys.has(String(item.measuredAt).slice(0, 10)));
+    const weightChange = getProgressWeightChange(periodWeights);
     const dateLabel = new Intl.DateTimeFormat(getCurrentLocale(), { day: 'numeric', month: 'short' });
     const periodLabel = `${dateLabel.format(start)} – ${dateLabel.format(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1))}`;
     const t = (source) => escapeHtml(translateUiText(source));
@@ -4964,10 +5139,11 @@ function renderPendingSyncStatus() {
     const foodCoverageNote = progressFoodTruncated
       ? `<p class="progress-data-note">${t('Pregled ishrane koristi najviše 1000 učitanih unosa.')}</p>`
       : progressFoodComplete ? '' : `<p class="progress-data-note">${t('Ishrana prikazuje trenutno dostupne unose.')}</p>`;
-    const workoutCoverageNote = cachedHistory.length >= 30 ? `<p class="progress-data-note">${t('Treninzi prikazuju posljednjih 30 učitanih zapisa.')}</p>` : '';
+    const workoutCoverageNote = !historyCoverage.complete || historyCoverage.loading ? `<p class="progress-data-note">${t('Poređenje čeka potpuno učitavanje istorije.')}</p>` : '';
     const meanCalories = loggedDays ? `${formatLocalizedNumber(calories / loggedDays, 0)} kcal` : '—';
     const weightValue = latestWeight ? `${formatLocalizedNumber(latestWeight.weightKg)} kg` : '—';
-    const changeLabel = weightChange == null ? t('Nema promjene za izabrani period') : `${weightChange > 0 ? '+' : ''}${formatLocalizedNumber(weightChange)} kg`;
+    const changeLabel = weightChange == null ? t('Potrebna su najmanje dva mjerenja u izabranom periodu za poređenje.')
+      : weightChange === 0 ? t('Nema promjene za izabrani period') : `${weightChange > 0 ? '+' : ''}${formatLocalizedNumber(weightChange)} kg`;
     const weightContent = periodWeights.length
       ? `${progressWeightGraph(periodWeights)}<div class="progress-chart-endpoints"><small>${escapeHtml(dateLabel.format(new Date(`${periodWeights[0].measuredAt.slice(0, 10)}T12:00:00`)))}</small><small>${escapeHtml(dateLabel.format(new Date(`${periodWeights.at(-1).measuredAt.slice(0, 10)}T12:00:00`)))}</small></div>`
       : `<p class="progress-empty">${t('Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.')}</p>`;
@@ -4987,27 +5163,31 @@ function renderPendingSyncStatus() {
     const root = document.getElementById('analytics-overview');
     if (!root) return;
     if (!cachedHistory.length) {
-      root.innerHTML = '<div class="card body-empty-state">Sačuvaj prvi trening da bi se ovdje prikazali poređenja perioda, lični rekordi i mjesečni sažetak.</div>';
+      root.innerHTML = `<div class="card body-empty-state">${escapeHtml(translateUiText(historyCoverage.complete
+        ? 'Sačuvaj prvi trening da bi se ovdje prikazali poređenja perioda, lični rekordi i mjesečni sažetak.' : 'Još nema učitanih treninga.'))}</div>`;
       return;
     }
 
     const now = Date.now();
     const thisWeekStart = getWeekStart(now);
-    const lastWeekStart = thisWeekStart - (7 * 86400000);
+    const previousWeek = new Date(thisWeekStart);
+    previousWeek.setDate(previousWeek.getDate() - 7);
+    const lastWeekStart = previousWeek.getTime();
+    const today = new Date(now);
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime();
     const thisMonthStart = getMonthStart(now);
     const lastMonthStart = getMonthStart(now, -1);
-    const thisWeek = summarizeWorkouts(workoutsInRange(thisWeekStart, now + 1));
+    const thisWeek = summarizeWorkouts(workoutsInRange(thisWeekStart, tomorrow));
     const lastWeek = summarizeWorkouts(workoutsInRange(lastWeekStart, thisWeekStart));
-    const thisMonth = summarizeWorkouts(workoutsInRange(thisMonthStart, now + 1));
+    const thisMonth = summarizeWorkouts(workoutsInRange(thisMonthStart, tomorrow));
     const lastMonth = summarizeWorkouts(workoutsInRange(lastMonthStart, thisMonthStart));
     const exerciseNames = new Set();
     cachedHistory.forEach((workout) => workout.exercises?.forEach((exercise) => { if (exercise?.name) exerciseNames.add(exercise.name); }));
     const records = getPersonalRecords();
     const recordsThisMonth = records.filter((record) => record.wasImprovement && (getWorkoutTime({ date: record.date }) || 0) >= thisMonthStart).length;
     const recentRecords = [...records].sort((a, b) => (getWorkoutTime({ date: b.date }) || 0) - (getWorkoutTime({ date: a.date }) || 0)).slice(0, 5);
-    const coverageNote = cachedHistory.length >= 30
-      ? translateUiText('Pregled koristi posljednjih 30 sačuvanih treninga.')
-      : translateUiText('Pregled koristi sve trenutno učitane treninge.');
+    const coverageNote = translateUiText(historyCoverage.complete && !historyCoverage.loading
+      ? 'Pregled koristi sve trenutno učitane treninge.' : 'Poređenje čeka potpuno učitavanje istorije.');
 
     root.innerHTML = `
       <div class="analytics-period-grid">
@@ -5034,13 +5214,16 @@ function renderPendingSyncStatus() {
 
     const list = Array.from(exercisesSet);
     if (list.length === 0) {
+      if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
       select.innerHTML = `<option>${escapeHtml(translateUiText('Nema sačuvanih vježbi'))}</option>`;
       const empty = document.getElementById('analytics-empty-state');
       if (empty) { empty.textContent = translateUiText('Nema dovoljno sačuvanih treninga za grafikon.'); empty.style.display = 'block'; }
       return;
     }
 
+    const previousSelection = select.value;
     select.innerHTML = list.map(ex => `<option data-no-translate value="${escapeHtml(ex)}">${escapeHtml(getGeneratedExerciseDisplayName(ex))}</option>`).join('');
+    if (list.includes(previousSelection)) select.value = previousSelection;
     const empty = document.getElementById('analytics-empty-state');
     if (empty) empty.style.display = 'none';
     renderAnalyticsChart();
@@ -5052,14 +5235,13 @@ function renderPendingSyncStatus() {
     if (!exName) return;
     const metric = document.getElementById('analytics-metric-select')?.value || 'maxWeight';
     const period = document.getElementById('analytics-period-select')?.value || 'all';
-    const now = Date.now();
-    const periodMs = { week: 7 * 86400000, month: 30 * 86400000, threeMonths: 90 * 86400000 }[period];
+    const { start, end } = analyticsPeriodRange(period);
 
     const labels = [];
     const dataPoints = [];
     const dataEntries = [];
 
-    const reversedHistory = [...cachedHistory].reverse().filter((h) => !periodMs || (now - new Date(h.date).getTime()) <= periodMs);
+    const reversedHistory = workoutsInRange(start, end).sort((a, b) => getWorkoutTime(a) - getWorkoutTime(b));
 
     reversedHistory.forEach(h => {
       const pastEx = h.exercises?.find(e => e.name === exName);
@@ -7362,7 +7544,7 @@ function renderPendingSyncStatus() {
     matchingKeys.forEach((key) => localStorage.removeItem(key));
     localStorage.removeItem(getWorkoutDraftKey(userId));
     clearMealPlanDraft(userId);
-    if (currentUser?.uid === userId) resetActiveWorkoutState();
+    if (currentUser?.uid === userId) { resetActiveWorkoutState(); resetHistoryCoverage(); }
     pendingWorkoutsMemory = [];
     pendingWorkoutsLoaded = false;
     pendingOperationsMemory = [];
@@ -7961,6 +8143,13 @@ function renderPendingSyncStatus() {
     window.addEventListener('online', () => {
       clearPendingWorkoutSyncRetry();
       schedulePendingWorkoutSync(0);
+      void loadCloudData();
+    });
+    window.addEventListener('offline', () => {
+      historyRequest = null;
+      historyCoverage.loading = false;
+      historyCoverage.fromCache = true;
+      renderHistoryConsumers();
     });
 
     document.getElementById('delete-account-modal')?.addEventListener('input', updateDeleteAccountButton);
@@ -8175,6 +8364,9 @@ function renderPendingSyncStatus() {
           break;
         case 'save-meal-plan':
           window.saveMealPlan();
+          break;
+        case 'reload-history':
+          void loadCloudData();
           break;
         case 'discard-meal-plan':
           if (!activeMealPlan?.id) clearMealPlanDraft();

@@ -1367,3 +1367,52 @@ for (const [language, phrases] of Object.entries(CATALOG_TRANSLATIONS)) {
 for (const [language, phrases] of Object.entries(DYNAMIC_TRANSLATIONS)) {
   Object.assign(TRANSLATIONS[language], phrases);
 }
+
+const HISTORY_COVERAGE_TRANSLATIONS = {
+  'Učitano treninga:': ['Loaded workouts:', 'Geladene Workouts:', 'Entraînements chargés :', 'Allenamenti caricati:', 'Entrenamientos cargados:'],
+  'Učitavanje istorije traje. Statistike i rekordi još nisu konačni.': [
+    'Workout history is loading. Statistics and records are not final yet.',
+    'Der Trainingsverlauf wird geladen. Statistiken und Rekorde sind noch nicht vollständig.',
+    'L’historique des entraînements est en cours de chargement. Les statistiques et les records ne sont pas encore définitifs.',
+    'Caricamento della cronologia degli allenamenti. Statistiche e record non sono ancora definitivi.',
+    'El historial de entrenamientos se está cargando. Las estadísticas y los récords aún no son definitivos.'
+  ],
+  'Prikazan je posljednji potpuni lokalni pregled. Novije promjene nisu provjerene.': [
+    'Showing the last complete local snapshot. More recent changes have not been checked.',
+    'Die letzte vollständige lokale Übersicht wird angezeigt. Neuere Änderungen wurden nicht geprüft.',
+    'Le dernier historique complet enregistré sur cet appareil est affiché. Les modifications plus récentes n’ont pas été vérifiées.',
+    'È mostrata l’ultima cronologia locale completa. Le modifiche più recenti non sono state verificate.',
+    'Se muestra el último historial local completo. No se han comprobado los cambios más recientes.'
+  ],
+  'Dostupan je samo dio istorije. Stariji treninzi možda nedostaju u statistikama i rekordima.': [
+    'Only part of your history is available. Older workouts may be missing from statistics and records.',
+    'Nur ein Teil des Verlaufs ist verfügbar. Ältere Workouts können in Statistiken und Rekorden fehlen.',
+    'Seule une partie de l’historique est disponible. Des entraînements plus anciens peuvent manquer dans les statistiques et les records.',
+    'È disponibile solo una parte della cronologia. Gli allenamenti più vecchi potrebbero mancare nelle statistiche e nei record.',
+    'Solo está disponible una parte del historial. Pueden faltar entrenamientos antiguos en las estadísticas y los récords.'
+  ],
+  'Učitana je cijela istorija treninga.': ['Your entire workout history is loaded.', 'Der gesamte Trainingsverlauf wurde geladen.', 'Tout l’historique des entraînements est chargé.', 'L’intera cronologia degli allenamenti è stata caricata.', 'Se ha cargado todo el historial de entrenamientos.'],
+  'Posljednji potpuni dohvat:': ['Last complete retrieval:', 'Letzter vollständiger Abruf:', 'Dernier chargement complet :', 'Ultimo caricamento completo:', 'Última carga completa:'],
+  'Offline: prikazani su podaci dostupni na ovom uređaju.': [
+    'Offline: showing data available on this device.', 'Offline: Daten auf diesem Gerät werden angezeigt.',
+    'Hors ligne : affichage des données disponibles sur cet appareil.', 'Offline: sono mostrati i dati disponibili su questo dispositivo.',
+    'Sin conexión: se muestran los datos disponibles en este dispositivo.'
+  ],
+  'Osvježi istoriju': ['Refresh history', 'Verlauf aktualisieren', 'Actualiser l’historique', 'Aggiorna cronologia', 'Actualizar historial'],
+  'Još nema učitanih treninga.': ['No workouts loaded yet.', 'Noch keine Workouts geladen.', 'Aucun entraînement chargé pour le moment.', 'Nessun allenamento ancora caricato.', 'Todavía no se han cargado entrenamientos.'],
+  'Poređenje čeka potpuno učitavanje istorije.': [
+    'Comparison is waiting for the full history to load.', 'Für den Vergleich muss der gesamte Verlauf geladen werden.',
+    'La comparaison attend le chargement complet de l’historique.', 'Il confronto è in attesa del caricamento dell’intera cronologia.',
+    'La comparación espera a que se cargue todo el historial.'
+  ],
+  'Potrebna su najmanje dva mjerenja u izabranom periodu za poređenje.': [
+    'At least two measurements in the selected period are needed for comparison.',
+    'Für einen Vergleich sind mindestens zwei Messungen im gewählten Zeitraum erforderlich.',
+    'Il faut au moins deux mesures sur la période sélectionnée pour les comparer.',
+    'Servono almeno due misurazioni nel periodo selezionato per un confronto.',
+    'Se necesitan al menos dos mediciones en el período seleccionado para comparar.'
+  ]
+};
+for (const [source, values] of Object.entries(HISTORY_COVERAGE_TRANSLATIONS)) {
+  ['en', 'de', 'fr', 'it', 'es'].forEach((language, index) => { TRANSLATIONS[language][source] = values[index]; });
+}
