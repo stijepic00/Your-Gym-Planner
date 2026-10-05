@@ -91,6 +91,7 @@
   let cachedHistory = [];
   let customExType = 'existing';
   let currentWorkout = null;
+  const finishingWorkoutSessions = new Set();
   let activeWorkoutEditMode = false;
   let chartInstance = null;
   let routinesUnsubscribe = null;
@@ -2487,6 +2488,14 @@
     return Boolean(userId && currentWorkout?.userId === userId);
   }
 
+  function updateFinishWorkoutButton() {
+    const busy = Boolean(currentWorkout && finishingWorkoutSessions.has(`${currentWorkout.userId}:${currentWorkout.sessionId}`));
+    document.querySelectorAll('[data-action="finish-workout"]').forEach((button) => {
+      button.disabled = !ownsActiveWorkout() || busy;
+      button.setAttribute('aria-busy', String(busy));
+    });
+  }
+
   function readWorkoutDraft() {
     const userId = getWorkoutDraftUserId();
     if (!userId) return null;
@@ -2506,6 +2515,7 @@
 
   function resetActiveWorkoutState() {
     currentWorkout = null;
+    updateFinishWorkoutButton();
     activeWorkoutEditMode = false;
     customExType = 'existing';
     const container = document.getElementById('active-exercises-container');
@@ -2536,6 +2546,8 @@
     const draft = {
       userId,
       id: currentWorkout.id,
+      sessionId: currentWorkout.sessionId ||= createWorkoutId(),
+      finishedAt: currentWorkout.finishedAt || null,
       name: currentWorkout.name,
       date: currentWorkout.date,
       exercises: []
@@ -2610,7 +2622,11 @@
     const draft = readWorkoutDraft();
     if (!draft) { checkDraftState(); return; }
     resetActiveWorkoutState();
-    currentWorkout = { userId: draft.userId, id: draft.id, name: draft.name, date: draft.date, exercises: [] };
+    currentWorkout = {
+      userId: draft.userId, id: draft.id, name: draft.name, date: draft.date, exercises: [],
+      sessionId: typeof draft.sessionId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(draft.sessionId) ? draft.sessionId : createWorkoutId(),
+      finishedAt: typeof draft.finishedAt === 'string' && Number.isFinite(Date.parse(draft.finishedAt)) ? draft.finishedAt : null
+    };
 
     document.getElementById('active-workout-title').innerText = getRoutineDisplayName(draft.name);
     const container = document.getElementById('active-exercises-container');
@@ -2730,6 +2746,8 @@
 
     switchTab('active-workout');
     updateProgress();
+    saveWorkoutDraft();
+    updateFinishWorkoutButton();
   };
 
   window.startWorkout = function(workoutId) {
@@ -2739,13 +2757,14 @@
     if (!workout) workout = { id: 'new', name: 'Trening', exercises: [] };
 
     resetActiveWorkoutState();
-    currentWorkout = { userId, id: workout.id, name: workout.name, date: new Date().toISOString(), exercises: [] };
+    currentWorkout = { userId, id: workout.id, sessionId: createWorkoutId(), name: workout.name, date: new Date().toISOString(), exercises: [] };
     activeWorkoutEditMode = false;
 
     renderActiveWorkoutUI(workout);
     switchTab('active-workout');
     updateProgress();
     saveWorkoutDraft();
+    updateFinishWorkoutButton();
   };
 
   window.removeExerciseBlock = async function(btnEl) {
@@ -3722,17 +3741,21 @@
     }
     if (!ownsActiveWorkout()) return;
     const workout = currentWorkout;
+    const workoutId = workout.sessionId ||= createWorkoutId();
+    const finishKey = `${workout.userId}:${workoutId}`;
+    if (finishingWorkoutSessions.has(finishKey)) return;
+    const session = pendingQueueSession;
     const isCurrentSession = () => ownsActiveWorkout() && currentWorkout === workout;
 
     const blocks = document.querySelectorAll('.exercise-block');
-    const workoutId = createWorkoutId();
+    const finishedAt = workout.finishedAt || new Date().toISOString();
     const startedAt = currentWorkout?.date ? new Date(currentWorkout.date).getTime() : Date.now();
-    const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+    const durationSeconds = Math.max(0, Math.round((new Date(finishedAt).getTime() - startedAt) / 1000));
     const workoutData = { 
       userId: currentUser.uid,
       userEmail: currentUser.email,
       name: currentWorkout ? currentWorkout.name : "Trening", 
-      date: new Date().toISOString(), 
+      date: finishedAt,
       durationSeconds,
       exercises: [] 
     };
@@ -3779,34 +3802,48 @@
       return;
     }
 
+    // Claim synchronously, before any storage/network await. Keep the same ID
+    // in the UID-owned draft before sending, including ambiguous timeout retries.
+    finishingWorkoutSessions.add(finishKey);
+    updateFinishWorkoutButton();
+    workout.finishedAt = finishedAt;
     try {
-      await setDocWithNetworkTimeout(doc(db, "workouts", workoutId), workoutData);
+      saveWorkoutDraft();
+      if (!workout.completionState) {
+        try {
+          await setDocWithNetworkTimeout(doc(db, "workouts", workoutId), workoutData);
+          if (!isCurrentSession()) return;
+          workout.completionState = 'cloud';
+        } catch (error) {
+          if (!isCurrentSession()) return;
+          if (!isOfflineError(error)) throw error;
+          await queueWorkoutForSync(workoutId, workoutData);
+          if (!isCurrentSession()) return;
+          workout.completionState = 'queued';
+        }
+      }
       if (!isCurrentSession()) return;
-      
-      vibrate([100, 50, 100]);
-      ShowToast('Trening sačuvan u "workouts" kolekciju! ☁️💪');
-      
-      currentWorkout = null;
       clearWorkoutDraft();
-      await loadCloudData();
-      if (getWorkoutDraftUserId() !== workout.userId) return;
-      switchTab('dashboard');
-    } catch (e) {
-      // An old request must never clear or queue a different account's draft.
-      // On failure after an account switch, the owner's local draft remains.
-      if (!isCurrentSession()) return;
-      if (isOfflineError(e)) {
-        await queueWorkoutForSync(workoutId, workoutData);
-        if (!isCurrentSession()) return;
-        currentWorkout = null;
-        clearWorkoutDraft();
+      currentWorkout = null;
+      if (workout.completionState === 'queued') {
         renderDashboard();
         ShowToast('Sačuvano na uređaju — čeka internet.');
         switchTab('dashboard');
-        return;
+      } else {
+        vibrate([100, 50, 100]);
+        ShowToast('Trening sačuvan u "workouts" kolekciju! ☁️💪');
+        await loadCloudData();
+        // A slow history refresh must not navigate away from a new workout.
+        if (isPendingQueueSession(workout.userId, session) && !currentWorkout) switchTab('dashboard');
       }
-      console.error("Greška pri čuvanju: ", e);
-      ShowToast(translateUiText('Trening nije moguće sačuvati. Provjeri internet i pokušaj ponovo.'), 'error');
+    } catch (error) {
+      if (isCurrentSession()) {
+        console.error('Greška pri čuvanju:', error);
+        ShowToast(translateUiText('Trening nije moguće sačuvati. Provjeri internet i pokušaj ponovo.'), 'error');
+      }
+    } finally {
+      finishingWorkoutSessions.delete(finishKey);
+      updateFinishWorkoutButton();
     }
   };
 
