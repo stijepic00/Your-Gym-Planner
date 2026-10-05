@@ -160,6 +160,8 @@
   let pendingSyncRetryTimer = null;
   let pendingSyncRetryDelayMs = PENDING_SYNC_RETRY_MIN_MS;
   let pendingSyncInProgress = false;
+  let pendingQueueSession = 0;
+  const pendingQueueWrites = new Map();
 
   const VALID_GENDER_VALUES = new Set(['male', 'female', 'unspecified']);
   const REQUIRED_PROFILE_FIELDS = ['gender', 'age', 'heightCm', 'weightKg', 'goal', 'trainingFrequency', 'trainingLocation', 'experienceLevel', 'sessionMinutes', 'targetMuscleGroups', 'preferredExercises', 'avoidedExercises', 'foodAllergies'];
@@ -914,6 +916,16 @@
   };
 
   onAuthStateChanged(auth, async (user) => {
+    const session = ++pendingQueueSession;
+    const isCurrentSession = () => session === pendingQueueSession && auth.currentUser?.uid === user?.uid;
+    if (currentUser?.uid !== user?.uid) {
+      resetActiveWorkoutState();
+      pendingWorkoutsMemory = [];
+      pendingOperationsMemory = [];
+      pendingWorkoutsLoaded = false;
+      pendingOperationsLoaded = false;
+      clearPendingWorkoutSyncRetry();
+    }
     const logoutBtn = document.getElementById('logout-btn');
     const bottomNav = document.getElementById('bottom-nav');
     const mailDisplay = document.getElementById('user-email-display');
@@ -945,6 +957,7 @@
       if (mailDisplay) {
         try {
           const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (!isCurrentSession()) return;
           profileReadSucceeded = true;
           currentProfileData = userDoc.exists() ? userDoc.data() : null;
           if (currentProfileData) writeProfileCache(user.uid, currentProfileData);
@@ -959,6 +972,7 @@
             mailDisplay.innerText = user.email;
           }
         } catch {
+          if (!isCurrentSession()) return;
           profileReadSucceeded = false;
           currentProfileData = readProfileCache(user.uid);
           mailDisplay.innerText = currentProfileData?.fullName || user.email;
@@ -970,9 +984,13 @@
       if (hasCurrentLegalAcceptance()) showGenderProfileGateIfRequired();
 
       await loadPendingWorkouts(user.uid);
+      if (!isCurrentSession()) return;
       await loadPendingOperations(user.uid);
+      if (!isCurrentSession()) return;
       await syncPendingWorkouts();
+      if (!isCurrentSession()) return;
       await loadCloudData();
+      if (!isCurrentSession()) return;
       listenToUserRoutines(user.uid);
       switchTab('dashboard');
       ensureInAppHistory();
@@ -2455,10 +2473,68 @@
     });
   };
 
+  function getWorkoutDraftKey(userId) {
+    return `gym_active_workout_draft_v1_${userId}`;
+  }
+
+  function getWorkoutDraftUserId() {
+    const userId = currentUser?.uid;
+    return userId && auth.currentUser?.uid === userId ? userId : null;
+  }
+
+  function ownsActiveWorkout() {
+    const userId = getWorkoutDraftUserId();
+    return Boolean(userId && currentWorkout?.userId === userId);
+  }
+
+  function readWorkoutDraft() {
+    const userId = getWorkoutDraftUserId();
+    if (!userId) return null;
+    try {
+      // The legacy active_workout_draft has no trustworthy owner. Leave it
+      // untouched and never adopt it based on whoever signs in next.
+      const raw = localStorage.getItem(getWorkoutDraftKey(userId));
+      const draft = raw ? JSON.parse(raw) : null;
+      return draft?.userId === userId && typeof draft.name === 'string'
+        && typeof draft.date === 'string' && Array.isArray(draft.exercises)
+        && draft.exercises.every((exercise) => exercise && typeof exercise === 'object')
+        ? draft : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function resetActiveWorkoutState() {
+    currentWorkout = null;
+    activeWorkoutEditMode = false;
+    customExType = 'existing';
+    const container = document.getElementById('active-exercises-container');
+    if (container) container.innerHTML = '';
+    const title = document.getElementById('active-workout-title');
+    if (title) title.textContent = '';
+    const progress = document.getElementById('workout-progress');
+    if (progress) progress.style.width = '0%';
+    const alertBox = document.getElementById('active-draft-alert');
+    if (alertBox) alertBox.style.display = 'none';
+    const customModal = document.getElementById('custom-ex-modal');
+    if (customModal) {
+      customModal.style.display = 'none';
+      customModal.querySelectorAll('input, textarea, select').forEach((input) => { input.value = ''; });
+      const select = document.getElementById('custom-existing-select');
+      if (select) select.innerHTML = '';
+    }
+    const addButton = document.querySelector('[data-action="toggle-custom-modal"]');
+    if (addButton) addButton.style.display = 'none';
+    const editButton = document.querySelector('[data-action="toggle-active-workout-edit-mode"]');
+    if (editButton) editButton.textContent = translateUiText('✎ Uredi trening');
+  }
+
   function saveWorkoutDraft() {
-    if (!currentWorkout) return;
+    if (!ownsActiveWorkout()) return;
+    const userId = currentWorkout.userId;
     const blocks = document.querySelectorAll('.exercise-block');
     const draft = {
+      userId,
       id: currentWorkout.id,
       name: currentWorkout.name,
       date: currentWorkout.date,
@@ -2509,17 +2585,19 @@
       }
     });
 
-    localStorage.setItem('active_workout_draft', JSON.stringify(draft));
+    localStorage.setItem(getWorkoutDraftKey(userId), JSON.stringify(draft));
   }
 
-  function clearWorkoutDraft() { 
-    localStorage.removeItem('active_workout_draft');
+  function clearWorkoutDraft() {
+    const userId = getWorkoutDraftUserId();
+    if (!userId) return;
+    localStorage.removeItem(getWorkoutDraftKey(userId));
     const alertBox = document.getElementById('active-draft-alert');
     if (alertBox) alertBox.style.display = 'none';
   }
 
   function checkDraftState() {
-    const draft = localStorage.getItem('active_workout_draft');
+    const draft = readWorkoutDraft();
     const alertBox = document.getElementById('active-draft-alert');
     if (draft && alertBox) {
       alertBox.style.display = 'block';
@@ -2529,10 +2607,10 @@
   }
 
   window.resumeDraftWorkout = function() {
-    const draftRaw = localStorage.getItem('active_workout_draft');
-    if (!draftRaw) return;
-    const draft = JSON.parse(draftRaw);
-    currentWorkout = { id: draft.id, name: draft.name, date: draft.date, exercises: [] };
+    const draft = readWorkoutDraft();
+    if (!draft) { checkDraftState(); return; }
+    resetActiveWorkoutState();
+    currentWorkout = { userId: draft.userId, id: draft.id, name: draft.name, date: draft.date, exercises: [] };
 
     document.getElementById('active-workout-title').innerText = getRoutineDisplayName(draft.name);
     const container = document.getElementById('active-exercises-container');
@@ -2655,10 +2733,13 @@
   };
 
   window.startWorkout = function(workoutId) {
+    const userId = getWorkoutDraftUserId();
+    if (!userId) return;
     let workout = userRoutines.find(w => w.id === workoutId) || defaultWorkouts.find(w => w.id === workoutId);
     if (!workout) workout = { id: 'new', name: 'Trening', exercises: [] };
-    
-    currentWorkout = { id: workout.id, name: workout.name, date: new Date().toISOString(), exercises: [] };
+
+    resetActiveWorkoutState();
+    currentWorkout = { userId, id: workout.id, name: workout.name, date: new Date().toISOString(), exercises: [] };
     activeWorkoutEditMode = false;
 
     renderActiveWorkoutUI(workout);
@@ -3210,7 +3291,9 @@
   }
 
   window.cancelWorkout = async function() {
-    if (await showConfirm('Odustati od treninga?')) {
+    if (!ownsActiveWorkout()) return;
+    const workout = currentWorkout;
+    if (await showConfirm('Odustati od treninga?') && ownsActiveWorkout() && currentWorkout === workout) {
       currentWorkout = null;
       activeWorkoutEditMode = false;
       clearWorkoutDraft();
@@ -3245,66 +3328,19 @@
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error || new Error('IndexedDB greška'));
+    }).catch((error) => {
+      pendingDbPromise = null;
+      throw error;
     });
     return pendingDbPromise;
   }
 
-  function readLegacyPendingWorkouts(userId) {
-    try {
-      const raw = localStorage.getItem(getPendingWorkoutKey(userId));
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
   async function loadPendingWorkouts(userId) {
-    try {
-      const dbInstance = await openPendingWorkoutsDb();
-      const stored = await new Promise((resolve, reject) => {
-        const request = dbInstance.transaction('pendingWorkouts', 'readonly')
-          .objectStore('pendingWorkouts').getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error);
-      });
-      const legacy = readLegacyPendingWorkouts(userId);
-      const merged = [...stored.filter((item) => item.userId === userId), ...legacy]
-        .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
-        .map((item) => ({ ...item, userId }));
-      await savePendingWorkouts(userId, merged);
-      localStorage.removeItem(getPendingWorkoutKey(userId));
-      pendingWorkoutsMemory = merged;
-    } catch (error) {
-      pendingWorkoutsMemory = readLegacyPendingWorkouts(userId);
-      console.warn('IndexedDB nije dostupan; koristi se privremeni fallback.', error);
-    }
-    pendingWorkoutsLoaded = true;
-    renderPendingSyncStatus();
+    return savePendingWorkouts(userId, []);
   }
 
-  async function savePendingWorkouts(userId, queue) {
-    pendingWorkoutsMemory = queue;
-    try {
-      const dbInstance = await openPendingWorkoutsDb();
-      await new Promise((resolve, reject) => {
-        const transaction = dbInstance.transaction('pendingWorkouts', 'readwrite');
-        const store = transaction.objectStore('pendingWorkouts');
-        const keepIds = new Set(queue.map((item) => item.id));
-        const existingRequest = store.getAll();
-        existingRequest.onsuccess = () => {
-          (existingRequest.result || []).forEach((item) => {
-            if (item.userId === userId && !keepIds.has(item.id)) store.delete(item.id);
-          });
-          queue.forEach((item) => store.put({ ...item, userId }));
-        };
-        transaction.oncomplete = resolve;
-        transaction.onerror = () => reject(transaction.error);
-      });
-    } catch (error) {
-      localStorage.setItem(getPendingWorkoutKey(userId), JSON.stringify(queue));
-      console.warn('Red je sačuvan u fallback localStorage:', error);
-    }
+  function savePendingWorkouts(userId, queue, options = {}) {
+    return mutatePendingQueue('pendingWorkouts', userId, queue, options);
   }
 
   function createOfflineOperationId() {
@@ -3316,54 +3352,144 @@
     return `gym_pending_operations_v1_${userId}`;
   }
 
-  async function savePendingOperations(userId, operations) {
-    pendingOperationsMemory = operations;
-    try {
-      const dbInstance = await openPendingWorkoutsDb();
-      await new Promise((resolve, reject) => {
-        const transaction = dbInstance.transaction(PENDING_OPERATIONS_STORE, 'readwrite');
-        const store = transaction.objectStore(PENDING_OPERATIONS_STORE);
-        const keepIds = new Set(operations.map((item) => item.id));
-        const request = store.getAll();
-        request.onsuccess = () => {
-          (request.result || []).forEach((item) => {
-            if (item.userId === userId && !keepIds.has(item.id)) store.delete(item.id);
-          });
-          operations.forEach((item) => store.put({ ...item, userId }));
-        };
-        transaction.oncomplete = resolve;
-        transaction.onerror = () => reject(transaction.error);
-      });
-    } catch (error) {
-      localStorage.setItem(getPendingOperationsFallbackKey(userId), JSON.stringify(operations));
-      console.warn('Offline red promjena je sačuvan u localStorage fallbacku:', error);
-    }
+  function savePendingOperations(userId, operations, options = {}) {
+    return mutatePendingQueue(PENDING_OPERATIONS_STORE, userId, operations, options);
   }
 
   async function loadPendingOperations(userId) {
-    try {
-      const dbInstance = await openPendingWorkoutsDb();
-      const stored = await new Promise((resolve, reject) => {
-        const request = dbInstance.transaction(PENDING_OPERATIONS_STORE, 'readonly').objectStore(PENDING_OPERATIONS_STORE).getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error);
-      });
-      const fallback = JSON.parse(localStorage.getItem(getPendingOperationsFallbackKey(userId)) || '[]');
-      const merged = [...stored.filter((item) => item.userId === userId), ...(Array.isArray(fallback) ? fallback : [])]
-        .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
-        .sort((first, second) => Number(first.createdAt || 0) - Number(second.createdAt || 0));
-      await savePendingOperations(userId, merged);
-      localStorage.removeItem(getPendingOperationsFallbackKey(userId));
-      pendingOperationsMemory = merged;
-    } catch (error) {
-      try {
-        const fallback = JSON.parse(localStorage.getItem(getPendingOperationsFallbackKey(userId)) || '[]');
-        pendingOperationsMemory = Array.isArray(fallback) ? fallback : [];
-      } catch { pendingOperationsMemory = []; }
-      console.warn('Offline red promjena nije učitan iz IndexedDB-a:', error);
+    return savePendingOperations(userId, []);
+  }
+
+  function isPendingQueueSession(userId, session) {
+    return session === pendingQueueSession && currentUser?.uid === userId && auth.currentUser?.uid === userId;
+  }
+
+  // All writes are deltas. An older batch must never replace the current queue.
+  function pendingQueueVersion(item) {
+    if (!item) return '';
+    return JSON.stringify([item.id, item.userId, item.data, item.path, item.kind, item.merge, item.deleteFields, item.createdAt, item.queuedAt]);
+  }
+
+  function mutatePendingQueue(storeName, userId, entries, { acknowledged = [], coalesce = false, session = pendingQueueSession } = {}) {
+    if (!userId || entries.some((item) => item.userId !== userId || (item.data?.userId && item.data.userId !== userId))) {
+      return Promise.reject(new Error('Offline red ne pripada ovom nalogu.'));
     }
-    pendingOperationsLoaded = true;
-    renderPendingSyncStatus();
+    const additions = JSON.parse(JSON.stringify(entries));
+    const acknowledgements = JSON.parse(JSON.stringify(acknowledged));
+    const isWorkouts = storeName === 'pendingWorkouts';
+    const fallbackKey = isWorkouts ? getPendingWorkoutKey(userId) : getPendingOperationsFallbackKey(userId);
+    const removedKey = `gym_pending_queue_removals_v1_${storeName}_${userId}`;
+    const lockKey = `gym-offline-queue:${storeName}:${userId}`;
+    const run = async () => {
+      const readArray = (key) => {
+        const value = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(value)) throw new Error('Neispravan lokalni offline red.');
+        return value;
+      };
+      // Legacy arrays remain readable. Ownership may be implicit in their UID key,
+      // but an explicitly different owner must never be adopted.
+      const belongs = (item) => item && item.id && (!item.userId || item.userId === userId)
+        && (!item.data?.userId || item.data.userId === userId)
+        && (!item.path?.startsWith('users/') || item.path.split('/')[1] === userId);
+      const fallback = readArray(fallbackKey);
+      const foreignFallback = fallback.filter((item) => !belongs(item));
+      const removed = new Set(readArray(removedKey));
+      let queue;
+      const merge = (stored) => {
+        const rows = new Map();
+        const otherIds = new Set(stored.filter((item) => item.userId !== userId).map((item) => item.id));
+        const add = (item) => {
+          if (belongs(item) && otherIds.has(item.id)) throw new Error('Offline zapis ima drugog vlasnika.');
+          if (belongs(item) && !removed.has(item.id)) rows.set(item.id, { ...item, userId });
+        };
+        stored.filter((item) => item.userId === userId).forEach(add);
+        fallback.forEach(add);
+        for (const sent of acknowledgements) {
+          if (sent.userId === userId && pendingQueueVersion(rows.get(sent.id)) === pendingQueueVersion(sent)) {
+            rows.delete(sent.id);
+            removed.add(sent.id);
+          }
+        }
+        for (const item of additions) {
+          if (!belongs(item) || otherIds.has(item.id)) throw new Error('Offline zapis ima drugog vlasnika.');
+          if (coalesce) {
+            for (const previous of rows.values()) {
+              if (previous.path !== item.path || previous.id === item.id) continue;
+              if (previous.kind !== 'delete' && item.kind !== 'delete') {
+                const data = { ...(previous.data || {}), ...(item.data || {}) };
+                const deleteFields = new Set([...(previous.deleteFields || []), ...(item.deleteFields || [])]);
+                Object.keys(item.data || {}).forEach((field) => deleteFields.delete(field));
+                (item.deleteFields || []).forEach((field) => delete data[field]);
+                item.data = data;
+                item.deleteFields = [...deleteFields];
+                item.merge = previous.merge !== false || item.merge !== false;
+              }
+              rows.delete(previous.id);
+              removed.add(previous.id);
+            }
+          }
+          add(item);
+        }
+        return [...rows.values()].sort((a, b) => Number(a.createdAt || a.queuedAt || 0) - Number(b.createdAt || b.queuedAt || 0));
+      };
+      let dbInstance;
+      try { dbInstance = await openPendingWorkoutsDb(); }
+      catch (error) { console.warn('Offline red koristi localStorage fallback:', error); }
+      let committed = false;
+      if (dbInstance) {
+        let validationError;
+        try {
+          await new Promise((resolve, reject) => {
+            const transaction = dbInstance.transaction(storeName, 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.getAll();
+            request.onsuccess = () => {
+              try {
+                const stored = request.result || [];
+                try { queue = merge(stored); }
+                catch (error) { validationError = error; throw error; }
+                stored.forEach((item) => {
+                  if (item.userId === userId && removed.has(item.id)) store.delete(item.id);
+                });
+                queue.forEach((item) => store.put(item));
+              } catch (error) { transaction.abort(); reject(error); }
+            };
+            transaction.oncomplete = resolve;
+            transaction.onerror = () => reject(transaction.error || new Error('Offline red nije sačuvan.'));
+            transaction.onabort = () => reject(transaction.error || new Error('Offline upis je prekinut.'));
+          });
+          committed = true;
+        } catch (error) {
+          // A collision/ownership failure must not be converted into a fallback write.
+          if (validationError) throw validationError;
+          console.warn('Offline upis nije potvrđen; zadržan je fallback:', error);
+        }
+      }
+      if (committed) {
+        // Never clear legacy storage until the IndexedDB transaction has committed.
+        if (foreignFallback.length) localStorage.setItem(fallbackKey, JSON.stringify(foreignFallback));
+        else localStorage.removeItem(fallbackKey);
+        localStorage.removeItem(removedKey);
+      } else {
+        queue = queue || merge((isWorkouts ? pendingWorkoutsMemory : pendingOperationsMemory).filter((item) => item.userId === userId));
+        // Tombstones prevent acknowledged/superseded IDs returning if an old IDB
+        // copy survives a failed transaction. Existing fallback arrays stay arrays.
+        localStorage.setItem(fallbackKey, JSON.stringify([...queue, ...foreignFallback]));
+        if (removed.size) localStorage.setItem(removedKey, JSON.stringify([...removed]));
+      }
+      if (isPendingQueueSession(userId, session)) {
+        if (isWorkouts) { pendingWorkoutsMemory = queue; pendingWorkoutsLoaded = true; }
+        else { pendingOperationsMemory = queue; pendingOperationsLoaded = true; }
+        renderPendingSyncStatus();
+      }
+      return queue;
+    };
+    const lockedRun = () => navigator.locks?.request ? navigator.locks.request(lockKey, run) : run();
+    const result = (pendingQueueWrites.get(lockKey) || Promise.resolve()).then(lockedRun);
+    const settled = result.catch(() => {});
+    pendingQueueWrites.set(lockKey, settled);
+    settled.then(() => { if (pendingQueueWrites.get(lockKey) === settled) pendingQueueWrites.delete(lockKey); });
+    return result;
   }
 
   function operationReference(path) {
@@ -3379,26 +3505,13 @@
   }
 
   async function queueOfflineOperation(operation) {
-    if (!currentUser || operation.userId !== currentUser.uid) throw new Error('Nema aktivnog naloga za offline izmjenu.');
-    const existingIndex = pendingOperationsMemory.findIndex((item) => item.userId === operation.userId && item.path === operation.path);
-    let next = { ...operation, id: operation.id || createOfflineOperationId(), createdAt: operation.createdAt || Date.now(), status: 'pending' };
-    if (existingIndex >= 0) {
-      const previous = pendingOperationsMemory[existingIndex];
-      if (next.kind !== 'delete' && previous.kind !== 'delete') {
-        const mergedData = { ...(previous.data || {}), ...(next.data || {}) };
-        const mergedDeleteFields = new Set([...(previous.deleteFields || []), ...(next.deleteFields || [])]);
-        // A newer value for a field must win over an older queued field deletion.
-        Object.keys(mergedData).forEach((field) => mergedDeleteFields.delete(field));
-        next = { ...previous, ...next, kind: 'set', merge: previous.merge !== false || next.merge !== false, data: mergedData, deleteFields: [...mergedDeleteFields] };
-      }
-      pendingOperationsMemory.splice(existingIndex, 1);
-    }
-    pendingOperationsMemory.push(next);
-    pendingOperationsMemory.sort((first, second) => Number(first.createdAt || 0) - Number(second.createdAt || 0));
-    await savePendingOperations(currentUser.uid, pendingOperationsMemory);
-    renderPendingSyncStatus();
-    schedulePendingWorkoutSync(0);
-    return next;
+    const userId = operation.userId;
+    const session = pendingQueueSession;
+    if (!userId || !isPendingQueueSession(userId, session)) throw new Error('Nema aktivnog naloga za offline izmjenu.');
+    const next = { ...operation, id: operation.id || createOfflineOperationId(), createdAt: operation.createdAt || Date.now(), status: 'pending' };
+    const queue = await savePendingOperations(userId, [next], { coalesce: true });
+    if (isPendingQueueSession(userId, session)) schedulePendingWorkoutSync(0);
+    return queue.find((item) => item.id === next.id) || next;
   }
 
   async function writeUserDocument(path, data, { merge = true, deleteFields = [] } = {}) {
@@ -3407,6 +3520,10 @@
       const nextProfile = { ...getEffectiveCurrentProfile(), ...(data || {}) };
       deleteFields.forEach((field) => delete nextProfile[field]);
       writeProfileCache(currentUser.uid, nextProfile);
+    }
+    if (mustQueueUserDocument(path)) {
+      await queueOfflineOperation(operation);
+      return { queued: true };
     }
     try {
       if (!navigator.onLine) throw Object.assign(new Error('offline'), { code: 'unavailable' });
@@ -3421,6 +3538,10 @@
 
   async function deleteUserDocument(path) {
     const operation = { userId: currentUser?.uid, kind: 'delete', path };
+    if (mustQueueUserDocument(path)) {
+      await queueOfflineOperation(operation);
+      return { queued: true };
+    }
     try {
       if (!navigator.onLine) throw Object.assign(new Error('offline'), { code: 'unavailable' });
       await executePendingOperation(operation);
@@ -3437,6 +3558,13 @@
     const reference = doc(collectionReference);
     const result = await writeUserDocument(reference.path, data, { merge: false });
     return { id: reference.id, ...result };
+  }
+
+  function mustQueueUserDocument(path) {
+    // Online edits made during a flush must not overtake older queued writes.
+    return pendingSyncInProgress
+      || pendingOperationsMemory.some((item) => item.userId === currentUser?.uid && item.path === path)
+      || pendingWorkoutsMemory.some((item) => item.userId === currentUser?.uid && `workouts/${item.id}` === path);
   }
 
   function isOfflineError(error) {
@@ -3467,14 +3595,15 @@
   }
 
   async function queueWorkoutForSync(workoutId, workoutData) {
-    const queue = pendingWorkoutsMemory;
-    if (!queue.some((item) => item.id === workoutId)) {
-      queue.push({ id: workoutId, userId: currentUser.uid, data: workoutData, queuedAt: Date.now(), status: 'pending' });
-      await savePendingWorkouts(currentUser.uid, queue);
-    }
+    const userId = getWorkoutDraftUserId();
+    if (!userId || workoutData.userId !== userId) return;
+    const session = pendingQueueSession;
+    await savePendingWorkouts(userId, [{ id: workoutId, userId, data: workoutData, queuedAt: Date.now(), status: 'pending' }]);
+    if (!isPendingQueueSession(userId, session)) return;
+    if (getWorkoutDraftUserId() !== userId) return;
     const localCopy = { ...workoutData, _localId: workoutId, _syncStatus: 'pending' };
     cachedHistory = [localCopy, ...cachedHistory.filter((item) => item._localId !== workoutId)].slice(0, 30);
-    writeHistoryCache(currentUser.uid, cachedHistory);
+    writeHistoryCache(userId, cachedHistory);
     schedulePendingWorkoutSync();
   }
 
@@ -3500,11 +3629,13 @@
   }
 
   async function syncPendingWorkouts() {
-    if (!currentUser || !navigator.onLine || pendingSyncInProgress) return;
-    const queue = pendingWorkoutsMemory.filter((item) => item.userId === currentUser.uid);
-    const operationQueue = pendingOperationsMemory.filter((item) => item.userId === currentUser.uid);
-    const queuedWorkoutIds = new Set(queue.map((item) => item.id));
-    const queuedOperationIds = new Set(operationQueue.map((item) => item.id));
+    const userId = currentUser?.uid;
+    const session = pendingQueueSession;
+    const isCurrentSession = () => isPendingQueueSession(userId, session);
+    if (!userId || !isCurrentSession() || !navigator.onLine || pendingSyncInProgress) return;
+    // Detach the batch from live memory; newly queued records belong to the next pass.
+    const queue = JSON.parse(JSON.stringify(pendingWorkoutsMemory.filter((item) => item.userId === userId)));
+    const operationQueue = JSON.parse(JSON.stringify(pendingOperationsMemory.filter((item) => item.userId === userId)));
     if (queue.length === 0 && operationQueue.length === 0) {
       clearPendingWorkoutSyncRetry();
       return;
@@ -3512,58 +3643,74 @@
     pendingSyncInProgress = true;
     renderPendingSyncStatus();
 
-    const remaining = [];
-    const remainingOperations = [];
     let syncedCount = 0;
+    let failed = false;
     try {
-    for (const item of queue) {
-      item.status = 'syncing';
-      await savePendingWorkouts(currentUser.uid, queue);
-      renderPendingSyncStatus();
-      try {
-        await setDocWithNetworkTimeout(doc(db, 'workouts', item.id), item.data);
-        item.status = 'synced';
-        syncedCount += 1;
-      } catch (error) {
-        item.status = 'error';
-        item.error = String(error?.message || 'Slanje nije uspjelo');
-        remaining.push(item);
-        if (!isOfflineError(error)) console.error('Greška pri sinhronizaciji treninga:', error);
+      batches: for (const [items, save, isWorkout] of [[queue, savePendingWorkouts, true], [operationQueue, savePendingOperations, false]]) {
+        for (const item of items) {
+          if (!isCurrentSession() || !navigator.onLine) break batches;
+          // Re-read under the storage lock: a newer edit may have superseded this ID.
+          const latest = await save(userId, [], { session });
+          if (!isCurrentSession() || !navigator.onLine) break batches;
+          if (!latest.some((entry) => pendingQueueVersion(entry) === pendingQueueVersion(item))) continue;
+          const liveItem = (isWorkout ? pendingWorkoutsMemory : pendingOperationsMemory).find((entry) => entry.id === item.id && entry.userId === userId);
+          if (liveItem) liveItem.status = 'syncing';
+          renderPendingSyncStatus();
+          try {
+            if (isWorkout) await setDocWithNetworkTimeout(doc(db, 'workouts', item.id), item.data);
+            else await executePendingOperationWithTimeout(item);
+            // An in-flight request cannot be cancelled. Keep it for an idempotent
+            // retry if the session changed; never acknowledge under the new UID.
+            if (!isCurrentSession()) break batches;
+            await save(userId, [], { acknowledged: [item], session });
+            syncedCount += 1;
+          } catch (error) {
+            failed = true;
+            const failedItem = (isWorkout ? pendingWorkoutsMemory : pendingOperationsMemory)
+              .find((entry) => pendingQueueVersion(entry) === pendingQueueVersion(item));
+            if (isCurrentSession() && failedItem) {
+              failedItem.status = 'error';
+              failedItem.error = String(error?.message || 'Slanje nije uspjelo');
+            }
+            if (!isOfflineError(error)) console.error('Greška pri sinhronizaciji offline reda:', error);
+            // Leave failed and unattempted items intact, in order, for the retry.
+            break batches;
+          }
+        }
       }
-    }
-    for (const operation of operationQueue) {
-      operation.status = 'syncing';
-      try {
-        await executePendingOperation(operation);
-        syncedCount += 1;
-      } catch (error) {
-        operation.status = 'error';
-        operation.error = String(error?.message || 'Slanje nije uspjelo');
-        remainingOperations.push(operation);
-        if (!isOfflineError(error)) console.error('Greška pri sinhronizaciji lokalne izmjene:', error);
-      }
-    }
-    // Keep changes that the user made while an earlier batch was being sent.
-    const workoutsAddedDuringSync = pendingWorkoutsMemory.filter((item) => item.userId === currentUser.uid && !queuedWorkoutIds.has(item.id));
-    const operationsAddedDuringSync = pendingOperationsMemory.filter((item) => item.userId === currentUser.uid && !queuedOperationIds.has(item.id));
-    await savePendingWorkouts(currentUser.uid, [...remaining, ...workoutsAddedDuringSync]);
-    await savePendingOperations(currentUser.uid, [...remainingOperations, ...operationsAddedDuringSync]
-      .sort((first, second) => Number(first.createdAt || 0) - Number(second.createdAt || 0)));
-    if ((remaining.length || remainingOperations.length) && navigator.onLine) {
-      pendingSyncRetryDelayMs = Math.min(pendingSyncRetryDelayMs * 2, PENDING_SYNC_RETRY_MAX_MS);
-      schedulePendingWorkoutSync();
-    } else if (remaining.length === 0 && remainingOperations.length === 0) {
-      clearPendingWorkoutSyncRetry();
-    }
-    renderPendingSyncStatus();
-    if (syncedCount > 0) {
-      await loadCloudData();
-      const waiting = remaining.length + remainingOperations.length;
-      ShowToast(waiting ? `Sinhronizovano: ${syncedCount}. Čeka još: ${waiting}.` : 'Lokalne izmjene su sinhronizovane sa Cloudom.');
-    }
+    } catch (error) {
+      failed = true;
+      console.error('Offline red je zadržan jer obrada nije završena:', error);
     } finally {
       pendingSyncInProgress = false;
+      if (isCurrentSession()) {
+        const retryDelay = pendingSyncRetryDelayMs;
+        clearPendingWorkoutSyncRetry();
+        if (failed) pendingSyncRetryDelayMs = Math.min(retryDelay * 2, PENDING_SYNC_RETRY_MAX_MS);
+        renderPendingSyncStatus();
+      }
+      // Also wake a newly signed-in owner's queue after an older request settles.
+      // New entries are scheduled even when the original batch fully succeeded.
+      schedulePendingWorkoutSync(isCurrentSession() && failed ? pendingSyncRetryDelayMs : 0);
     }
+    // A slow history read must not keep the queue lock held for the next batch
+    // or for a newly signed-in account. Offline entries are already durable.
+    if (isCurrentSession() && syncedCount > 0 && navigator.onLine) {
+      await loadCloudData();
+      if (isCurrentSession()) {
+        const waiting = pendingWorkoutsMemory.length + pendingOperationsMemory.length;
+        ShowToast(waiting ? `Sinhronizovano: ${syncedCount}. Čeka još: ${waiting}.` : 'Lokalne izmjene su sinhronizovane sa Cloudom.');
+      }
+    }
+  }
+
+  function executePendingOperationWithTimeout(operation, timeoutMs = 6000) {
+    if (!navigator.onLine) return Promise.reject(Object.assign(new Error('offline'), { code: 'unavailable' }));
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(Object.assign(new Error('network timeout'), { code: 'unavailable' })), timeoutMs);
+    });
+    return Promise.race([executePendingOperation(operation), timeout]).finally(() => clearTimeout(timeoutId));
   }
 
   window.syncPendingWorkoutsNow = syncPendingWorkouts;
@@ -3573,6 +3720,9 @@
       ShowToast("Morate biti prijavljeni da biste sačuvali trening!", 'error');
       return;
     }
+    if (!ownsActiveWorkout()) return;
+    const workout = currentWorkout;
+    const isCurrentSession = () => ownsActiveWorkout() && currentWorkout === workout;
 
     const blocks = document.querySelectorAll('.exercise-block');
     const workoutId = createWorkoutId();
@@ -3631,6 +3781,7 @@
 
     try {
       await setDocWithNetworkTimeout(doc(db, "workouts", workoutId), workoutData);
+      if (!isCurrentSession()) return;
       
       vibrate([100, 50, 100]);
       ShowToast('Trening sačuvan u "workouts" kolekciju! ☁️💪');
@@ -3638,10 +3789,15 @@
       currentWorkout = null;
       clearWorkoutDraft();
       await loadCloudData();
+      if (getWorkoutDraftUserId() !== workout.userId) return;
       switchTab('dashboard');
     } catch (e) {
+      // An old request must never clear or queue a different account's draft.
+      // On failure after an account switch, the owner's local draft remains.
+      if (!isCurrentSession()) return;
       if (isOfflineError(e)) {
         await queueWorkoutForSync(workoutId, workoutData);
+        if (!isCurrentSession()) return;
         currentWorkout = null;
         clearWorkoutDraft();
         renderDashboard();
@@ -3679,17 +3835,20 @@ function writeHistoryCache(userId, history) {
 
 async function loadCloudData() {
   if (!currentUser) return;
-  cachedHistory = readHistoryCache(currentUser.uid);
+  const userId = currentUser.uid;
+  const session = pendingQueueSession;
+  cachedHistory = readHistoryCache(userId);
   checkDraftState();
   renderDashboard();
   try {
     const q = query(
       collection(db, "workouts"), 
-      where("userId", "==", currentUser.uid),
+      where("userId", "==", userId),
       orderBy("date", "desc"),
       limit(30)
     );
     const querySnapshot = await getDocs(q);
+    if (!isPendingQueueSession(userId, session)) return;
     cachedHistory = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -3699,7 +3858,7 @@ async function loadCloudData() {
         cachedHistory.push({ id: docSnap.id, ...data });
       }
     });
-    writeHistoryCache(currentUser.uid, cachedHistory);
+    writeHistoryCache(userId, cachedHistory);
     checkDraftState();
     renderDashboard();
     if (document.getElementById('view-progress')?.classList.contains('active')) renderProgressOverview();
@@ -7098,16 +7257,15 @@ function renderPendingSyncStatus() {
   }
 
   async function clearLocalUserData(userId) {
-    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_profile_cache_v1_', 'gym_pending_workouts_v', 'gym_pending_operations_v1_', 'gym_legal_acceptance_v1_', 'gym_weekly_goal_v1_', 'gym_food_entries_cache_v1_', 'gym_food_daily_goal_v1_', 'gym_food_favorites_v1_'];
+    const prefixes = ['gym_routines_cache_v', 'gym_history_cache_v', 'gym_body_measurements_cache_v', 'gym_profile_photo_v', 'gym_profile_cache_v1_', 'gym_pending_workouts_v', 'gym_pending_operations_v1_', 'gym_pending_queue_removals_v1_', 'gym_legal_acceptance_v1_', 'gym_weekly_goal_v1_', 'gym_food_entries_cache_v1_', 'gym_food_daily_goal_v1_', 'gym_food_favorites_v1_'];
     const matchingKeys = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
       if (key && key.endsWith(`_${userId}`) && prefixes.some((prefix) => key.startsWith(prefix))) matchingKeys.push(key);
     }
     matchingKeys.forEach((key) => localStorage.removeItem(key));
-    localStorage.removeItem('active_workout_draft');
-    currentWorkout = null;
-    activeWorkoutEditMode = false;
+    localStorage.removeItem(getWorkoutDraftKey(userId));
+    if (currentUser?.uid === userId) resetActiveWorkoutState();
     pendingWorkoutsMemory = [];
     pendingWorkoutsLoaded = false;
     pendingOperationsMemory = [];
