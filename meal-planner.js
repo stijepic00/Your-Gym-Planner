@@ -108,6 +108,25 @@ const foodAliases = {
 
 export const MEAL_CURRENCIES = { EUR: { symbol: '€', factor: 1 }, BAM: { symbol: 'KM', factor: 2 }, RSD: { symbol: 'RSD', factor: 120 } };
 export const MEAL_CATALOG_VERSION = 1;
+export const MEAL_DIETS = Object.freeze(['none', 'vegetarian', 'vegan', 'halal', 'orthodox_fast_water', 'orthodox_fast_oil', 'orthodox_fast_fish']);
+
+// Shared by the form, generator and stored-document validation. Keep these
+// bounds aligned with validMealPlan in firestore.rules.
+export function validMealPlanOptions(options) {
+  return Boolean(options
+    && ['lose_weight', 'maintain', 'gain_weight'].includes(options.goal)
+    && MEAL_DIETS.includes(options.diet)
+    && typeof options.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(options.startDate)
+    && Number.isInteger(options.people) && options.people >= 1 && options.people <= 10
+    && Number.isInteger(options.dayCount) && options.dayCount >= 1 && options.dayCount <= 7
+    && Number.isInteger(options.mealCount) && options.mealCount >= 2 && options.mealCount <= 5
+    && Number.isFinite(options.budget) && options.budget >= 1 && options.budget <= 1000000
+    && ['EUR', 'BAM', 'RSD'].includes(options.currency)
+    && typeof options.highProtein === 'boolean' && typeof options.simpleOnly === 'boolean'
+    && Number.isInteger(options.maxMinutes) && options.maxMinutes >= 5 && options.maxMinutes <= 180
+    && typeof options.allergies === 'string' && options.allergies.length <= 1000
+    && typeof options.disliked === 'string' && options.disliked.length <= 1000);
+}
 export const getMealRecipe = (id) => recipes.get(id) || null;
 export function getMealRecipeName(item, language = 'sr') {
   if (!item) return '';
@@ -204,6 +223,7 @@ export function planSlots(mealCount) {
 }
 
 export function eligibleMealRecipes(options) {
+  if (!MEAL_DIETS.includes(options?.diet)) return { recipes: [], unknown: [], error: 'invalid-options' };
   const mandatory = resolveRestrictions(options.allergies);
   const disliked = resolveRestrictions(options.disliked);
   const unknown = [...mandatory.unknown, ...disliked.unknown];
@@ -249,6 +269,7 @@ function mealScore(item, options, priorUses, dayUses, slotIndex) {
 }
 
 export function buildMealPlan(options) {
+  if (!validMealPlanOptions(options)) return { error: 'invalid-options' };
   const slots = planSlots(options.mealCount);
   const estimatedBudgetEur = options.budget / MEAL_CURRENCIES[options.currency].factor;
   const { recipes: available, unknown } = eligibleMealRecipes(options);
@@ -276,6 +297,7 @@ export function buildMealPlan(options) {
 }
 
 export function replaceMealInPlan(plan, dayIndex, mealIndex, options) {
+  if (!validMealPlanOptions(options)) return null;
   const day = plan.days[dayIndex];
   const meal = day?.meals?.[mealIndex];
   if (!meal) return null;
@@ -301,15 +323,17 @@ export function replaceMealInPlan(plan, dayIndex, mealIndex, options) {
 }
 
 export function validStoredMealPlan(data) {
-  if (!data || !Array.isArray(data.days) || data.days.length < 1 || data.days.length > 7 || !planSlots(data.mealCount).length) return false;
-  if (!MEAL_CURRENCIES[data.currency] || !['lose_weight', 'maintain', 'gain_weight'].includes(data.goal)
-    || !['none', 'vegetarian', 'vegan', 'halal', 'orthodox_fast_water', 'orthodox_fast_oil', 'orthodox_fast_fish'].includes(data.diet) || !Number.isInteger(data.people) || data.people < 1 || data.people > 10
-    || !Number.isFinite(data.budget) || data.budget <= 0 || !Number.isInteger(data.maxMinutes) || data.maxMinutes < 5 || data.maxMinutes > 180
-    || !Number.isInteger(data.dayCount) || data.dayCount !== data.days.length
-    || !/^\d{4}-\d{2}-\d{2}$/.test(data.startDate || '')
-    || typeof data.allergies !== 'string' || typeof data.disliked !== 'string'
-    || !Number.isFinite(data.estimatedCostEur) || data.estimatedCostEur < 0) return false;
-  return data.days.every((day) => /^\d{4}-\d{2}-\d{2}$/.test(day.date)
+  if (!validMealPlanOptions(data) || !Array.isArray(data.days) || data.days.length !== data.dayCount) return false;
+  const fields = ['userId', 'createdAt', 'startDate', 'catalogVersion', 'goal', 'diet', 'people', 'dayCount', 'mealCount', 'budget', 'currency', 'highProtein', 'simpleOnly', 'maxMinutes', 'allergies', 'disliked', 'estimatedCostEur', 'days'];
+  // `id` is supplied by the local list of saved documents, never sent to Firestore.
+  if (!Object.keys(data).every((key) => key === 'id' || fields.includes(key))
+    || !fields.every((key) => Object.hasOwn(data, key))
+    || typeof data.userId !== 'string' || data.userId.length === 0
+    || typeof data.createdAt !== 'string' || data.createdAt.length < 1 || data.createdAt.length > 40
+    || data.catalogVersion !== MEAL_CATALOG_VERSION
+    || typeof data.startDate !== 'string'
+    || !Number.isFinite(data.estimatedCostEur) || data.estimatedCostEur < 0 || data.estimatedCostEur > 100000) return false;
+  return data.days.every((day) => day && typeof day.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day.date)
     && Array.isArray(day.meals) && day.meals.length === data.mealCount
-    && day.meals.every((meal) => ['breakfast', 'lunch', 'dinner', 'snack'].includes(meal.slot) && getMealRecipe(meal.recipeId)));
+    && day.meals.every((meal) => meal && ['breakfast', 'lunch', 'dinner', 'snack'].includes(meal.slot) && getMealRecipe(meal.recipeId)));
 }

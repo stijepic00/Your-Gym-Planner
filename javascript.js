@@ -3,7 +3,7 @@
   import { translateText, canonicalUiText, formatUiMessage, LOCALES } from './ui-i18n.js?v=20261003-home-v127';
   import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261003-home-v127';
   import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261003-home-v127';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validStoredMealPlan } from './meal-planner.js?v=20261003-home-v127';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261003-home-v127';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -6015,15 +6015,7 @@ function renderPendingSyncStatus() {
       allergies: value('meal-plan-allergies')?.trim() || '',
       disliked: value('meal-plan-disliked')?.trim() || ''
     };
-    if (!['lose_weight', 'maintain', 'gain_weight'].includes(options.goal)
-      || !/^\d{4}-\d{2}-\d{2}$/.test(options.startDate || '')
-      || !Number.isInteger(options.people) || options.people < 1 || options.people > 10
-      || !Number.isInteger(options.dayCount) || options.dayCount < 1 || options.dayCount > 7
-      || !Number.isInteger(options.mealCount) || options.mealCount < 2 || options.mealCount > 5
-      || !Number.isFinite(options.budget) || options.budget < 1 || options.budget > 1000000
-      || !MEAL_CURRENCIES[options.currency] || !['none', 'vegetarian', 'vegan', 'halal', 'orthodox_fast_water', 'orthodox_fast_oil', 'orthodox_fast_fish'].includes(options.diet)
-      || !Number.isInteger(options.maxMinutes) || options.maxMinutes < 5 || options.maxMinutes > 180
-      || options.allergies.length > 1000 || options.disliked.length > 1000) return null;
+    if (!validMealPlanOptions(options)) return null;
     return options;
   }
 
@@ -6263,8 +6255,10 @@ function renderPendingSyncStatus() {
     }
     if (result.error === 'no-recipes') { status.textContent = copy.noRecipes; return; }
     if (result.error === 'budget') { status.textContent = copy.lowBudget(mealPlanCurrencyAmount(result.minimumCostEur, options.currency)); return; }
+    const plan = { ...result, ...options, userId: currentUser.uid, createdAt: new Date().toISOString() };
+    if (result.error || !validStoredMealPlan(plan)) { status.textContent = copy.badForm; return; }
     activeMealPlanOptions = options;
-    activeMealPlan = { ...result, ...options, userId: currentUser.uid, createdAt: new Date().toISOString() };
+    activeMealPlan = plan;
     activeMealPlanDayIndex = 0;
     document.getElementById('meal-planner-modal').style.display = 'none';
     renderMealPlan();
@@ -6289,12 +6283,13 @@ function renderPendingSyncStatus() {
     if (currentUser?.uid !== userId || activeMealPlan?.userId !== userId) return;
     if (!savedMealPlansLoaded) { ShowToast(mealPlannerCopy().loadFirst, 'error'); return; }
     if (savedMealPlansLoaded && savedMealPlans.length >= 10) { ShowToast(mealPlannerCopy().limitPlans, 'error'); return; }
-    if (activeMealPlan.days.some((day) => day.meals.some((meal) => !mealPlanRecipeAllowed(getMealRecipe(meal.recipeId), activeMealPlanOptions)))) {
+    const { id: ignoredId, ...data } = activeMealPlan;
+    if (!validStoredMealPlan(data)) { ShowToast(mealPlannerCopy().badForm, 'error'); return; }
+    if (data.days.some((day) => day.meals.some((meal) => !mealPlanRecipeAllowed(getMealRecipe(meal.recipeId), data)))) {
       ShowToast(mealPlannerCopy().changesUnsafe, 'error'); return;
     }
     const button = document.querySelector('[data-action="save-meal-plan"]');
     if (button) button.disabled = true;
-    const { id: ignoredId, ...data } = activeMealPlan;
     try {
       const saved = await createUserDocument(`users/${userId}/mealPlans`, data);
       if (currentUser?.uid !== userId) return;
