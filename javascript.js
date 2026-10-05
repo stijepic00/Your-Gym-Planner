@@ -133,6 +133,7 @@
   let savedMealPlans = [];
   let savedMealPlansLoaded = false;
   let pendingMealPlanDeleteId = null;
+  const MEAL_PLAN_DRAFT_PREFIX = 'gymleader-meal-plan-draft-v1:';
   let editingFoodEntryId = null;
   let pendingFoodEntryDeleteId = null;
   let editingHistoryWorkoutId = null;
@@ -951,6 +952,7 @@
         renderSavedMealPlans();
       }
       currentUser = user;
+      restoreMealPlanDraft(user.uid);
       
       if (bottomNav) bottomNav.style.display = 'flex';
       if (logoutBtn) logoutBtn.style.display = 'inline-block';
@@ -5998,6 +6000,64 @@ function renderPendingSyncStatus() {
     });
   }
 
+  function getMealPlanDraftKey(userId) {
+    return userId ? `${MEAL_PLAN_DRAFT_PREFIX}${userId}` : '';
+  }
+
+  function clearMealPlanDraft(userId = currentUser?.uid) {
+    const key = getMealPlanDraftKey(userId);
+    if (!key) return;
+    try { localStorage.removeItem(key); } catch { /* A local draft is optional. */ }
+  }
+
+  function persistMealPlanDraft() {
+    const userId = currentUser?.uid;
+    const plan = activeMealPlan;
+    if (!userId) return false;
+    // Saved plans already have their own Firestore/local-queue lifecycle. Only
+    // retain a not-yet-saved proposal here.
+    if (!plan || plan.id) {
+      clearMealPlanDraft(userId);
+      return false;
+    }
+    if (plan.userId !== userId || !validStoredMealPlan(plan)) return false;
+    try {
+      localStorage.setItem(getMealPlanDraftKey(userId), JSON.stringify({
+        userId,
+        plan,
+        dayIndex: activeMealPlanDayIndex,
+        savedAt: Date.now()
+      }));
+      return true;
+    } catch (error) {
+      console.warn('Prijedlog obroka nije mogao biti sačuvan lokalno:', error);
+      return false;
+    }
+  }
+
+  function restoreMealPlanDraft(userId) {
+    if (!userId || activeMealPlan?.userId === userId) return false;
+    const key = getMealPlanDraftKey(userId);
+    try {
+      const draft = JSON.parse(localStorage.getItem(key) || 'null');
+      const plan = draft?.plan;
+      if (draft?.userId !== userId || plan?.userId !== userId || plan?.id || !validStoredMealPlan(plan)) {
+        if (draft) localStorage.removeItem(key);
+        return false;
+      }
+      activeMealPlan = plan;
+      activeMealPlanOptions = { ...plan };
+      activeMealPlanDayIndex = Number.isInteger(draft.dayIndex)
+        ? Math.min(Math.max(draft.dayIndex, 0), plan.days.length - 1)
+        : 0;
+      renderMealPlan();
+      return true;
+    } catch {
+      try { localStorage.removeItem(key); } catch { /* Storage may be blocked. */ }
+      return false;
+    }
+  }
+
   function mealPlanOptionsFromForm() {
     const value = (id) => document.getElementById(id)?.value;
     const options = {
@@ -6260,6 +6320,7 @@ function renderPendingSyncStatus() {
     activeMealPlanOptions = options;
     activeMealPlan = plan;
     activeMealPlanDayIndex = 0;
+    persistMealPlanDraft();
     document.getElementById('meal-planner-modal').style.display = 'none';
     renderMealPlan();
     document.getElementById('meal-planner-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -6272,6 +6333,7 @@ function renderPendingSyncStatus() {
     if (!updated) { ShowToast(mealPlannerCopy().swapUnavailable, 'error'); return; }
     activeMealPlan = { ...updated };
     delete activeMealPlan.id;
+    persistMealPlanDraft();
     renderMealPlan();
     ShowToast(mealPlannerCopy().swapped);
   };
@@ -6294,6 +6356,7 @@ function renderPendingSyncStatus() {
       const saved = await createUserDocument(`users/${userId}/mealPlans`, data);
       if (currentUser?.uid !== userId) return;
       activeMealPlan = { ...data, id: saved.id };
+      clearMealPlanDraft(userId);
       savedMealPlans = [{ ...data, id: saved.id }, ...savedMealPlans].slice(0, 10);
       savedMealPlansLoaded = true;
       renderSavedMealPlans();
@@ -6322,6 +6385,7 @@ function renderPendingSyncStatus() {
     const nextIndex = activeMealPlanDayIndex + direction;
     if (nextIndex < 0 || nextIndex >= activeMealPlan.days.length) return;
     activeMealPlanDayIndex = nextIndex;
+    persistMealPlanDraft();
     renderMealPlan();
   };
 
@@ -7297,6 +7361,7 @@ function renderPendingSyncStatus() {
     }
     matchingKeys.forEach((key) => localStorage.removeItem(key));
     localStorage.removeItem(getWorkoutDraftKey(userId));
+    clearMealPlanDraft(userId);
     if (currentUser?.uid === userId) resetActiveWorkoutState();
     pendingWorkoutsMemory = [];
     pendingWorkoutsLoaded = false;
@@ -8112,6 +8177,7 @@ function renderPendingSyncStatus() {
           window.saveMealPlan();
           break;
         case 'discard-meal-plan':
+          if (!activeMealPlan?.id) clearMealPlanDraft();
           activeMealPlan = null;
           activeMealPlanOptions = null;
           renderMealPlan();

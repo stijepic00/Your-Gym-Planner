@@ -66,7 +66,7 @@ for (const language of SUPPORTED_LANGUAGES) {
   }
 }
 for (const [language, terms] of Object.entries({fr:'lait, œufs',it:'latte, uova',es:'leche, huevos'})) {
-  const result=eligibleMealRecipes({diet:'balanced',allergies:terms,maxMinutes:60});
+  const result=eligibleMealRecipes({diet:'none',allergies:terms,maxMinutes:60});
   check(result.unknown.length===0, `${language}: localized allergens`);
   check(result.recipes.every(recipe=>recipe.ingredients.every(({foodId})=>!FOOD_LIBRARY.find(food=>food.id===foodId)?.allergens.some(a=>['milk','eggs'].includes(a)))),`${language}: allergen filter`);
 }
