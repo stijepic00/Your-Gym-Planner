@@ -26,7 +26,7 @@ function harness({ online = true, cached = null, readProfile, loadQueue } = {}) 
   const calls = { tabs: [], queueStarted: 0, cloudStarted: 0 };
   let observer;
   const c = {
-    window: null, document: { getElementById: node }, navigator: { onLine: online },
+    window: null, document: { getElementById: node }, navigator: { onLine: online }, isLocalDevelopment: false,
     console: { error() {}, warn() {} }, setTimeout, clearTimeout,
     auth: { currentUser: null, authStateReady: async () => {} }, db: {},
     pendingQueueSession: 0, currentUser: null, currentProfileData: null, profileWizardReturnTo: '',
@@ -120,4 +120,14 @@ function harness({ online = true, cached = null, readProfile, loadQueue } = {}) 
   assert.equal(h.node('user-email-display').innerText, 'Offline Test');
 }
 
-console.log('PASS: first boot, duplicate auth, retry and offline boot');
+// 5. If Firebase Auth is slow before it emits its first state, signed-out users
+// can still reach the form instead of being trapped on a loading error.
+{
+  const h = harness();
+  h.c.clearTimeout(vm.runInContext('authBootTimer', h.c));
+  vm.runInContext('revealSignedOutAuthAfterBootTimeout()', h.c);
+  assert.equal(h.node('auth-boot-screen').classList.contains('is-hidden'), true);
+  assert.deepEqual(h.calls.tabs, ['login']);
+}
+
+console.log('PASS: first boot, duplicate auth, retry, offline boot and delayed Auth fallback');

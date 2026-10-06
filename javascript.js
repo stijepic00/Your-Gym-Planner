@@ -1,10 +1,10 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261006-routine-flow-v133';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261006-routine-flow-v133';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-routine-flow-v133';
-  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261006-routine-flow-v133';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-routine-flow-v133';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261006-routine-flow-v133';
+  import { TRANSLATIONS } from './translations.js?v=20261006-local-boot-v135';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261006-local-boot-v135';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-local-boot-v135';
+  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261006-local-boot-v135';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-local-boot-v135';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261006-local-boot-v135';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -54,17 +54,18 @@
   const appCheckSiteKey = document.querySelector('meta[name="firebase-app-check-site-key"]')?.content.trim();
   let appCheck = null;
   const isLocalDevelopment = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-  // Firebase App Check is enforced for this project.  reCAPTCHA Enterprise cannot
-  // validate a local Live Server origin, so Firebase's documented debug provider is
-  // used only on the developer machine.  It never runs on gymleader.app.
-  if (appCheckSiteKey && isLocalDevelopment) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  }
-  if (appCheckSiteKey) {
+  // App Check remains active on deployed origins. A local Live Server cannot
+  // complete the production reCAPTCHA Enterprise validation, which otherwise
+  // makes Firebase Auth report a misleading network failure before login.
+  // Local development therefore does not initialize App Check. This branch is
+  // limited to loopback origins and cannot weaken the deployed application.
+  if (appCheckSiteKey && !isLocalDevelopment) {
     appCheck = initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true
     });
+  } else if (appCheckSiteKey) {
+    console.info('Firebase App Check is disabled for the local development origin.');
   }
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -934,7 +935,20 @@
   };
 
   let authObserved = false;
-  let authBootTimer = setTimeout(() => { if (!authObserved) showAuthBootError(!navigator.onLine); }, 15000);
+  const AUTH_BOOT_TIMEOUT_MS = isLocalDevelopment ? 5000 : 15000;
+  function revealSignedOutAuthAfterBootTimeout() {
+    if (authObserved) return;
+    // A delayed Auth SDK must never trap a signed-out visitor behind the loading
+    // screen. The normal observer can still arrive later and will take over.
+    if (!auth.currentUser) {
+      console.warn('Firebase Auth did not report an initial state before the boot timeout. Showing the sign-in screen.');
+      switchTab('login');
+      hideAuthBootScreen();
+      return;
+    }
+    showAuthBootError(!navigator.onLine);
+  }
+  let authBootTimer = setTimeout(revealSignedOutAuthAfterBootTimeout, AUTH_BOOT_TIMEOUT_MS);
   async function processAuthState(user) {
     authObserved = true;
     clearTimeout(authBootTimer);
@@ -1087,7 +1101,7 @@
       try { await Promise.race([auth.authStateReady(), new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 8000))]); }
       catch { showAuthBootError(!navigator.onLine); return; }
     }
-    if (!authObserved && !auth.currentUser) { showAuthBootError(!navigator.onLine); return; }
+    if (!authObserved && !auth.currentUser) { revealSignedOutAuthAfterBootTimeout(); return; }
     await processAuthState(auth.currentUser);
   };
   window.GymLeaderBootHandlerInstalled = true;
@@ -4220,8 +4234,8 @@ function renderPendingSyncStatus() {
       image.removeAttribute('src');
       visual.className = 'dashboard-hero-visual dashboard-hero-neutral';
     };
-    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261006-routine-flow-v133`;
-    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261006-routine-flow-v133`;
+    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261006-local-boot-v135`;
+    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261006-local-boot-v135`;
     picture.hidden = false;
   }
 
@@ -9015,7 +9029,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261006-routine-flow-v133';
+    const build = '20261006-local-boot-v135';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
