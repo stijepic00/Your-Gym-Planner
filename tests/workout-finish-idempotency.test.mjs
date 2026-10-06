@@ -77,6 +77,7 @@ function harness(storage = new Map(), cloud = new Map(), queue = new Map()) {
     normalizeRoutineExercise: value => value,
     getRoutineDisplayName: value => value, getGeneratedExerciseDisplayName: value => value,
     escapeHtml: value => String(value ?? ''), getMaxWeightFromHistory: () => 0, getLatestExerciseLog: () => null,
+    latestExerciseNote: () => '', libraryExerciseId: () => '',
     calculateTargetGoal: () => '', formatRestTime: () => '',
     translateUiText: value => value, updateProgress() {}, checkPR() {}, vibrate() {},
     renderActiveWorkoutUI: () => { nodes.get('active-exercises-container').children = [exercise()]; },

@@ -1587,3 +1587,23 @@ for (const [source, translations] of Object.entries(HOME_VALUE_CONTACT_TRANSLATI
   TRANSLATIONS.bs[source] = translations.bs;
   TRANSLATIONS.hr[source] = translations.hr;
 }
+const DRAFT_SAVE_WARNING = 'Nacrt treninga nije sačuvan na ovom uređaju.';
+for (const [language, message] of Object.entries({
+  en: 'Your unfinished workout could not be saved on this device.',
+  de: 'Dein begonnenes Training konnte auf diesem Gerät nicht gespeichert werden.',
+  fr: 'Ton entraînement en cours n’a pas pu être enregistré sur cet appareil.',
+  it: 'Non è stato possibile salvare l’allenamento in corso su questo dispositivo.',
+  es: 'No se pudo guardar el entrenamiento en curso en este dispositivo.',
+  bs: 'Nacrt treninga nije spremljen na ovom uređaju.',
+  hr: 'Nacrt treninga nije spremljen na ovom uređaju.'
+})) TRANSLATIONS[language][DRAFT_SAVE_WARNING] = message;
+const DRAFT_DELETE_WARNING = 'Nacrt treninga nije moguće obrisati na ovom uređaju.';
+for (const [language, message] of Object.entries({
+  en: 'The unfinished workout could not be removed from this device.',
+  de: 'Das begonnene Training konnte von diesem Gerät nicht entfernt werden.',
+  fr: 'L’entraînement en cours n’a pas pu être supprimé de cet appareil.',
+  it: 'Non è stato possibile eliminare l’allenamento in corso da questo dispositivo.',
+  es: 'No se pudo eliminar el entrenamiento en curso de este dispositivo.',
+  bs: 'Nacrt treninga nije moguće obrisati na ovom uređaju.',
+  hr: 'Nacrt treninga nije moguće izbrisati s ovog uređaja.'
+})) TRANSLATIONS[language][DRAFT_DELETE_WARNING] = message;

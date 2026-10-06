@@ -23,20 +23,29 @@ const handlers = [
 
 class Element {
   constructor() { this.style = { setProperty(key, value) { this[key] = value; } }; this.children = []; this.attributes = {}; this.value = ''; this.textContent = ''; this.className = ''; }
-  set innerHTML(value) { this.html = value; this.children = []; }
+  set innerHTML(value) { this.html = value; this.children = []; this.setsContainer = value.includes('class="sets-container"') ? new Element() : null; }
   get innerHTML() { return this.html || ''; }
   get classList() { return { contains: name => this.className.split(' ').includes(name) }; }
   setAttribute(key, value) { this.attributes[key] = value; }
   getAttribute(key) { return this.attributes[key] ?? null; }
   appendChild(child) { this.children.push(child); }
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
+  querySelector(selector) {
+    if (selector === '.sets-container') return this.setsContainer;
+    const className = selector.startsWith('.') ? selector.slice(1) : '';
+    const input = className && this.innerHTML.match(new RegExp(`<input[^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*value="([^"]*)"`));
+    return input ? { value: input[1] } : null;
+  }
+  querySelectorAll(selector) {
+    if (selector === '.set-row' && this.setsContainer) return [new Element(), ...this.setsContainer.children];
+    return [];
+  }
 }
 function cardio(name = 'A private exercise') {
   const block = new Element();
   block.className = 'exercise-block custom-cardio-block';
   for (const [key, value] of Object.entries({ name, 'is-cardio': 'true', 'measurement-type': 'cardio', minutes: '12', calories: '80' })) block.setAttribute(`data-${key}`, value);
-  block.querySelector = selector => selector === '.ex-note' ? { value: 'A private note' } : null;
+  block.testNote = 'A private note';
+  block.querySelector = selector => selector === '.ex-note' ? { value: block.testNote } : null;
   return block;
 }
 function strength() {
@@ -44,11 +53,15 @@ function strength() {
   block.className = 'exercise-block';
   block.setAttribute('data-name', 'Squat');
   block.setAttribute('data-measurement-type', 'weight_reps');
-  block.querySelector = () => ({ value: 'A strength note' });
-  block.querySelectorAll = () => [new Element(), { querySelector: selector => ({ value: selector === '.set-kg' ? '42.5' : '8' }) }];
+  block.testWeight = '42.5';
+  block.testReps = '8';
+  block.testNote = 'A strength note';
+  block.querySelector = () => ({ value: block.testNote });
+  block.querySelectorAll = () => [new Element(), { querySelector: selector => ({ value: selector === '.set-kg' ? block.testWeight : block.testReps }) }];
   return block;
 }
-function harness(storage = new Map()) {
+function harness(storage = new Map(), sessionDrafts = new Map()) {
+  let failPersistentWrites = false;
   const nodes = new Map(['active-exercises-container', 'active-workout-title', 'workout-progress', 'active-draft-alert', 'custom-ex-modal', 'custom-existing-select', 'user-email-display'].map(id => [id, new Element()]));
   const modalInput = { value: '' };
   nodes.get('custom-ex-modal').querySelectorAll = () => [modalInput];
@@ -56,7 +69,7 @@ function harness(storage = new Map()) {
   const addButton = new Element();
   const context = {
     console: { error() {}, warn() {} }, currentUser: null, currentWorkout: null, finishingWorkoutSessions: new Set(),
-    activeWorkoutEditMode: false, customExType: 'existing', auth: { currentUser: null }, db: {},
+    activeWorkoutEditMode: false, customExType: 'existing', auth: { currentUser: null }, db: {}, isLocalDevelopment: false,
     currentProfileData: null, userRoutines: [], cachedHistory: [], routinesUnsubscribe: null,
     pendingWorkoutsMemory: [], pendingOperationsMemory: [], defaultWorkouts: [], navigator: { onLine: true },
     pendingQueueSession: 0, setTimeout, clearTimeout, clearPendingWorkoutSyncRetry() {},
@@ -65,8 +78,15 @@ function harness(storage = new Map()) {
     getWorkoutTime: workout => new Date(workout.date || '').getTime() || 0,
     localStorage: {
       getItem: key => storage.get(key) ?? null,
-      setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key),
+      setItem: (key, value) => {
+        if (failPersistentWrites) throw new Error('Persistent storage temporarily unavailable');
+        storage.set(key, value);
+      }, removeItem: key => storage.delete(key),
       get length() { return storage.size; }, key: index => [...storage.keys()][index]
+    },
+    sessionStorage: {
+      getItem: key => sessionDrafts.get(key) ?? null,
+      setItem: (key, value) => sessionDrafts.set(key, value), removeItem: key => sessionDrafts.delete(key)
     },
     document: {
       getElementById: id => nodes.get(id) ?? null, createElement: () => new Element(),
@@ -76,6 +96,7 @@ function harness(storage = new Map()) {
     normalizeRoutineExercise: exercise => exercise,
     getRoutineDisplayName: name => name, getGeneratedExerciseDisplayName: exercise => exercise.name || exercise,
     escapeHtml: value => String(value ?? ''), getMaxWeightFromHistory: () => 0, getLatestExerciseLog: () => null,
+    latestExerciseNote: () => '', libraryExerciseId: () => '',
     calculateTargetGoal: () => '', formatRestTime: () => '', updateProgress() {}, checkPR() {},
     translateUiText: text => text, renderActiveWorkoutUI() {},
     switchTab: tab => { context.lastTab = tab; }, ShowToast: text => { context.lastToast = text; },
@@ -98,7 +119,8 @@ function harness(storage = new Map()) {
   vm.createContext(context);
   vm.runInContext(handlers, context);
   return {
-    context, nodes, storage, modalInput,
+    context, nodes, storage, sessionDrafts, modalInput,
+    failPersistentWrites: value => { failPersistentWrites = value; },
     async login(uid) {
       const user = uid ? { uid, email: `${uid}@example.test` } : null;
       context.auth.currentUser = user;
@@ -113,6 +135,60 @@ function harness(storage = new Map()) {
   };
 }
 const A = 'test-A', B = 'test-B';
+const lifecycleCode = section('  function setupEventHandlers() {', "    document.addEventListener('change', event => {") + '  }';
+const lifecycleHandlers = new Map();
+let lifecycleCheckpoints = 0;
+const lifecycle = {
+  window: { addEventListener: (name, handler) => lifecycleHandlers.set(name, handler) },
+  document: { visibilityState: 'visible', addEventListener: (name, handler) => lifecycleHandlers.set(name, handler) },
+  checkpointActiveWorkout: () => { lifecycleCheckpoints++; }
+};
+vm.createContext(lifecycle);
+vm.runInContext(lifecycleCode, lifecycle);
+lifecycle.setupEventHandlers();
+lifecycleHandlers.get('pagehide')();
+lifecycleHandlers.get('visibilitychange')();
+assert.equal(lifecycleCheckpoints, 1);
+lifecycle.document.visibilityState = 'hidden';
+lifecycleHandlers.get('visibilitychange')();
+assert.equal(lifecycleCheckpoints, 2);
+const refreshCheck = harness();
+await refreshCheck.login(A);
+refreshCheck.start('Refresh recovery');
+const refreshKey = refreshCheck.context.getWorkoutDraftKey(A);
+const initialPersistentDraft = refreshCheck.storage.get(refreshKey);
+refreshCheck.nodes.get('active-exercises-container').children[0].testNote = 'Note entered just before refresh';
+const editedSet = refreshCheck.nodes.get('active-exercises-container').children[1];
+editedSet.testWeight = '55';
+editedSet.testReps = '6';
+editedSet.testNote = 'Set note entered just before refresh';
+refreshCheck.context.navigator.onLine = false;
+refreshCheck.failPersistentWrites(true);
+refreshCheck.context.checkpointActiveWorkout();
+assert.equal(refreshCheck.storage.get(refreshKey), initialPersistentDraft);
+assert.equal(JSON.parse(refreshCheck.sessionDrafts.get(refreshKey)).exercises[1].sets[0].weight, '55');
+const afterRefresh = harness(refreshCheck.storage, refreshCheck.sessionDrafts);
+await afterRefresh.login(A);
+assert.equal(afterRefresh.nodes.get('active-draft-alert').style.display, 'block');
+assert.equal(afterRefresh.context.readWorkoutDraft().exercises[0].notes, 'Note entered just before refresh');
+assert.equal(afterRefresh.context.readWorkoutDraft().exercises[1].sets[0].reps, '6');
+assert.equal(afterRefresh.context.readWorkoutDraft().exercises[1].notes, 'Set note entered just before refresh');
+afterRefresh.context.resumeDraftWorkout();
+assert.equal(afterRefresh.context.currentWorkout.userId, A);
+assert.equal(afterRefresh.context.lastTab, 'active-workout');
+assert.equal(afterRefresh.nodes.get('active-exercises-container').children.length, 2);
+assert.match(afterRefresh.nodes.get('active-exercises-container').children[1].setsContainer.children[0].innerHTML, /value="55"/);
+assert.match(afterRefresh.nodes.get('active-exercises-container').children[1].innerHTML, /Set note entered just before refresh/);
+await afterRefresh.login(B);
+assert.equal(afterRefresh.context.readWorkoutDraft(), null);
+assert.equal(afterRefresh.nodes.get('active-draft-alert').style.display, 'none');
+await afterRefresh.login(A);
+assert.equal(afterRefresh.nodes.get('active-draft-alert').style.display, 'block');
+assert.equal(afterRefresh.context.readWorkoutDraft().exercises[1].sets[0].weight, '55');
+afterRefresh.context.clearWorkoutDraft();
+assert.equal(refreshCheck.storage.has(refreshKey), false);
+assert.equal(refreshCheck.sessionDrafts.has(refreshKey), false);
+
 const app = harness();
 const { context: c, nodes, storage } = app;
 await app.login(A);
@@ -151,7 +227,7 @@ await app.login(A);
 assert.equal(c.currentWorkout, null);
 assert.equal(nodes.get('active-draft-alert').style.display, 'block');
 assert.equal(c.readWorkoutDraft().name, 'Plan A');
-const reload = harness(storage);
+const reload = harness(storage, app.sessionDrafts);
 await reload.login(A);
 assert.equal(reload.context.readWorkoutDraft().exercises[1].sets[0].weight, '42.5');
 // Use the real cardio resume renderer to verify ownership on currentWorkout.
@@ -163,18 +239,21 @@ assert.equal(reload.nodes.get('active-exercises-container').children.length, 1);
 assert.match(reload.nodes.get('active-exercises-container').children[0].innerHTML, /A private note/);
 await reload.context.cancelWorkout();
 assert.equal(storage.has(keyA), false);
+assert.equal(app.sessionDrafts.has(keyA), false);
 assert.equal(storage.get(keyB), rawB);
 
 // Reject mismatched payloads, malformed JSON and legacy unowned drafts.
 await app.login(B);
 for (const bad of [rawA, '{broken', 'null', JSON.stringify({ ...draftA, userId: B, exercises: [null] })]) {
   storage.set(keyB, bad);
+  app.sessionDrafts.set(keyB, bad);
   c.checkDraftState();
   c.resumeDraftWorkout();
   assert.equal(c.currentWorkout, null);
   assert.equal(nodes.get('active-draft-alert').style.display, 'none');
 }
 storage.delete(keyB);
+app.sessionDrafts.delete(keyB);
 storage.set('active_workout_draft', JSON.stringify({ name: 'Unknown owner', date: '2026-10-05', exercises: [] }));
 const legacy = storage.get('active_workout_draft');
 for (const uid of [A, B]) {

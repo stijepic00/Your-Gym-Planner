@@ -45,7 +45,8 @@ function harness(rows = [], storage = new Map()) {
     collection: (_, name) => name, where: (...args) => ({ where: args }), orderBy: (...args) => ({ orderBy: args }),
     limit: size => ({ limit: size }), startAfter: doc => ({ after: doc.id }), query: (...args) => args,
     translateUiText: text => text, escapeHtml: text => String(text), getCurrentLocale: () => 'en-GB',
-    formatDateClean: text => text.slice(0, 10)
+    formatDateClean: text => text.slice(0, 10),
+    latestExerciseNote: (_rows, _uid, exercise) => c.getLatestExerciseLog?.(exercise)?.notes || ''
   };
   c.window = c;
   c.getDocsFromServer = async constraints => {

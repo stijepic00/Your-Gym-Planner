@@ -20,7 +20,7 @@ function measurement(exercise) {
   return '';
 }
 
-export function exerciseKey(exercise) {
+export function libraryExerciseId(exercise) {
   const source = typeof exercise === 'string' ? { name: exercise } : exercise;
   const name = normalize(source?.name);
   if (!name) return '';
@@ -29,7 +29,16 @@ export function exerciseKey(exercise) {
   const catalog = explicit && [...Object.values(explicit.names), ...(explicit.aliases || [])].some((label) => normalize(label) === name)
     ? explicit : byName.get(name);
   const type = measurement(source);
-  if (catalog && (!type || type === catalog.measurementType)) return `library:${catalog.id}`;
+  return catalog && (!type || type === catalog.measurementType) ? catalog.id : '';
+}
+
+export function exerciseKey(exercise) {
+  const source = typeof exercise === 'string' ? { name: exercise } : exercise;
+  const name = normalize(source?.name);
+  if (!name) return '';
+  const id = libraryExerciseId(source);
+  if (id) return `library:${id}`;
+  const type = measurement(source);
   return `custom:${name}:${type || 'weight_reps'}`;
 }
 
@@ -47,6 +56,11 @@ export function matchingExerciseHistory(rows, userId, exercise) {
 
 export function latestExerciseHistory(rows, userId, exercise) {
   return matchingExerciseHistory(rows, userId, exercise)[0] || null;
+}
+
+export function latestExerciseNote(rows, userId, exercise) {
+  return matchingExerciseHistory(rows, userId, exercise)
+    .find((item) => typeof item.notes === 'string' && item.notes.trim())?.notes || '';
 }
 
 export function maxExerciseWeight(rows, userId, exercise) {

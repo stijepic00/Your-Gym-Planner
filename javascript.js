@@ -1,8 +1,8 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261006-progress-support-v142';
+  import { TRANSLATIONS } from './translations.js?v=20261006-workout-draft-v144';
   import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261006-progress-support-v142';
   import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-progress-support-v142';
-  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261006-progress-support-v142';
+  import { exerciseKey, libraryExerciseId, latestExerciseHistory, latestExerciseNote, maxExerciseWeight } from './exercise-history.js?v=20261006-exercise-history-v143';
   import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-progress-support-v142';
   import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261006-progress-support-v142';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -1191,6 +1191,8 @@
   }
 
   window.switchTab = function(tabId) {
+    if (tabId !== 'active-workout' && currentWorkout && ownsActiveWorkout()
+      && document.getElementById('view-active-workout')?.classList.contains('active')) saveWorkoutDraft();
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     
@@ -1791,7 +1793,8 @@
   function normalizeRoutineExercise(exercise) {
     const name = typeof exercise === 'string' ? exercise.trim() : String(exercise?.name || '').trim();
     const savedMeasurementType = typeof exercise === 'object' ? exercise?.measurementType : '';
-    const libraryExercise = resolveLibraryExercise(exercise) || resolveLibraryExercise(name);
+    const safeLibraryId = libraryExerciseId(exercise);
+    const libraryExercise = safeLibraryId ? getLibraryExerciseById(safeLibraryId) : null;
     const validTypes = ['weight_reps', 'reps', 'seconds', 'cardio'];
     const measurementType = validTypes.includes(savedMeasurementType)
       ? savedMeasurementType
@@ -1801,6 +1804,7 @@
 
     return {
       name,
+      ...(safeLibraryId && measurementType === libraryExercise.measurementType ? { libraryExerciseId: safeLibraryId } : {}),
       measurementType,
       setCount: readExerciseSetting(source.setCount, measurementType === 'cardio' ? 1 : 3, 1, 10),
       repRangeMin: readExerciseSetting(source.repRangeMin, defaults.repRangeMin, 1, 100),
@@ -1939,6 +1943,7 @@
     if (!item || !document.getElementById(targetList)) return;
     addRoutineExerciseRow(targetList, {
       name: getLibraryExerciseName(item, getCurrentLanguage()),
+      libraryExerciseId: item.id,
       measurementType: item.measurementType,
       ...item.defaults
     });
@@ -2071,6 +2076,7 @@
       selectedIds.add(item.id);
       selected.push(normalizeRoutineExercise({
         name: getLibraryExerciseName(item, getCurrentLanguage()),
+        libraryExerciseId: item.id,
         measurementType: item.measurementType,
         setCount,
         ...item.defaults
@@ -2494,6 +2500,7 @@
     const { name, measurementType } = normalizedExercise;
     const row = document.createElement('div');
     row.className = 'routine-exercise-row';
+    if (normalizedExercise.libraryExerciseId) row.dataset.libraryExerciseId = normalizedExercise.libraryExerciseId;
     row.innerHTML = `
       <input class="custom-input routine-exercise-name" type="text" maxlength="100" placeholder="Upiši naziv vježbe" value="${escapeHtml(name)}">
       <button type="button" class="routine-remove-exercise" data-action="remove-routine-exercise" aria-label="Ukloni vježbu">×</button>
@@ -2561,6 +2568,7 @@
     return Array.from(document.querySelectorAll(`#${listId} .routine-exercise-row`))
       .map((row) => normalizeRoutineExercise({
         name: getExerciseInputValue(row.querySelector('.routine-exercise-name')),
+        libraryExerciseId: row.dataset.libraryExerciseId,
         measurementType: row.querySelector('.routine-exercise-type')?.value || '',
         setCount: row.querySelector('.routine-exercise-set-count')?.value,
         repRangeMin: row.querySelector('.routine-exercise-rep-min')?.value,
@@ -2696,21 +2704,35 @@
     });
   }
 
+  function workoutDraftStores() {
+    const stores = [];
+    try { if (globalThis.localStorage) stores.push(globalThis.localStorage); } catch { /* Browser storage may be blocked. */ }
+    try { if (globalThis.sessionStorage) stores.push(globalThis.sessionStorage); } catch { /* The persistent store can still work. */ }
+    return stores;
+  }
+
+  function validOwnedWorkoutDraft(draft, userId) {
+    return draft?.userId === userId && typeof draft.name === 'string'
+      && typeof draft.date === 'string' && Array.isArray(draft.exercises)
+      && draft.exercises.every((exercise) => exercise && typeof exercise === 'object');
+  }
+
   function readWorkoutDraft() {
     const userId = getWorkoutDraftUserId();
     if (!userId) return null;
-    try {
-      // The legacy active_workout_draft has no trustworthy owner. Leave it
-      // untouched and never adopt it based on whoever signs in next.
-      const raw = localStorage.getItem(getWorkoutDraftKey(userId));
-      const draft = raw ? JSON.parse(raw) : null;
-      return draft?.userId === userId && typeof draft.name === 'string'
-        && typeof draft.date === 'string' && Array.isArray(draft.exercises)
-        && draft.exercises.every((exercise) => exercise && typeof exercise === 'object')
-        ? draft : null;
-    } catch {
-      return null;
+    // The legacy active_workout_draft has no trustworthy owner. Never adopt it.
+    // A failed persistent write may leave an older copy, so prefer the newest
+    // valid UID-owned revision from this tab's fallback storage.
+    let latest = null;
+    for (const storage of workoutDraftStores()) {
+      try {
+        const raw = storage.getItem(getWorkoutDraftKey(userId));
+        const draft = raw ? JSON.parse(raw) : null;
+        if (validOwnedWorkoutDraft(draft, userId)
+          && (!latest || (Number(draft.draftRevision) || 0) > (Number(latest.draftRevision) || 0))) latest = draft;
+      } catch { /* Try the other storage copy. */ }
     }
+    return latest;
   }
 
   function resetActiveWorkoutState() {
@@ -2739,8 +2761,9 @@
     if (editButton) editButton.textContent = translateUiText('✎ Uredi trening');
   }
 
+  let draftSaveWarningShown = false;
   function saveWorkoutDraft() {
-    if (!ownsActiveWorkout()) return;
+    if (!ownsActiveWorkout()) return false;
     const userId = currentWorkout.userId;
     const blocks = document.querySelectorAll('.exercise-block');
     const draft = {
@@ -2750,6 +2773,7 @@
       finishedAt: currentWorkout.finishedAt || null,
       name: currentWorkout.name,
       date: currentWorkout.date,
+      draftRevision: (Number(readWorkoutDraft()?.draftRevision) || 0) + 1,
       exercises: []
     };
 
@@ -2759,6 +2783,7 @@
       const isCardio = b.getAttribute('data-is-cardio') === 'true';
       const exerciseConfig = normalizeRoutineExercise({
         name,
+        libraryExerciseId: b.getAttribute('data-library-exercise-id') || '',
         measurementType: b.getAttribute('data-measurement-type') || '',
         setCount: b.getAttribute('data-set-count'),
         repRangeMin: b.getAttribute('data-rep-range-min'),
@@ -2797,15 +2822,39 @@
       }
     });
 
-    localStorage.setItem(getWorkoutDraftKey(userId), JSON.stringify(draft));
+    const serialized = JSON.stringify(draft);
+    let saved = false;
+    for (const storage of workoutDraftStores()) {
+      try { storage.setItem(getWorkoutDraftKey(userId), serialized); saved = true; }
+      catch (error) { console.warn('Nacrt treninga nije sačuvan u jednom browser skladištu:', error); }
+    }
+    if (saved) draftSaveWarningShown = false;
+    else if (!draftSaveWarningShown) {
+      draftSaveWarningShown = true;
+      ShowToast(translateUiText('Nacrt treninga nije sačuvan na ovom uređaju.'), 'error');
+    }
+    return saved;
+  }
+
+  function checkpointActiveWorkout() {
+    if (ownsActiveWorkout()) saveWorkoutDraft();
   }
 
   function clearWorkoutDraft() {
     const userId = getWorkoutDraftUserId();
-    if (!userId) return;
-    localStorage.removeItem(getWorkoutDraftKey(userId));
+    if (!userId) return false;
+    const stores = workoutDraftStores();
+    if (!stores.length) return false;
+    let cleared = true;
+    for (const storage of stores) {
+      try { storage.removeItem(getWorkoutDraftKey(userId)); }
+      catch (error) { cleared = false; console.warn('Nacrt treninga nije obrisan iz jednog browser skladišta:', error); }
+    }
+    if (!cleared) return false;
+    draftSaveWarningShown = false;
     const alertBox = document.getElementById('active-draft-alert');
     if (alertBox) alertBox.style.display = 'none';
+    return true;
   }
 
   function checkDraftState() {
@@ -2849,14 +2898,16 @@
           } else if (pastEx.minutes) {
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
-          if (pastEx.notes) prevNote = pastEx.notes;
         }
+        prevNote = latestExerciseNote(cachedHistory, currentUser?.uid, exerciseConfig);
       }
       
       if (ex.isCardio || measurementType === 'cardio') {
+        const pastCardio = getLatestExerciseLog(exerciseConfig);
         const card = document.createElement('div');
         card.className = 'card exercise-block custom-cardio-block';
         card.setAttribute('data-name', exName);
+        if (exerciseConfig.libraryExerciseId) card.setAttribute('data-library-exercise-id', exerciseConfig.libraryExerciseId);
         card.setAttribute('data-is-cardio', 'true');
         card.setAttribute('data-measurement-type', 'cardio');
         card.setAttribute('data-set-count', exerciseConfig.setCount);
@@ -2875,6 +2926,7 @@
           </div>
           ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
           ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor: ${escapeHtml(restTime)}</small>` : ''}
+          <div class="prev-perf">${escapeHtml(translateUiText('Prošli put:'))} <strong>${pastCardio?.minutes ? `${escapeHtml(pastCardio.minutes)} min` : escapeHtml(translateUiText('Nema prošlog zapisa'))}</strong>${prevNote ? `<br><small data-no-translate>📝 ${escapeHtml(prevNote)}</small>` : ''}</div>
           <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
             ${ex.minutes ? `⏱️ <strong>${escapeHtml(ex.minutes)} min</strong>` : ''} ${ex.calories ? ` · 🔥 <strong>${escapeHtml(ex.calories)} kcal</strong>` : ''}
           </div>
@@ -2886,6 +2938,7 @@
         const card = document.createElement('div');
         card.className = 'card exercise-block';
         card.setAttribute('data-name', exName);
+        if (exerciseConfig.libraryExerciseId) card.setAttribute('data-library-exercise-id', exerciseConfig.libraryExerciseId);
         card.setAttribute('data-maxw', maxW);
         const isDuration = measurementType === 'seconds';
         card.setAttribute('data-measurement-type', measurementType);
@@ -3201,11 +3254,14 @@
       const restTime = formatRestTime(exerciseConfig.restSeconds);
       const plannedSetCount = exerciseConfig.measurementType === 'cardio' ? 1 : exerciseConfig.setCount;
       if (measurementType === 'cardio') {
+        const pastCardio = getLatestExerciseLog(exerciseConfig);
+        const previousNote = latestExerciseNote(cachedHistory, currentUser?.uid, exerciseConfig);
         return `
-          <div class="card exercise-block custom-cardio-block" data-name="${escapeHtml(exName)}" data-is-cardio="true" data-measurement-type="cardio" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}" data-minutes="${escapeHtml(ex.minutes || '')}" data-calories="${escapeHtml(ex.calories || '')}">
+          <div class="card exercise-block custom-cardio-block" data-name="${escapeHtml(exName)}" data-library-exercise-id="${escapeHtml(exerciseConfig.libraryExerciseId || '')}" data-is-cardio="true" data-measurement-type="cardio" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}" data-minutes="${escapeHtml(ex.minutes || '')}" data-calories="${escapeHtml(ex.calories || '')}">
             <div class="flex-between"><h3 data-no-translate style="font-size:1.15rem;font-weight:800;color:var(--accent-purple);">${escapeHtml(getGeneratedExerciseDisplayName(exName))} 🏃</h3><button class="btn-remove-ex" style="display:none;" data-action="remove-exercise">Ukloni 🗑️</button></div>
             ${targetGoal ? `<span class="target-badge">${escapeHtml(targetGoal)}</span>` : ''}
             ${restTime ? `<small class="exercise-rest-hint">Preporučeni odmor: ${escapeHtml(restTime)}</small>` : ''}
+            <div class="prev-perf">${escapeHtml(translateUiText('Prošli put:'))} <strong>${pastCardio?.minutes ? `${escapeHtml(pastCardio.minutes)} min` : escapeHtml(translateUiText('Nema prošlog zapisa'))}</strong>${previousNote ? `<br><small data-no-translate>📝 ${escapeHtml(previousNote)}</small>` : ''}</div>
             <div class="cardio-input-grid"><label>Minute<input type="number" class="custom-input cardio-minutes" min="0" step="1" value="${escapeHtml(ex.minutes || '')}" placeholder="0"></label><label>Kalorije<input type="number" class="custom-input cardio-calories" min="0" step="1" value="${escapeHtml(ex.calories || '')}" placeholder="opcionalno"></label></div>
             <input type="text" class="note-input ex-note" value="${escapeHtml(ex.notes || '')}" placeholder="📝 Napomena (opcionalno)...">
           </div>
@@ -3223,12 +3279,12 @@
           } else if (pastEx.minutes) {
             prevLogStr = `${pastEx.minutes} min` + (pastEx.calories ? ` · ${pastEx.calories} kcal` : '');
           }
-          if (pastEx.notes) prevNote = pastEx.notes;
         }
+        prevNote = latestExerciseNote(cachedHistory, currentUser?.uid, exerciseConfig);
       }
 
       return `
-          <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-maxw="${escapeHtml(maxW)}" data-measurement-type="${measurementType}" data-set-count="${escapeHtml(plannedSetCount)}" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}">
+          <div class="card exercise-block" data-name="${escapeHtml(exName)}" data-library-exercise-id="${escapeHtml(exerciseConfig.libraryExerciseId || '')}" data-maxw="${escapeHtml(maxW)}" data-measurement-type="${measurementType}" data-set-count="${escapeHtml(plannedSetCount)}" data-rest-seconds="${escapeHtml(exerciseConfig.restSeconds)}" data-rep-range-min="${escapeHtml(exerciseConfig.repRangeMin)}" data-rep-range-max="${escapeHtml(exerciseConfig.repRangeMax)}" data-weight-increment="${escapeHtml(exerciseConfig.weightIncrement)}" data-time-increment="${escapeHtml(exerciseConfig.timeIncrement)}">
           <div class="flex-between">
             <h3 data-no-translate style="font-size: 1.15rem; font-weight: 800;">${escapeHtml(getGeneratedExerciseDisplayName(exName))}</h3>
             <div style="display:flex; align-items:center; gap:8px;">
@@ -3374,10 +3430,16 @@
     if (customExType === 'cardio') {
       const min = document.getElementById('custom-minutes').value;
       const cal = document.getElementById('custom-calories').value;
+      const cardioExercise = { name, measurementType: 'cardio' };
+      const previousCardio = getLatestExerciseLog(cardioExercise);
+      const previousNote = latestExerciseNote(cachedHistory, currentUser?.uid, cardioExercise);
 
       const card = document.createElement('div');
       card.className = 'card exercise-block custom-cardio-block';
       card.setAttribute('data-name', name);
+      card.setAttribute('data-measurement-type', 'cardio');
+      const stableId = libraryExerciseId({ name, measurementType: 'cardio' });
+      if (stableId) card.setAttribute('data-library-exercise-id', stableId);
       card.setAttribute('data-is-cardio', 'true');
       card.setAttribute('data-minutes', min || '0');
       card.setAttribute('data-calories', cal || '0');
@@ -3390,6 +3452,7 @@
         <div style="font-size: 0.9rem; color: #fff; margin: 8px 0;">
           ${min ? `⏱️ <strong>${escapeHtml(min)} min</strong>` : ''} ${cal ? ` · 🔥 <strong>${escapeHtml(cal)} kcal</strong>` : ''}
         </div>
+        <div class="prev-perf">${escapeHtml(translateUiText('Prošli put:'))} <strong>${previousCardio?.minutes ? `${escapeHtml(previousCardio.minutes)} min` : escapeHtml(translateUiText('Nema prošlog zapisa'))}</strong>${previousNote ? `<br><small data-no-translate>📝 ${escapeHtml(previousNote)}</small>` : ''}</div>
         ${notes ? `<div data-no-translate style="font-size:0.8rem; color:var(--text-muted);">📝 ${escapeHtml(notes)}</div>` : ''}
         <input type="hidden" class="ex-note" value="${escapeHtml(notes)}">
       `;
@@ -3407,13 +3470,15 @@
         const pastEx = getLatestExerciseLog(customExercise);
         if (pastEx && pastEx.sets && pastEx.sets.length > 0) {
           prevLogStr = pastEx.sets.map(s => formatSetPerformance(s, name)).join(' | ');
-          if (pastEx.notes) prevNote = pastEx.notes;
         }
+        prevNote = latestExerciseNote(cachedHistory, currentUser?.uid, customExercise);
       }
 
       const card = document.createElement('div');
       card.className = 'card exercise-block';
       card.setAttribute('data-name', name);
+      const stableId = libraryExerciseId(customExercise);
+      if (stableId) card.setAttribute('data-library-exercise-id', stableId);
          card.setAttribute('data-maxw', maxW);
          card.setAttribute('data-measurement-type', isDuration ? 'seconds' : 'weight_reps');
 
@@ -3459,7 +3524,7 @@
   window.checkPR = function(inputEl) {
     const block = inputEl.closest('.exercise-block');
     if (!block) return;
-    const maxW = getMaxWeightFromHistory({ name: block.getAttribute('data-name'), measurementType: block.getAttribute('data-measurement-type') });
+    const maxW = getMaxWeightFromHistory({ name: block.getAttribute('data-name'), libraryExerciseId: block.getAttribute('data-library-exercise-id'), measurementType: block.getAttribute('data-measurement-type') });
     const currentVal = parseFloat(inputEl.value) || 0;
     const badgeSlot = block.querySelector('.pr-badge-slot');
 
@@ -3500,9 +3565,12 @@
     if (!ownsActiveWorkout()) return;
     const workout = currentWorkout;
     if (await showConfirm('Odustati od treninga?') && ownsActiveWorkout() && currentWorkout === workout) {
+      if (!clearWorkoutDraft()) {
+        ShowToast(translateUiText('Nacrt treninga nije moguće obrisati na ovom uređaju.'), 'error');
+        return;
+      }
       currentWorkout = null;
       activeWorkoutEditMode = false;
-      clearWorkoutDraft();
       switchTab('dashboard');
     }
   };
@@ -3956,6 +4024,8 @@
         const min = parseFloat(b.querySelector('.cardio-minutes')?.value || b.getAttribute('data-minutes')) || 0;
         const cal = parseFloat(b.querySelector('.cardio-calories')?.value || b.getAttribute('data-calories')) || 0;
         const exObj = { name: exName, minutes: min, calories: cal, sets: [] };
+        const stableId = libraryExerciseId({ name: exName, libraryExerciseId: b.getAttribute('data-library-exercise-id'), measurementType: 'cardio' });
+        if (stableId) exObj.libraryExerciseId = stableId;
         if (noteText) exObj.notes = noteText;
         workoutData.exercises.push(exObj);
       } else {
@@ -3979,6 +4049,8 @@
 
         if (sets.length > 0) {
           const exObj = { name: exName, sets: sets };
+          const stableId = libraryExerciseId({ name: exName, libraryExerciseId: b.getAttribute('data-library-exercise-id'), measurementType });
+          if (stableId) exObj.libraryExerciseId = stableId;
           if (noteText) exObj.notes = noteText;
           workoutData.exercises.push(exObj);
         }
@@ -3996,7 +4068,7 @@
     updateFinishWorkoutButton();
     workout.finishedAt = finishedAt;
     try {
-      saveWorkoutDraft();
+      if (!saveWorkoutDraft()) return;
       if (!workout.completionState) {
         try {
           await setDocWithNetworkTimeout(doc(db, "workouts", workoutId), workoutData);
@@ -4011,7 +4083,7 @@
         }
       }
       if (!isCurrentSession()) return;
-      clearWorkoutDraft();
+      if (!clearWorkoutDraft()) throw new Error('Workout draft cleanup failed');
       currentWorkout = null;
       if (workout.completionState === 'queued') {
         renderDashboard();
@@ -4141,7 +4213,7 @@ function refreshActiveWorkoutHistory() {
   document.querySelectorAll('#active-exercises-container .exercise-block').forEach((block) => {
     const name = block.getAttribute('data-name');
     const config = normalizeRoutineExercise({
-      name, measurementType: block.getAttribute('data-measurement-type'),
+      name, libraryExerciseId: block.getAttribute('data-library-exercise-id'), measurementType: block.getAttribute('data-measurement-type'),
       repRangeMin: Number(block.getAttribute('data-rep-range-min')) || undefined,
       repRangeMax: Number(block.getAttribute('data-rep-range-max')) || undefined,
       weightIncrement: Number(block.getAttribute('data-weight-increment')) || undefined,
@@ -4153,7 +4225,8 @@ function refreshActiveWorkoutHistory() {
       const performance = past?.sets?.length ? past.sets.map(set => formatSetPerformance(set, config)).join(' | ')
         : past?.minutes ? `${past.minutes} min${past.calories ? ` · ${past.calories} kcal` : ''}`
           : translateUiText(historyCoverage.complete ? 'Nema prošlog zapisa' : 'Još nema učitanih treninga.');
-      previous.innerHTML = `${escapeHtml(translateUiText('Prošli put:'))} <strong>${escapeHtml(performance)}</strong>${past?.notes ? `<br><small data-no-translate>📝 ${escapeHtml(past.notes)}</small>` : ''}`;
+      const note = latestExerciseNote(cachedHistory, currentUser?.uid, config);
+      previous.innerHTML = `${escapeHtml(translateUiText('Prošli put:'))} <strong>${escapeHtml(performance)}</strong>${note ? `<br><small data-no-translate>📝 ${escapeHtml(note)}</small>` : ''}`;
     }
     const goal = calculateTargetGoal(config);
     let badge = block.querySelector('.target-badge');
@@ -4854,7 +4927,7 @@ function renderPendingSyncStatus() {
           return `<div class="history-editor-set-row"><span class="history-editor-set-number">${setIndex + 1}</span>${fields}<button type="button" class="history-editor-remove-set" data-action="remove-history-workout-set" data-exercise-index="${index}" data-set-index="${setIndex}" aria-label="Ukloni seriju">\u00d7</button></div>`;
         }).join('')}<button class="btn btn-secondary history-editor-add-set" type="button" data-action="add-history-workout-set" data-exercise-index="${index}">+ Dodaj seriju</button></div>`;
 
-    return `<article class="history-editor-exercise" data-history-exercise-index="${index}"><div class="history-editor-exercise-heading"><strong>Vje\u017eba ${index + 1}</strong><button type="button" class="history-editor-remove-exercise" data-action="remove-history-workout-exercise" data-exercise-index="${index}">Ukloni vje\u017ebu</button></div><label><span>Naziv vje\u017ebe</span><input class="custom-input history-editor-exercise-name" type="text" maxlength="120" value="${escapeHtml(name)}"></label><label><span>Na\u010din pra\u0107enja</span><select class="custom-input history-editor-exercise-type" data-exercise-index="${index}"><option value="weight-reps" ${type === 'weight-reps' ? 'selected' : ''}>Kila\u017ea i ponavljanja</option><option value="reps" ${type === 'reps' ? 'selected' : ''}>Samo ponavljanja</option><option value="seconds" ${type === 'seconds' ? 'selected' : ''}>Trajanje u sekundama</option><option value="cardio" ${type === 'cardio' ? 'selected' : ''}>Kardio</option></select></label>${setRows}<label><span>Napomena (opcionalno)</span><textarea class="custom-input history-editor-exercise-note" rows="2" maxlength="500">${escapeHtml(note)}</textarea></label></article>`;
+    return `<article class="history-editor-exercise" data-history-exercise-index="${index}" data-library-exercise-id="${escapeHtml(libraryExerciseId(exercise))}"><div class="history-editor-exercise-heading"><strong>Vje\u017eba ${index + 1}</strong><button type="button" class="history-editor-remove-exercise" data-action="remove-history-workout-exercise" data-exercise-index="${index}">Ukloni vje\u017ebu</button></div><label><span>Naziv vje\u017ebe</span><input class="custom-input history-editor-exercise-name" type="text" maxlength="120" value="${escapeHtml(name)}"></label><label><span>Na\u010din pra\u0107enja</span><select class="custom-input history-editor-exercise-type" data-exercise-index="${index}"><option value="weight-reps" ${type === 'weight-reps' ? 'selected' : ''}>Kila\u017ea i ponavljanja</option><option value="reps" ${type === 'reps' ? 'selected' : ''}>Samo ponavljanja</option><option value="seconds" ${type === 'seconds' ? 'selected' : ''}>Trajanje u sekundama</option><option value="cardio" ${type === 'cardio' ? 'selected' : ''}>Kardio</option></select></label>${setRows}<label><span>Napomena (opcionalno)</span><textarea class="custom-input history-editor-exercise-note" rows="2" maxlength="500">${escapeHtml(note)}</textarea></label></article>`;
   }
 
   function renderHistoryWorkoutEditorExercises(exercises) {
@@ -4876,6 +4949,8 @@ function renderPendingSyncStatus() {
         continue;
       }
       const exercise = { name, sets: [] };
+      const stableId = libraryExerciseId({ name, libraryExerciseId: card.dataset.libraryExerciseId, measurementType: type === 'weight-reps' ? 'weight_reps' : type });
+      if (stableId) exercise.libraryExerciseId = stableId;
       if (notes) exercise.notes = notes;
       if (type === 'cardio') {
         const minutes = Number(card.querySelector('.history-editor-minutes')?.value);
@@ -7863,7 +7938,10 @@ function renderPendingSyncStatus() {
       if (key && key.endsWith(`_${userId}`) && prefixes.some((prefix) => key.startsWith(prefix))) matchingKeys.push(key);
     }
     matchingKeys.forEach((key) => localStorage.removeItem(key));
-    localStorage.removeItem(getWorkoutDraftKey(userId));
+    for (const storage of workoutDraftStores()) {
+      try { storage.removeItem(getWorkoutDraftKey(userId)); }
+      catch (error) { console.warn('Lokalni nacrt treninga nije obrisan:', error); }
+    }
     clearMealPlanDraft(userId);
     if (currentUser?.uid === userId) { resetActiveWorkoutState(); resetHistoryCoverage(); }
     pendingWorkoutsMemory = [];
@@ -8446,6 +8524,10 @@ function renderPendingSyncStatus() {
   }
 
   function setupEventHandlers() {
+    window.addEventListener('pagehide', checkpointActiveWorkout);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') checkpointActiveWorkout();
+    });
     document.addEventListener('change', event => {
       if (event.target.matches?.('.routine-exercise-name, .history-editor-exercise-name')) localizeExerciseNameInput(event.target);
     });
