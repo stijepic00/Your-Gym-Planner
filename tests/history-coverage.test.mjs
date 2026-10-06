@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { exerciseKey, maxExerciseWeight } from '../exercise-history.js';
+import { TRANSLATIONS } from '../translations.js';
 
 // Actual application pagination/cache/statistics, with a deterministic Firestore
 // cursor double. No user data or production services are accessed.
 const source = fs.readFileSync(new URL('../javascript.js', import.meta.url), 'utf8');
+const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function section(start, end) {
   const first = source.indexOf(start), last = source.indexOf(end, first + start.length);
   assert.ok(first >= 0 && last > first, start);
@@ -68,6 +70,18 @@ function harness(rows = [], storage = new Map()) {
 let passed = 0;
 async function test(name, run) { await run(); passed++; console.log(`PASS: ${name}`); }
 
+await test('History status and manual refresh are absent from Progress, history, charts and active workout render paths', () => {
+  for (const phrase of ['Učitano treninga:', 'Posljednji potpuni dohvat:', 'Osvježi istoriju', 'reload-history']) {
+    assert.ok(!html.includes(phrase));
+    assert.ok(!source.includes(phrase), `${phrase} must not be rendered by JavaScript`);
+  }
+  assert.match(source, /for \(const id of \['progress', 'history', 'analytics', 'active-workout'\]\)/);
+  const error = 'Historija trenutno nije dostupna. Pokušaj ponovo kasnije.';
+  for (const language of ['sr', 'bs', 'hr', 'en', 'de', 'fr', 'it', 'es']) {
+    assert.ok(language === 'sr' || TRANSLATIONS[language]?.[error], `Missing history error translation: ${language}`);
+  }
+});
+
 for (const count of [0, 30, 31, 125]) {
   await test(`${count} workouts: complete cursor scan and full cache`, async () => {
     const a = harness(Array.from({ length: count }, (_, index) => workout(index)));
@@ -87,7 +101,7 @@ for (const count of [0, 30, 31, 125]) {
     assert.equal(offline.c.historyCoverage.complete, true);
     assert.equal(offline.c.historyCoverage.fromCache, true);
     assert.equal(offline.calls.length, 0);
-    assert.match(offline.c.historyCoverageMarkup(), /Offline/);
+    assert.equal(offline.c.historyCoverageMarkup(), '');
   });
 }
 
@@ -107,7 +121,7 @@ await test('Legacy 30-row cache is partial offline; foreign UID rows ignored', a
   await a.c.loadCloudData();
   assert.equal(a.c.cachedHistory.length, 30);
   assert.equal(a.c.historyCoverage.complete, false);
-  assert.match(a.c.historyCoverageMarkup(), /samo dio istorije/);
+  assert.equal(a.c.historyCoverageMarkup(), '');
 });
 
 await test('Network failure on second page retains data and retry completes', async () => {
@@ -117,11 +131,13 @@ await test('Network failure on second page retains data and retry completes', as
   assert.equal(a.c.cachedHistory.length, 30);
   assert.equal(a.c.historyCoverage.complete, false);
   assert.equal(a.c.historyCoverage.loading, false);
-  assert.match(a.c.historyCoverageMarkup(), /samo dio istorije/);
+  assert.match(a.c.historyCoverageMarkup(), /Historija trenutno nije dostupna/);
+  assert.doesNotMatch(a.c.historyCoverageMarkup(), /Učitano treninga|Posljednji potpuni dohvat|Osvježi istoriju|reload-history/);
   a.beforeRead = null;
   await a.c.loadCloudData();
   assert.equal(a.c.cachedHistory.length, 75);
   assert.equal(a.c.historyCoverage.complete, true);
+  assert.equal(a.c.historyCoverageMarkup(), '');
 });
 
 await test('Going offline between pages preserves partial coverage', async () => {
@@ -258,6 +274,9 @@ await test('Weight comparison: empty, single, equal and different measurements, 
   c.bodyMeasurements[1].weightKg = 79;
   c.renderProgressOverview();
   assert.match(root.innerHTML, /-1 kg/);
+  assert.equal((root.innerHTML.match(/class="progress-panel /g) || []).length, 1);
+  assert.match(root.innerHTML, /progress-activity-panel/);
+  assert.doesNotMatch(root.innerHTML, /Napredak tjelesne težine|Pregled ishrane|Napredak u vježbama/);
 });
 
 await test('Active workout history hints refresh without overwriting entered sets or notes', () => {

@@ -1,10 +1,10 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261006-local-boot-v135';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261006-local-boot-v135';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-local-boot-v135';
-  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261006-local-boot-v135';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-local-boot-v135';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261006-local-boot-v135';
+  import { TRANSLATIONS } from './translations.js?v=20261006-progress-support-v142';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261006-progress-support-v142';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-progress-support-v142';
+  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261006-progress-support-v142';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-progress-support-v142';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261006-progress-support-v142';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -53,19 +53,20 @@
   const app = initializeApp(firebaseConfig);
   const appCheckSiteKey = document.querySelector('meta[name="firebase-app-check-site-key"]')?.content.trim();
   let appCheck = null;
+  let localAppCheckNeedsSetup = false;
   const isLocalDevelopment = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-  // App Check remains active on deployed origins. A local Live Server cannot
-  // complete the production reCAPTCHA Enterprise validation, which otherwise
-  // makes Firebase Auth report a misleading network failure before login.
-  // Local development therefore does not initialize App Check. This branch is
-  // limited to loopback origins and cannot weaken the deployed application.
-  if (appCheckSiteKey && !isLocalDevelopment) {
+  // Firebase services and the verification API enforce App Check. Loopback
+  // origins need a debug token registered in Firebase App Check; merely adding
+  // them to Authentication's Authorized domains does not authorize App Check.
+  // The debug provider is enabled only on this machine's loopback origins.
+  if (appCheckSiteKey && isLocalDevelopment) {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+  if (appCheckSiteKey) {
     appCheck = initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true
     });
-  } else if (appCheckSiteKey) {
-    console.info('Firebase App Check is disabled for the local development origin.');
   }
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -93,7 +94,7 @@
   const REGISTRATION_DRAFT_TTL_MS = 10 * 60 * 1000;
   let userRoutines = [];
   let cachedHistory = [];
-  let historyCoverage = { userId: '', complete: false, loading: false, fromCache: true, checkedAt: null };
+  let historyCoverage = { userId: '', complete: false, loading: false, fromCache: true, checkedAt: null, error: false };
   let historyRequest = null;
   const HISTORY_PAGE_SIZE = 30;
   let customExType = 'existing';
@@ -292,6 +293,7 @@
       return;
     }
     const needsProfile = !isProfileComplete(getEffectiveCurrentProfile());
+    if (needsProfile) dismissActiveToast();
     modal.style.display = needsProfile ? 'flex' : 'none';
     if (needsProfile) {
       profileRequiredEditMode = false;
@@ -324,7 +326,11 @@
     const copy = window.GymLeaderLoadingCopy?.[getCurrentLanguage()] || window.GymLeaderLoadingCopy?.en;
     screen?.classList.remove('is-hidden');
     screen?.classList.add('is-error');
-    if (message) message.textContent = offline ? copy?.offlineNoCache : copy?.error;
+    if (message) message.textContent = localAppCheckNeedsSetup
+      ? (getCurrentLanguage() === 'en'
+        ? 'Live Server needs a Firebase App Check debug token. Register the token shown in DevTools Console under Firebase App Check → Manage debug tokens.'
+        : 'Live Serveru treba Firebase App Check debug token. Token iz konzole preglednika registruj u Firebase App Check → Manage debug tokens.')
+      : offline ? copy?.offlineNoCache : copy?.error;
     if (retry) retry.hidden = false;
   }
 
@@ -889,6 +895,7 @@
       modal.style.display = 'none';
       return;
     }
+    dismissActiveToast();
     document.getElementById('accept-terms-checkbox').checked = false;
     document.getElementById('accept-privacy-checkbox').checked = false;
     const status = document.getElementById('legal-acceptance-status');
@@ -917,12 +924,14 @@
         privacyVersion: LEGAL_DOCUMENT_VERSION,
         privacyAcceptedAt: acceptedAt
       };
-      const result = await writeUserDocument(`users/${currentUser.uid}`, profile, { merge: true });
+      await writeUserDocument(`users/${currentUser.uid}`, profile, { merge: true });
       currentProfileData = { ...(currentProfileData || {}), ...profile };
       writeLegalAcceptanceCache(currentUser.uid, currentProfileData);
       document.getElementById('legal-acceptance-modal').style.display = 'none';
+      dismissActiveToast();
       showGenderProfileGateIfRequired();
-      ShowToast(result.queued ? 'Pravila su sačuvana na ovom uređaju i biće sinhronizovana kada se veza vrati.' : 'Hvala — možeš nastaviti u GymLeader.');
+      // The required onboarding modal is the confirmation that the user can
+      // continue. A global success toast here would cover its first question.
     } catch (error) {
       console.error('Legal acceptance diagnostic:', error);
       if (status) {
@@ -955,6 +964,20 @@
     const session = ++pendingQueueSession;
     const isCurrentSession = () => session === pendingQueueSession && auth.currentUser?.uid === user?.uid;
     try {
+    if (isLocalDevelopment && appCheck && navigator.onLine) {
+      try {
+        await getToken(appCheck, false);
+        if (!isCurrentSession()) return;
+        localAppCheckNeedsSetup = false;
+      } catch (error) {
+        if (!isCurrentSession()) return;
+        localAppCheckNeedsSetup = error?.customData?.httpStatus === 403
+          || (error?.code === 'appCheck/fetch-status-error' && /403/.test(String(error?.message || '')));
+        console.warn('Local Firebase App Check validation failed:', error?.code || 'unknown');
+        showAuthBootError(!navigator.onLine);
+        return;
+      }
+    }
     if (currentUser?.uid !== user?.uid) {
       profileWizardReturnTo = '';
       resetActiveWorkoutState();
@@ -1173,6 +1196,7 @@
     
     const targetView = document.getElementById(`view-${tabId}`);
     if (targetView) targetView.classList.add('active');
+    updateDashboardSupport(tabId);
     updateProgressNavigation(tabId);
 
     const navBtns = document.querySelectorAll('.nav-item');
@@ -1202,6 +1226,7 @@
     }
     if (tabId === 'food') { loadFoodEntriesForSelectedDay(); loadSavedMealPlans(); }
     if (tabId === 'settings') renderProfileSettings();
+    if (['progress', 'history', 'analytics'].includes(tabId) && historyCoverage.error && navigator.onLine && !historyCoverage.loading) void loadCloudData();
     renderHistoryCoverage();
 
     if (tabId === 'dashboard' || tabId === 'login') {
@@ -1209,6 +1234,83 @@
       requestAnimationFrame(scrollAppToTop);
     }
   };
+
+  let dashboardSupportTimer = null;
+  let dashboardSupportHideTimer = null;
+  const DASHBOARD_SUPPORT_WAIT_MS = 30000;
+  const DASHBOARD_SUPPORT_REPEAT_MS = 7 * 24 * 60 * 60 * 1000;
+
+  function hideDashboardSupportNote() {
+    clearTimeout(dashboardSupportHideTimer);
+    dashboardSupportHideTimer = null;
+    const note = document.getElementById('dashboard-support-note');
+    if (note) note.hidden = true;
+    document.getElementById('dashboard-support-link')?.setAttribute('aria-expanded', 'false');
+  }
+
+  function showDashboardSupportNote() {
+    if (!currentUser || !document.getElementById('view-dashboard')?.classList.contains('active')) return;
+    const note = document.getElementById('dashboard-support-note');
+    if (!note) return;
+    note.hidden = false;
+    document.getElementById('dashboard-support-link')?.setAttribute('aria-expanded', 'true');
+    clearTimeout(dashboardSupportHideTimer);
+    dashboardSupportHideTimer = setTimeout(hideDashboardSupportNote, 20000);
+  }
+
+  function scheduleDashboardSupportNote() {
+    clearTimeout(dashboardSupportTimer);
+    if (!currentUser || !document.getElementById('view-dashboard')?.classList.contains('active')) return;
+    const key = `gymleader-support-nudge-v1:${currentUser.uid}`;
+    let state = { count: 0, lastShown: 0 };
+    try { state = { ...state, ...JSON.parse(localStorage.getItem(key) || '{}') }; }
+    catch { /* A private browser can still use the support link. */ }
+    if (state.count >= 2 || (state.lastShown && Date.now() - state.lastShown < DASHBOARD_SUPPORT_REPEAT_MS)) return;
+    dashboardSupportTimer = setTimeout(() => {
+      if (!currentUser || !document.getElementById('view-dashboard')?.classList.contains('active')) return;
+      if (document.visibilityState === 'hidden' || Array.from(document.querySelectorAll('.modal')).some((modal) => getComputedStyle(modal).display !== 'none')) {
+        scheduleDashboardSupportNote();
+        return;
+      }
+      const nextState = { count: state.count + 1, lastShown: Date.now() };
+      try { localStorage.setItem(key, JSON.stringify(nextState)); }
+      catch { /* Storage can be disabled; the link remains usable. */ }
+      showDashboardSupportNote();
+    }, DASHBOARD_SUPPORT_WAIT_MS);
+  }
+
+  function updateDashboardSupport(tabId) {
+    const support = document.getElementById('dashboard-support');
+    if (!support) return;
+    clearTimeout(dashboardSupportTimer);
+    const onHome = tabId === 'dashboard' && Boolean(currentUser);
+    support.hidden = !onHome;
+    if (onHome) scheduleDashboardSupportNote();
+    else hideDashboardSupportNote();
+  }
+
+  function setupDashboardSupport() {
+    document.getElementById('dashboard-support-link')?.addEventListener('click', () => {
+      const note = document.getElementById('dashboard-support-note');
+      if (!note?.hidden) { hideDashboardSupportNote(); return; }
+      clearTimeout(dashboardSupportTimer);
+      if (currentUser) {
+        try { localStorage.setItem(`gymleader-support-nudge-v1:${currentUser.uid}`, JSON.stringify({ count: 2, lastShown: Date.now() })); }
+        catch { /* The email link still works without local storage. */ }
+      }
+      showDashboardSupportNote();
+    });
+    document.getElementById('dashboard-support-close')?.addEventListener('click', () => {
+      hideDashboardSupportNote();
+      document.getElementById('dashboard-support-link')?.focus();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !document.getElementById('dashboard-support-note')?.hidden) {
+        hideDashboardSupportNote();
+        document.getElementById('dashboard-support-link')?.focus();
+      }
+    });
+  }
 
   window.goHome = function() {
     window.switchTab(currentUser ? 'dashboard' : 'login');
@@ -3967,7 +4069,7 @@ function writeHistoryCache(userId, history) {
 
 function resetHistoryCoverage() {
   historyRequest = null; // Invalidate in-flight requests, including A → B → A.
-  historyCoverage = { userId: '', complete: false, loading: false, fromCache: true, checkedAt: null };
+  historyCoverage = { userId: '', complete: false, loading: false, fromCache: true, checkedAt: null, error: false };
   cachedHistory = [];
 }
 
@@ -3999,33 +4101,25 @@ function mergeHistoryRows(rows, userId) {
 }
 
 function historyCoverageMarkup() {
-  if (!currentUser || historyCoverage.userId !== currentUser.uid) return '';
-  const t = (text) => escapeHtml(translateUiText(text));
-  const status = historyCoverage.loading ? 'Učitavanje istorije traje. Statistike i rekordi još nisu konačni.'
-    : historyCoverage.fromCache ? (historyCoverage.complete
-      ? 'Prikazan je posljednji potpuni lokalni pregled. Novije promjene nisu provjerene.'
-      : 'Dostupan je samo dio istorije. Stariji treninzi možda nedostaju u statistikama i rekordima.')
-      : 'Učitana je cijela istorija treninga.';
-  const dates = cachedHistory.map(getWorkoutDate).filter(Boolean).sort((a, b) => a - b);
-  const range = dates.length ? ` · ${escapeHtml(formatDateClean(dates[0].toISOString()))} – ${escapeHtml(formatDateClean(dates.at(-1).toISOString()))}` : '';
-  const checked = historyCoverage.checkedAt
-    ? ` ${t('Posljednji potpuni dohvat:')} ${escapeHtml(new Date(historyCoverage.checkedAt).toLocaleString(getCurrentLocale()))}.` : '';
-  return `<div class="progress-data-note" data-no-translate role="status"><p>${t('Učitano treninga:')} ${cachedHistory.length}${range}. ${t(status)}${checked}${navigator.onLine ? '' : ` ${t('Offline: prikazani su podaci dostupni na ovom uređaju.')}`}</p>${!historyCoverage.loading ? `<button class="btn btn-secondary" type="button" data-action="reload-history" ${navigator.onLine ? '' : 'disabled'}>${t('Osvježi istoriju')}</button>` : ''}</div>`;
+  if (!currentUser || historyCoverage.userId !== currentUser.uid || !historyCoverage.error || !navigator.onLine) return '';
+  return `<p class="history-fetch-error" role="status">${escapeHtml(translateUiText('Historija trenutno nije dostupna. Pokušaj ponovo kasnije.'))}</p>`;
 }
 
 function renderHistoryCoverage() {
   const dashboard = document.getElementById('view-dashboard');
   dashboard?.querySelector('[data-history-coverage]')?.remove();
-  for (const id of ['history', 'analytics', 'active-workout']) {
+  const markup = historyCoverageMarkup();
+  for (const id of ['progress', 'history', 'analytics', 'active-workout']) {
     const view = document.getElementById(`view-${id}`);
     if (!view) continue;
     let note = view.querySelector('[data-history-coverage]');
+    if (!markup) { note?.remove(); continue; }
     if (!note) {
       note = document.createElement('div');
       note.dataset.historyCoverage = '';
       view.prepend(note);
     }
-    note.innerHTML = historyCoverageMarkup();
+    note.innerHTML = markup;
   }
 }
 
@@ -4079,7 +4173,7 @@ async function loadCloudData() {
   // A refresh after a write supersedes an older scan; its cursor may predate
   // the new workout. Old requests cannot publish into this generation.
   if (historyCoverage.userId !== userId) {
-    historyCoverage = { userId, complete: false, loading: false, fromCache: true, checkedAt: null };
+    historyCoverage = { userId, complete: false, loading: false, fromCache: true, checkedAt: null, error: false };
     cachedHistory = mergeHistoryRows(readHistoryCache(userId), userId);
   }
   if (!navigator.onLine) {
@@ -4090,6 +4184,7 @@ async function loadCloudData() {
   const request = { userId, session, promise: null };
   historyRequest = request;
   historyCoverage.loading = true;
+  historyCoverage.error = false;
   historyCoverage.complete = false;
   const isCurrent = () => historyRequest === request && isPendingQueueSession(userId, session);
   request.promise = (async () => {
@@ -4117,6 +4212,7 @@ async function loadCloudData() {
         cachedHistory = mergeHistoryRows(complete ? fetched : [...cachedHistory, ...fetched], userId);
         historyCoverage.complete = complete;
         historyCoverage.fromCache = !complete;
+        historyCoverage.error = false;
         if (complete) historyCoverage.checkedAt = Date.now();
         writeHistoryCache(userId, cachedHistory);
         renderHistoryConsumers();
@@ -4128,6 +4224,7 @@ async function loadCloudData() {
     } catch (error) {
       if (!isCurrent()) return;
       historyCoverage.fromCache = true;
+      historyCoverage.error = navigator.onLine;
       console.error('History pagination diagnostic:', error);
     } finally {
       if (isCurrent()) {
@@ -4234,8 +4331,8 @@ function renderPendingSyncStatus() {
       image.removeAttribute('src');
       visual.className = 'dashboard-hero-visual dashboard-hero-neutral';
     };
-    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261006-local-boot-v135`;
-    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261006-local-boot-v135`;
+    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261006-progress-support-v142`;
+    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261006-progress-support-v142`;
     picture.hidden = false;
   }
 
@@ -4528,13 +4625,11 @@ function renderPendingSyncStatus() {
     const button = document.getElementById('dashboard-primary-action');
     const help = document.getElementById('dashboard-primary-help');
     const guide = document.getElementById('dashboard-guide');
-    const comingSoon = document.getElementById('dashboard-coming-soon');
     if (!button || !help) return;
 
     const activePlans = userRoutines.filter((routine) => routine.isArchived !== true);
     const hasFinishedWorkout = cachedHistory.length > 0;
     if (guide) guide.hidden = activePlans.length > 0 && hasFinishedWorkout;
-    if (comingSoon) comingSoon.hidden = activePlans.length > 0;
     delete button.dataset.routineId;
     delete button.dataset.tab;
     if (!activePlans.length) {
@@ -5020,13 +5115,14 @@ function renderPendingSyncStatus() {
   }
 
   function comparisonItem(label, currentValue, previousValue, formatter = formatAnalyticsNumber) {
+    if (!historyCoverage.complete || historyCoverage.loading) {
+      return `<div><small>${escapeHtml(translateUiText(label))}</small><strong>—</strong></div>`;
+    }
     const hasPrevious = previousValue > 0;
     const difference = currentValue - previousValue;
     const state = !hasPrevious || difference === 0 ? 'analytics-delta-neutral' : difference > 0 ? 'analytics-delta-positive' : 'analytics-delta-negative';
     const differenceText = formatter(Math.abs(difference));
-    const detail = !historyCoverage.complete || historyCoverage.loading
-      ? translateUiText('Poređenje čeka potpuno učitavanje istorije.')
-      : !hasPrevious
+    const detail = !hasPrevious
       ? translateUiText('Nema ranijeg perioda')
       : difference === 0
         ? translateUiText('Isto kao prethodni period')
@@ -5200,12 +5296,6 @@ function renderPendingSyncStatus() {
       .filter((entry) => dayKeys.has(String(entry.date || '').slice(0, 10)));
     const loggedDays = new Set(entries.map((entry) => String(entry.date).slice(0, 10))).size;
     const calories = entries.reduce((sum, entry) => sum + (Number(entry.calories) || 0), 0);
-    const protein = entries.reduce((sum, entry) => sum + (Number(entry.proteinG) || 0), 0);
-    const carbs = entries.reduce((sum, entry) => sum + (Number(entry.carbsG) || 0), 0);
-    const fat = entries.reduce((sum, entry) => sum + (Number(entry.fatG) || 0), 0);
-    const macroCalories = protein * 4 + carbs * 4 + fat * 9;
-    const proteinShare = macroCalories ? protein * 4 / macroCalories * 100 : 0;
-    const carbsShare = macroCalories ? carbs * 4 / macroCalories * 100 : 0;
     const weights = bodyTrackingEnabled() ? bodyMeasurements
       .filter((item) => Number(item.weightKg) > 0 && /^\d{4}-\d{2}-\d{2}/.test(String(item.measuredAt || '')))
       .sort((a, b) => String(a.measuredAt).localeCompare(String(b.measuredAt))) : [];
@@ -5216,28 +5306,13 @@ function renderPendingSyncStatus() {
     const dateLabel = new Intl.DateTimeFormat(getCurrentLocale(), { day: 'numeric', month: 'short' });
     const periodLabel = `${dateLabel.format(start)} – ${dateLabel.format(new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1))}`;
     const t = (source) => escapeHtml(translateUiText(source));
-    const nutritionNote = loggedDays ? `${t('Prosjek po danu s unosom')} · ${loggedDays} ${t('dana s unosom')}` : t('Dodaj prvi obrok da vidiš pregled ishrane.');
-    const foodCoverageNote = progressFoodTruncated
-      ? `<p class="progress-data-note">${t('Pregled ishrane koristi najviše 1000 učitanih unosa.')}</p>`
-      : progressFoodComplete ? '' : `<p class="progress-data-note">${t('Ishrana prikazuje trenutno dostupne unose.')}</p>`;
-    const workoutCoverageNote = !historyCoverage.complete || historyCoverage.loading ? `<p class="progress-data-note">${t('Poređenje čeka potpuno učitavanje istorije.')}</p>` : '';
     const meanCalories = loggedDays ? `${formatLocalizedNumber(calories / loggedDays, 0)} kcal` : '—';
     const weightValue = latestWeight ? `${formatLocalizedNumber(latestWeight.weightKg)} kg` : '—';
     const changeLabel = weightChange == null ? t('Potrebna su najmanje dva mjerenja u izabranom periodu za poređenje.')
       : weightChange === 0 ? t('Nema promjene za izabrani period') : `${weightChange > 0 ? '+' : ''}${formatLocalizedNumber(weightChange)} kg`;
-    const weightContent = periodWeights.length
-      ? `${progressWeightGraph(periodWeights)}<div class="progress-chart-endpoints"><small>${escapeHtml(dateLabel.format(new Date(`${periodWeights[0].measuredAt.slice(0, 10)}T12:00:00`)))}</small><small>${escapeHtml(dateLabel.format(new Date(`${periodWeights.at(-1).measuredAt.slice(0, 10)}T12:00:00`)))}</small></div>`
-      : `<p class="progress-empty">${t('Nema mjerenja težine u ovom periodu. Dodaj mjerenje da pratiš promjene.')}</p>`;
-    const nutritionContent = loggedDays
-      ? `<div class="progress-nutrition-content"><div class="progress-donut ${macroCalories ? '' : 'is-empty-macros'}" style="--protein:${proteinShare}%;--carbs:${proteinShare + carbsShare}%" role="img" aria-label="${escapeHtml(`${translateUiText('Proteini')} ${formatLocalizedNumber(protein)} g, ${translateUiText('Ugljikohidrati')} ${formatLocalizedNumber(carbs)} g, ${translateUiText('Masti')} ${formatLocalizedNumber(fat)} g`)}"><span><strong>${formatLocalizedNumber(calories / loggedDays, 0)}</strong><small>kcal / ${t('dan')}</small></span></div><div class="progress-macro-list"><div><i class="progress-macro-protein"></i><span>${t('Proteini')}</span><strong>${formatLocalizedNumber(protein / loggedDays)} g</strong></div><div><i class="progress-macro-carbs"></i><span>${t('Ugljikohidrati')}</span><strong>${formatLocalizedNumber(carbs / loggedDays)} g</strong></div><div><i class="progress-macro-fat"></i><span>${t('Masti')}</span><strong>${formatLocalizedNumber(fat / loggedDays)} g</strong></div></div></div>`
-      : `<p class="progress-empty">${t('Dodaj prvi obrok da vidiš pregled ishrane.')}</p>`;
-    const exerciseCount = new Set(workouts.flatMap((workout) => (workout.exercises || []).map(exerciseKey).filter(Boolean))).size;
     root.innerHTML = `<p class="progress-range-label">${escapeHtml(periodLabel)}</p>
-      <div class="progress-stats"><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">🏋</span><span>${t('Završeni treninzi')}</span><strong>${formatLocalizedNumber(workouts.length, 0)}</strong><small>${t('U izabranom periodu')}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">◉</span><span>${t('Prosječne kalorije')}</span><strong>${meanCalories}</strong><small>${nutritionNote}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">↗</span><span>${t('Tjelesna težina')}</span><strong>${weightValue}</strong><small>${changeLabel}</small></article></div>
-      <div class="progress-panels"><section class="progress-panel"><div class="progress-panel-heading"><div><h3>${t(period === 'month' ? 'Aktivnost po sedmicama' : 'Sedmična aktivnost')}</h3><p>${t('Završeni treninzi po danima')}</p></div><button data-action="switch-tab" data-tab="history" type="button">${t('Istorija treninga')} ›</button></div><div class="progress-bars" role="list" aria-label="${t('Završeni treninzi po danima')}">${progressBars(days, workouts, period)}</div>${workouts.length ? '' : `<p class="progress-data-note">${t('Nema treninga u izabranom periodu.')}</p>`}${workoutCoverageNote}</section>
-      <section class="progress-panel"><div class="progress-panel-heading"><div><h3>${t('Napredak tjelesne težine')}</h3><p>${t('Mjerenja u izabranom periodu')}</p></div><button data-action="switch-tab" data-tab="body" type="button">${t('Moje tijelo')} ›</button></div><div class="progress-weight-value">${weightValue}<small>${changeLabel}</small></div>${weightContent}</section>
-      <section class="progress-panel"><div class="progress-panel-heading"><div><h3>${t('Pregled ishrane')}</h3><p>${nutritionNote}</p></div><button data-action="switch-tab" data-tab="food" type="button">${t('Ishrana')} ›</button></div>${nutritionContent}${foodCoverageNote}</section>
-      <section class="progress-panel progress-exercise-panel"><div class="progress-panel-heading"><div><h3>${t('Napredak u vježbama')}</h3><p>${t('Prati kilaže, ponavljanja i lične rekorde.')}</p></div><button data-action="switch-tab" data-tab="analytics" type="button">${t('Grafici vježbi')} ›</button></div><strong>${exerciseCount}</strong><span>${t('Različitih vježbi u periodu')}</span><p class="progress-data-note">${t('Otvori grafike za detalje svake vježbe.')}</p></section></div>`;
+      <div class="progress-stats"><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">🏋</span><span>${t('Završeni treninzi')}</span><strong>${formatLocalizedNumber(workouts.length, 0)}</strong><small>${t('U izabranom periodu')}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">◉</span><span>${t('Prosječne kalorije')}</span><strong>${meanCalories}</strong><small>${loggedDays ? t('Prosjek po danu s unosom') : t('Dodaj prvi obrok da vidiš pregled ishrane.')}</small></article><article class="progress-stat"><span class="progress-stat-icon" aria-hidden="true">↗</span><span>${t('Tjelesna težina')}</span><strong>${weightValue}</strong><small>${changeLabel}</small></article></div>
+      <section class="progress-panel progress-activity-panel"><div class="progress-panel-heading"><div><h3>${t(period === 'month' ? 'Aktivnost po sedmicama' : 'Sedmična aktivnost')}</h3><p>${t('Završeni treninzi po danima')}</p></div><button data-action="switch-tab" data-tab="history" type="button">${t('Istorija treninga')} ›</button></div><div class="progress-bars" role="list" aria-label="${t('Završeni treninzi po danima')}">${progressBars(days, workouts, period)}</div>${workouts.length ? '' : `<p class="progress-data-note">${t('Nema treninga u izabranom periodu.')}</p>`}</section>`;
   }
 
   function renderAnalyticsOverview() {
@@ -5267,15 +5342,14 @@ function renderPendingSyncStatus() {
     const records = getPersonalRecords();
     const recordsThisMonth = records.filter((record) => record.wasImprovement && (getWorkoutTime({ date: record.date }) || 0) >= thisMonthStart).length;
     const recentRecords = [...records].sort((a, b) => (getWorkoutTime({ date: b.date }) || 0) - (getWorkoutTime({ date: a.date }) || 0)).slice(0, 5);
-    const coverageNote = translateUiText(historyCoverage.complete && !historyCoverage.loading
-      ? 'Pregled koristi sve trenutno učitane treninge.' : 'Poređenje čeka potpuno učitavanje istorije.');
+    const historyReady = historyCoverage.complete && !historyCoverage.loading;
 
     root.innerHTML = `
       <div class="analytics-period-grid">
         <article class="analytics-summary-card"><span class="settings-eyebrow">POREĐENJE SEDMICE</span><h3>Ova i prošla sedmica</h3><div class="analytics-comparison-grid">${comparisonItem('Treninzi', thisWeek.workouts, lastWeek.workouts)}${comparisonItem('Serije', thisWeek.sets, lastWeek.sets)}${comparisonItem('Volumen (kg)', thisWeek.volume, lastWeek.volume)}${comparisonItem('Vrijeme', thisWeek.durationSeconds, lastWeek.durationSeconds, formatWorkoutDuration)}</div></article>
         <article class="analytics-summary-card"><span class="settings-eyebrow">POREĐENJE MJESECA</span><h3>Ovaj i prošli mjesec</h3><div class="analytics-comparison-grid">${comparisonItem('Treninzi', thisMonth.workouts, lastMonth.workouts)}${comparisonItem('Serije', thisMonth.sets, lastMonth.sets)}${comparisonItem('Volumen (kg)', thisMonth.volume, lastMonth.volume)}${comparisonItem('Vrijeme', thisMonth.durationSeconds, lastMonth.durationSeconds, formatWorkoutDuration)}</div></article>
       </div>
-      <article class="analytics-summary-card"><span class="settings-eyebrow">UKUPAN PREGLED</span><h3>Tvoji učitani treninzi</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Različite vježbe</small><strong>${exerciseNames.size}</strong></div><div class="analytics-highlight"><small>Sačuvani treninzi</small><strong>${cachedHistory.length}</strong></div><div class="analytics-highlight"><small>Ukupan volumen</small><strong>${formatAnalyticsNumber(summarizeWorkouts(cachedHistory).volume)} kg</strong></div></div><p>${coverageNote}</p></article>
+      <article class="analytics-summary-card"><span class="settings-eyebrow">UKUPAN PREGLED</span><h3>${escapeHtml(translateUiText('Tvoji treninzi'))}</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Različite vježbe</small><strong>${historyReady ? exerciseNames.size : '—'}</strong></div><div class="analytics-highlight"><small>Sačuvani treninzi</small><strong>${historyReady ? cachedHistory.length : '—'}</strong></div><div class="analytics-highlight"><small>Ukupan volumen</small><strong>${historyReady ? `${formatAnalyticsNumber(summarizeWorkouts(cachedHistory).volume)} kg` : '—'}</strong></div></div></article>
       <article class="analytics-summary-card"><span class="settings-eyebrow">MJESEČNI SAŽETAK</span><h3>${escapeHtml(new Intl.DateTimeFormat(getCurrentLocale(), { month: 'long', year: 'numeric' }).format(new Date(now)))}</h3><div class="analytics-highlights"><div class="analytics-highlight"><small>Završeni treninzi</small><strong>${thisMonth.workouts}</strong></div><div class="analytics-highlight"><small>Ukupne serije</small><strong>${thisMonth.sets}</strong></div><div class="analytics-highlight"><small>Novi lični rekordi</small><strong>${recordsThisMonth}</strong></div></div><p>${thisMonth.durationCount ? `${translateUiText('Zabilježeno vrijeme treninga:')} ${formatWorkoutDuration(thisMonth.durationSeconds)}.` : translateUiText('Vrijeme treninga će se početi prikazivati nakon narednog sačuvanog treninga.')}</p></article>
       <article class="analytics-summary-card"><span class="settings-eyebrow">LIČNI REKORDI</span><h3>Najbolji zabilježeni rezultati</h3>${recentRecords.length ? `<ul class="analytics-pr-list">${recentRecords.map((record) => `<li><strong data-no-translate>${escapeHtml(getGeneratedExerciseDisplayName(record.name))}</strong><span>${escapeHtml(formatAnalyticsNumber(record.value))} ${record.unit}</span></li>`).join('')}</ul>` : '<p>Nema dovoljno podataka za lične rekorde.</p>'}</article>
     `;
@@ -5425,6 +5499,10 @@ function renderPendingSyncStatus() {
       if (button) { button.disabled = false; button.textContent = 'Preuzmi moje podatke'; }
     }
   };
+
+  function dismissActiveToast() {
+    document.getElementById('custom-toast')?.classList.remove('show');
+  }
 
   window.ShowToast = function(message, type = 'success', placement = 'center') {
     let toast = document.getElementById('custom-toast');
@@ -6957,7 +7035,7 @@ function renderPendingSyncStatus() {
     form.innerHTML = `
       <div class="profile-wizard-progress" aria-live="polite"><span id="profile-wizard-step-label"></span><div><i id="profile-wizard-progress-fill"></i></div></div>
       <section class="profile-wizard-step profile-question-card" data-profile-step="name"><span class="profile-question-icon">👋</span><h4>Kako da te zovemo?</h4><p>Možeš unijeti ime ili nadimak.</p><div class="profile-wizard-field" data-profile-field="name"><input id="required-profile-name" class="custom-input" type="text" maxlength="100" autocomplete="name" placeholder="Ime ili nadimak"><small class="profile-field-error"></small></div></section>
-      <section class="profile-wizard-step profile-question-card" data-profile-step="gender"><span class="profile-question-icon">🧑</span><h4>Kako da ti se obraćamo?</h4><p>Ovo pomaže GymLeaderu da poruke zvuče prirodno.</p><fieldset class="profile-wizard-field profile-wizard-choice" data-profile-field="gender"><div class="profile-question-options"><label><input type="radio" name="required-profile-gender" value="male"><span>👨 Muško</span></label><label><input type="radio" name="required-profile-gender" value="female"><span>👩 Žensko</span></label><label><input type="radio" name="required-profile-gender" value="unspecified"><span>🙈 Ne želim odgovoriti</span></label></div><small class="profile-field-error"></small></fieldset></section>
+      <section class="profile-wizard-step profile-question-card" data-profile-step="gender"><span class="profile-question-icon">🧑</span><h4>Kako da ti se obraćamo?</h4><p>Ovo pomaže GymLeaderu da poruke zvuče prirodno.</p><fieldset class="profile-wizard-field profile-wizard-choice" data-profile-field="gender"><div class="profile-question-options"><label><input type="radio" name="required-profile-gender" value="male"><span>👨 Muško</span></label><label><input type="radio" name="required-profile-gender" value="female"><span>👩 Žensko</span></label></div><small class="profile-field-error"></small></fieldset></section>
       <section class="profile-wizard-step profile-question-card" data-profile-step="age"><span class="profile-question-icon">🎂</span><h4>Koliko imaš godina?</h4><p>Unesi broj između 13 i 100.</p><div class="profile-wizard-field" data-profile-field="age"><input id="required-profile-age" class="custom-input profile-question-input" type="number" min="13" max="100" inputmode="numeric" placeholder="Godine"><small class="profile-field-error"></small></div></section>
       <section class="profile-wizard-step profile-question-card" data-profile-step="body"><span class="profile-question-icon">📏</span><h4>Kolika je tvoja visina i težina?</h4><p>Ovo služi samo za personalizaciju tvog profila.</p><div class="profile-question-number-grid"><div class="profile-wizard-field" data-profile-field="height"><label for="required-profile-height">Visina (cm)</label><input id="required-profile-height" class="custom-input" type="number" min="100" max="250" step="0.1" inputmode="decimal" placeholder="npr. 180"><small class="profile-field-error"></small></div><div class="profile-wizard-field" data-profile-field="weight"><label for="required-profile-weight">Težina (kg)</label><input id="required-profile-weight" class="custom-input" type="number" min="25" max="400" step="0.1" inputmode="decimal" placeholder="npr. 80"><small class="profile-field-error"></small></div></div></section>
       <section class="profile-wizard-step profile-question-card" data-profile-step="goal"><span class="profile-question-icon">🎯</span><h4>Šta želiš postići?</h4><p>Izaberi trenutni cilj.</p><fieldset class="profile-wizard-field profile-wizard-choice" data-profile-field="goal"><div class="profile-question-options"><label><input type="radio" name="required-profile-goal" value="lose_weight"><span>🔥 Smršati</span></label><label><input type="radio" name="required-profile-goal" value="maintain"><span>⚖️ Održavati težinu</span></label><label><input type="radio" name="required-profile-goal" value="gain_weight"><span>💪 Dobiti na težini</span></label></div><small class="profile-field-error"></small></fieldset></section>
@@ -7078,7 +7156,7 @@ function renderPendingSyncStatus() {
     const missing = getProfileWizardMissingFields(profile);
     const scope = profileWizardState.scope || 'onboarding';
     const scopeFields = scope === 'onboarding'
-      ? new Set(['name', 'goal', 'frequency'])
+      ? new Set(['name', 'gender', 'goal', 'frequency'])
       : scope === 'generator'
         ? new Set(['focus', 'location', 'experience', 'minutes', 'avoided'])
         : scope === 'meal'
@@ -7411,7 +7489,7 @@ function renderPendingSyncStatus() {
         email: currentUser.email || currentProfileData?.email || '',
         createdAt: currentProfileData?.createdAt || new Date().toISOString()
       };
-      const result = await writeUserDocument(`users/${savingUserId}`, profile, { merge: true });
+      await writeUserDocument(`users/${savingUserId}`, profile, { merge: true });
       if (currentUser?.uid !== savingUserId) return;
       currentProfileData = { ...(currentProfileData || {}), ...profile };
       clearProfileWizardDraft();
@@ -7419,7 +7497,7 @@ function renderPendingSyncStatus() {
       profileRequiredEditMode = false;
       renderProfileSettings();
       renderDashboard();
-      ShowToast(result.queued ? 'Profil je sačuvan lokalno i biće sinhronizovan kada se veza vrati.' : 'Profil je sačuvan. GymLeader je spreman.');
+      dismissActiveToast();
       const returnTo = profileWizardReturnTo;
       profileWizardReturnTo = '';
       if (hasPendingNewUserOnboarding()) {
@@ -8614,9 +8692,6 @@ function renderPendingSyncStatus() {
         case 'save-meal-plan':
           window.saveMealPlan();
           break;
-        case 'reload-history':
-          void loadCloudData();
-          break;
         case 'discard-meal-plan':
           if (!activeMealPlan?.id) clearMealPlanDraft();
           activeMealPlan = null;
@@ -9029,7 +9104,20 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261006-local-boot-v135';
+    if (isLocalDevelopment) {
+      // Live Server should always read current workspace files. A service
+      // worker from an earlier local build can keep serving stale modules.
+      void navigator.serviceWorker.getRegistrations()
+        .then((registrations) => Promise.all(registrations
+          .filter((registration) => {
+            const script = registration.active?.scriptURL || registration.waiting?.scriptURL || '';
+            return script && new URL(script).pathname === '/sw.js' && registration.scope === `${location.origin}/`;
+          })
+          .map((registration) => registration.unregister())))
+        .catch((error) => console.warn('Lokalni offline worker nije uklonjen:', error));
+      return;
+    }
+    const build = '20261006-progress-support-v142';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
@@ -9072,6 +9160,7 @@ function renderPendingSyncStatus() {
 
   initializeAppearanceSettings();
   setupEventHandlers();
+  setupDashboardSupport();
   registerOfflineWorker();
   setupPwaInstallPrompt();
   renderRegistrationResume();
@@ -9241,6 +9330,7 @@ window.confirmVerificationCode = async function() {
 };
 
 window.openOnboardingModal = function() {
+  dismissActiveToast();
   let modal = document.getElementById('onboardingModal');
   if (!modal) {
     modal = document.createElement('div');

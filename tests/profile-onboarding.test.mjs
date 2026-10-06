@@ -37,7 +37,8 @@ function context(extra = {}) {
   return c;
 }
 
-// New account: three questions and review; old full profile still counts as complete.
+// New account: gender is part of the four required questions; old full profiles
+// still count as complete and are not sent through the entire wizard again.
 {
   const steps = [];
   const modal = {
@@ -50,9 +51,9 @@ function context(extra = {}) {
   assert.equal(c.isProfileComplete({ fullName: 'Ana', goal: 'maintain' }), false);
   assert.equal(c.isProfileComplete({ fullName: 'Ana', goal: 'maintain', trainingFrequency: 0 }), false);
   c.configureProfileWizard({}, true);
-  assert.deepEqual(Array.from(vm.runInContext('profileWizardState.steps', c)), ['name', 'goal', 'frequency', 'review']);
+  assert.deepEqual(Array.from(vm.runInContext('profileWizardState.steps', c)), ['name', 'gender', 'goal', 'frequency', 'review']);
   c.configureProfileWizard({ fullName: 'Ana', goal: 'maintain', trainingFrequency: 3 }, true);
-  assert.deepEqual(Array.from(vm.runInContext('profileWizardState.steps', c)), ['name', 'goal', 'frequency', 'review']);
+  assert.deepEqual(Array.from(vm.runInContext('profileWizardState.steps', c)), ['name', 'gender', 'goal', 'frequency', 'review']);
   vm.runInContext("profileWizardState.scope = 'generator'", c);
   c.configureProfileWizard({ fullName: 'Ana', goal: 'maintain', trainingFrequency: 3 }, true);
   assert.deepEqual(Array.from(vm.runInContext('profileWizardState.steps', c)), ['focus', 'location', 'experience', 'minutes', 'avoided', 'review']);
@@ -162,21 +163,21 @@ const blank = {
 // Minimal save keeps old optional values and carries valid answers from an old draft.
 {
   const existing = { gender: 'female', weightKg: 68, preferredExercises: 'Squat' };
-  const h = await saveHarness('onboarding', ['name', 'goal', 'frequency', 'review'],
+  const h = await saveHarness('onboarding', ['name', 'gender', 'goal', 'frequency', 'review'],
     { ...blank, fullName: 'Ana', goal: 'maintain', trainingFrequency: 3, gender: 'female', weightKg: 68 }, existing);
   assert.equal(h.writes.length, 1);
   assert.equal(h.writes[0].path, 'users/A');
   assert.equal(h.writes[0].data.fullName, 'Ana');
   assert.equal(h.writes[0].data.weightKg, undefined);
   assert.equal(h.profile.preferredExercises, 'Squat');
-  const legacyDraft = await saveHarness('onboarding', ['name', 'goal', 'frequency', 'review'],
+  const legacyDraft = await saveHarness('onboarding', ['name', 'gender', 'goal', 'frequency', 'review'],
     { ...blank, fullName: 'Marko', goal: 'maintain', trainingFrequency: 2,
       gender: 'male', heightCm: 180, weightKg: 80, avoidedExercises: 'Burpees', foodAllergies: 'Peanuts' },
     { fullName: 'Marko' });
   assert.equal(legacyDraft.writes[0].data.heightCm, 180);
   assert.equal(legacyDraft.writes[0].data.avoidedExercises, 'Burpees');
   assert.equal(legacyDraft.writes[0].data.foodAllergies, 'Peanuts');
-  const invalidLegacyDraft = await saveHarness('onboarding', ['name', 'goal', 'frequency', 'review'],
+  const invalidLegacyDraft = await saveHarness('onboarding', ['name', 'gender', 'goal', 'frequency', 'review'],
     { ...blank, fullName: 'Marko', goal: 'maintain', trainingFrequency: 2,
       preferredExercises: 'x'.repeat(1001) }, { fullName: 'Marko' });
   assert.equal(invalidLegacyDraft.writes.length, 0);

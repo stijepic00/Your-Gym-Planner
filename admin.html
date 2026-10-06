@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="firebase-app-check-site-key" content="6LdpQswtAAAAAEtpfSmId5SzAtCf1ZkvKn1X9dox">
+  <title>Privatni pregled · GymLeader</title>
+  <link rel="icon" href="/assets/gymleader-icon.png" type="image/png">
+  <link rel="stylesheet" href="/admin.css">
+  <script type="module" src="/admin.js"></script>
+</head>
+<body>
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div><span class="eyebrow">GYMLEADER · SAMO VLASNIK</span><h1>Pregled korištenja</h1><p>Trenutni nalozi i sačuvani zapisi. Podaci se učitavaju samo nakon provjere pristupa.</p></div>
+      <a href="/">Nazad u aplikaciju</a>
+    </header>
+    <p id="admin-status" class="admin-status" role="status">Provjeravam prijavu…</p>
+    <section id="admin-report" hidden>
+      <div class="report-head"><p id="generated-at"></p><button id="refresh-report" type="button">Ponovo učitaj</button></div>
+      <div id="summary-cards" class="summary-cards" aria-label="Sažetak"></div>
+      <section class="explanation" aria-labelledby="definitions-heading">
+        <h2 id="definitions-heading">Kako se broji</h2>
+        <ul id="definitions"></ul>
+        <p>„Bez zabilježene rutine i treninga” znači da nema tih sačuvanih zapisa u Firestoreu. To nije dokaz da osoba ne otvara aplikaciju. Offline zapisi koji još nisu sinhronizovani nisu uključeni.</p>
+      </section>
+      <section class="accounts-section" aria-labelledby="accounts-heading">
+        <div class="accounts-head"><div><h2 id="accounts-heading">Nalozi</h2><p id="shown-count"></p></div><div class="filters"><label for="account-search">Pretraga</label><input id="account-search" type="search" placeholder="Email, ime ili UID" autocomplete="off"><label for="account-filter">Prikaži</label><select id="account-filter"><option value="all">Sve naloge</option><option value="routine">Imaju rutinu</option><option value="workout">Završili trening</option><option value="meal">Imaju sačuvan plan obroka</option><option value="no-records">Bez rutine i treninga</option></select></div></div>
+        <div class="accounts-table-wrap"><table><thead><tr><th>Nalog</th><th>Registrovan</th><th>Posljednja prijava</th><th>Rutina</th><th>Trening</th><th>Sačuvan plan obroka</th><th>Shopping lista</th></tr></thead><tbody id="accounts-body"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

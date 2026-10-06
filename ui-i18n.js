@@ -1,4 +1,4 @@
-import { TRANSLATIONS } from './translations.js?v=20261006-routine-flow-v133';
+import { TRANSLATIONS } from './translations.js?v=20261006-progress-support-v142';
 
 export const SUPPORTED_LANGUAGES = ['sr', 'bs', 'hr', 'en', 'de', 'fr', 'it', 'es'];
 export const LOCALES = { sr: 'sr-Latn-RS', bs: 'bs-Latn-BA', hr: 'hr-HR', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', it: 'it-IT', es: 'es-ES' };

@@ -27,6 +27,7 @@ function harness({ online = true, cached = null, readProfile, loadQueue } = {}) 
   let observer;
   const c = {
     window: null, document: { getElementById: node }, navigator: { onLine: online }, isLocalDevelopment: false,
+    localAppCheckNeedsSetup: false,
     console: { error() {}, warn() {} }, setTimeout, clearTimeout,
     auth: { currentUser: null, authStateReady: async () => {} }, db: {},
     pendingQueueSession: 0, currentUser: null, currentProfileData: null, profileWizardReturnTo: '',
@@ -130,4 +131,17 @@ function harness({ online = true, cached = null, readProfile, loadQueue } = {}) 
   assert.deepEqual(h.calls.tabs, ['login']);
 }
 
-console.log('PASS: first boot, duplicate auth, retry, offline boot and delayed Auth fallback');
+// Local App Check rejection must identify the setup problem before a profile
+// read can turn it into a misleading "check your connection" error.
+{
+  const h = harness();
+  h.c.isLocalDevelopment = true;
+  h.c.appCheck = {};
+  h.c.getToken = async () => { throw { code: 'appCheck/fetch-status-error', customData: { httpStatus: 403 } }; };
+  await h.emit(null);
+  assert.equal(h.node('auth-boot-screen').classList.contains('is-error'), true);
+  assert.match(h.node('auth-boot-text').textContent, /App Check debug token/);
+  assert.deepEqual(h.calls.tabs, []);
+}
+
+console.log('PASS: first boot, duplicate auth, retry, offline boot, delayed Auth and local App Check diagnostics');

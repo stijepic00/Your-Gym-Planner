@@ -1,4 +1,4 @@
-const BUILD = '20261006-routine-flow-v133';
+const BUILD = '20261006-progress-support-v142';
 const CACHE_NAME = `gymleader-app-${BUILD}`;
 
 // Every app-shell file carries the same build identifier in index.html. A new
@@ -90,6 +90,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.origin !== self.location.origin) return;
+
+  // The private admin page must never fall back to the public app shell or
+  // enter the app cache. Its data endpoint is on the separate API origin.
+  if (url.pathname === '/admin.html' || url.pathname === '/admin.js' || url.pathname === '/admin.css') return;
 
   // HTML is always checked against the network. It is only served from cache
   // while offline, so a normal refresh receives the newest deployment.

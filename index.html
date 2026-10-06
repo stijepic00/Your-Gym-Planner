@@ -68,11 +68,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-routine-flow-v133">
-  <link rel="apple-touch-icon" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-routine-flow-v133">
-  <link rel="manifest" href="manifest.webmanifest?v=20261006-routine-flow-v133">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-progress-support-v142">
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-progress-support-v142">
+  <link rel="manifest" href="manifest.webmanifest?v=20261006-progress-support-v142">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261006-routine-flow-v133">
+  <link rel="stylesheet" href="styles.css?v=20261006-support-pill-v1">
 
 </head>
 <body>
@@ -83,18 +83,18 @@
   <div class="auth-boot-orbit auth-boot-orbit-one"><span></span></div>
   <div class="auth-boot-orbit auth-boot-orbit-two"><span></span></div>
   <div class="auth-boot-card">
-    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261006-routine-flow-v133" alt=""></div>
+    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261006-progress-support-v142" alt=""></div>
     <div class="auth-boot-wordmark"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></div>
     <div class="auth-boot-progress"><span></span></div>
     <p id="auth-boot-text">Pripremamo tvoj trening.</p>
     <button id="auth-boot-retry" class="auth-boot-retry" type="button" hidden>Pokušaj ponovo</button>
   </div>
 </div>
-<script src="language-boot.js?v=20261006-routine-flow-v133"></script>
+<script src="language-boot.js?v=20261006-progress-support-v142"></script>
 
 <header>
     <button type="button" class="gymleader-brand" aria-label="GymLeader početna strana" data-action="go-home">
-      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261006-routine-flow-v133" alt=""></span>
+      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261006-progress-support-v142" alt=""></span>
       <span class="gymleader-brand-copy"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></span>
     </button>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
@@ -103,7 +103,7 @@
 </header>
 
 <aside id="pwa-install-banner" class="pwa-install-banner" hidden aria-live="polite">
-  <img src="assets/gymleader-icon.png?v=20261006-routine-flow-v133" alt="GymLeader" class="pwa-install-icon">
+  <img src="assets/gymleader-icon.png?v=20261006-progress-support-v142" alt="GymLeader" class="pwa-install-icon">
   <div class="pwa-install-copy"><strong>Otvori GymLeader kao aplikaciju</strong><span>Dodaj prečicu na početni ekran i otvaraj trening jednim dodirom.</span></div>
   <button class="pwa-install-button" data-action="install-app" type="button">Instaliraj</button>
   <button class="pwa-install-dismiss" data-action="dismiss-install" type="button" aria-label="Kasnije">×</button>
@@ -118,7 +118,7 @@
       <div class="card auth-card">
         <div class="auth-welcome">
           <div class="auth-brand-lockup" aria-label="GymLeader">
-            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261006-routine-flow-v133" alt=""></span>
+            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261006-progress-support-v142" alt=""></span>
             <span>Gym<span>Leader</span></span>
           </div>
           <h1 id="auth-title">Prijavi se u GymLeader</h1>
@@ -248,10 +248,10 @@
         <div class="dashboard-guide-row"><span>3</span><p><strong>Prati napredak</strong><br><small>Sljedeći put vidiš prošle kilaže, ponavljanja i lične rekorde.</small></p></div>
       </div>
 
-      <div id="dashboard-coming-soon" class="dashboard-coming-soon card">
-        <span class="badge">USKORO</span>
-        <p><strong>Još dolazi:</strong> pametniji planovi za teretane, treneri, motivacija i napredniji pregled rezultata.</p>
-      </div>
+      <aside id="dashboard-value-card" class="dashboard-value-card card" aria-labelledby="dashboard-value-title">
+        <span class="dashboard-value-icon" aria-hidden="true">✦</span>
+        <div><h3 id="dashboard-value-title">Trening i ishrana, na jednom mjestu</h3><p>Napravi i ponavljaj rutine, bilježi kilaže i ponavljanja, prati napredak, vodi dnevnik hrane i koristi Meal Planner za prijedloge obroka.</p></div>
+      </aside>
 
       <div id="pending-sync-container" class="card" style="display:none; margin-top: 12px; border-color: var(--accent-purple);"></div>
     </section>
@@ -511,6 +511,23 @@
     </div>
 </main>
 
+<aside id="dashboard-support" class="dashboard-support" hidden aria-label="GymLeader podrška">
+  <div id="dashboard-support-note" class="dashboard-support-note" hidden>
+    <button id="dashboard-support-close" class="dashboard-support-close" type="button" aria-label="Zatvori poruku podrške">×</button>
+    <strong>Kontaktirajte nas</strong>
+    <p>Imate prijedlog, problem ili sugestiju? Nešto vam nije jasno, komplikovano je ili ne radi? Pišite nam na email — vaše poruke nam pomažu da poboljšamo GymLeader.</p>
+    <p class="dashboard-support-address" data-no-translate>gymleaderapp@gmail.com</p>
+    <div class="dashboard-support-links">
+      <a href="mailto:gymleaderapp@gmail.com?subject=Pitanje%20ili%20prijedlog%20za%20GymLeader">Otvori email aplikaciju</a>
+      <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=gymleaderapp%40gmail.com&amp;su=Pitanje%20ili%20prijedlog%20za%20GymLeader" target="_blank" rel="noopener noreferrer">Otvori Gmail</a>
+    </div>
+  </div>
+  <button id="dashboard-support-link" class="dashboard-contact-fab" type="button" aria-label="Kontaktirajte nas" aria-controls="dashboard-support-note" aria-expanded="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 13v-2a8 8 0 0 1 16 0v2"/><path d="M4 13H3a1 1 0 0 0-1 1v3a2 2 0 0 0 2 2h2v-6H4Zm16 0h1a1 1 0 0 1 1 1v3a2 2 0 0 1-2 2h-2v-6h2Zm0 6a4 4 0 0 1-4 3h-3"/></svg>
+    <span>Kontaktirajte nas</span>
+  </button>
+</aside>
+
 <div id="first-visit-modal" class="first-visit-modal" hidden>
   <section id="first-visit-card" class="first-visit-card" role="dialog" aria-modal="true" aria-labelledby="first-visit-title" aria-describedby="first-visit-description">
     <button class="first-visit-dismiss" data-action="dismiss-first-visit" type="button" aria-label="Kasnije">×</button>
@@ -673,7 +690,7 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20261006-routine-flow-v133"></script>
+<script type="module" src="javascript.js?v=20261006-progress-support-v142"></script>
 </body>
 </html>
 

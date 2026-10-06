@@ -1,7 +1,7 @@
-import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261006-routine-flow-v133';
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261006-routine-flow-v133';
-import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261006-routine-flow-v133';
-import { buildBcsTranslations } from './translations-bs-hr.js?v=20261006-routine-flow-v133';
+import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261006-progress-support-v142';
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261006-progress-support-v142';
+import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261006-progress-support-v142';
+import { buildBcsTranslations } from './translations-bs-hr.js?v=20261006-progress-support-v142';
 // Text used by the app UI. User-created names, workout notes and exercise names
 // are intentionally never translated.
 export const TRANSLATIONS = {
@@ -1370,7 +1370,6 @@ for (const [language, phrases] of Object.entries(DYNAMIC_TRANSLATIONS)) {
 }
 
 const HISTORY_COVERAGE_TRANSLATIONS = {
-  'Učitano treninga:': ['Loaded workouts:', 'Geladene Workouts:', 'Entraînements chargés :', 'Allenamenti caricati:', 'Entrenamientos cargados:'],
   'Učitavanje istorije traje. Statistike i rekordi još nisu konačni.': [
     'Workout history is loading. Statistics and records are not final yet.',
     'Der Trainingsverlauf wird geladen. Statistiken und Rekorde sind noch nicht vollständig.',
@@ -1393,13 +1392,11 @@ const HISTORY_COVERAGE_TRANSLATIONS = {
     'Solo está disponible una parte del historial. Pueden faltar entrenamientos antiguos en las estadísticas y los récords.'
   ],
   'Učitana je cijela istorija treninga.': ['Your entire workout history is loaded.', 'Der gesamte Trainingsverlauf wurde geladen.', 'Tout l’historique des entraînements est chargé.', 'L’intera cronologia degli allenamenti è stata caricata.', 'Se ha cargado todo el historial de entrenamientos.'],
-  'Posljednji potpuni dohvat:': ['Last complete retrieval:', 'Letzter vollständiger Abruf:', 'Dernier chargement complet :', 'Ultimo caricamento completo:', 'Última carga completa:'],
   'Offline: prikazani su podaci dostupni na ovom uređaju.': [
     'Offline: showing data available on this device.', 'Offline: Daten auf diesem Gerät werden angezeigt.',
     'Hors ligne : affichage des données disponibles sur cet appareil.', 'Offline: sono mostrati i dati disponibili su questo dispositivo.',
     'Sin conexión: se muestran los datos disponibles en este dispositivo.'
   ],
-  'Osvježi istoriju': ['Refresh history', 'Verlauf aktualisieren', 'Actualiser l’historique', 'Aggiorna cronologia', 'Actualizar historial'],
   'Još nema učitanih treninga.': ['No workouts loaded yet.', 'Noch keine Workouts geladen.', 'Aucun entraînement chargé pour le moment.', 'Nessun allenamento ancora caricato.', 'Todavía no se han cargado entrenamientos.'],
   'Poređenje čeka potpuno učitavanje istorije.': [
     'Comparison is waiting for the full history to load.', 'Für den Vergleich muss der gesamte Verlauf geladen werden.',
@@ -1471,9 +1468,122 @@ const ROUTINE_ONBOARDING_TRANSLATIONS = {
 for (const [source, translations] of Object.entries(ROUTINE_ONBOARDING_TRANSLATIONS)) {
   for (const language of ['en', 'de', 'fr', 'it', 'es']) TRANSLATIONS[language][source] = translations[language];
 }
+const HOME_VALUE_CONTACT_TRANSLATIONS = {
+  'Trening i ishrana, na jednom mjestu': {
+    en: 'Training and nutrition in one place', de: 'Training und Ernährung an einem Ort',
+    fr: 'Entraînement et nutrition au même endroit', it: 'Allenamento e alimentazione in un unico posto',
+    es: 'Entrenamiento y nutrición en un solo lugar', bs: 'Trening i ishrana na jednom mjestu', hr: 'Trening i prehrana na jednom mjestu'
+  },
+  'Napravi i ponavljaj rutine, bilježi kilaže i ponavljanja, prati napredak, vodi dnevnik hrane i koristi Meal Planner za prijedloge obroka.': {
+    en: 'Create and repeat routines, log weights and reps, track progress, keep a food diary and use Meal Planner for meal suggestions.',
+    de: 'Erstelle und wiederhole Routinen, erfasse Gewichte und Wiederholungen, verfolge deinen Fortschritt, führe ein Ernährungstagebuch und nutze den Meal Planner für Essensvorschläge.',
+    fr: 'Crée et répète des routines, note les charges et répétitions, suis tes progrès, tiens un journal alimentaire et utilise le Meal Planner pour obtenir des idées de repas.',
+    it: 'Crea e ripeti le routine, registra pesi e ripetizioni, monitora i progressi, tieni un diario alimentare e usa Meal Planner per suggerimenti sui pasti.',
+    es: 'Crea y repite rutinas, registra pesos y repeticiones, sigue tu progreso, lleva un diario de comidas y usa Meal Planner para recibir sugerencias.',
+    bs: 'Kreiraj i ponavljaj rutine, bilježi težine i ponavljanja, prati napredak, vodi dnevnik hrane i koristi Meal Planner za prijedloge obroka.',
+    hr: 'Izradi i ponavljaj rutine, bilježi težine i ponavljanja, prati napredak, vodi dnevnik prehrane i koristi Meal Planner za prijedloge obroka.'
+  },
+  'Treba ti pomoć?': {
+    en: 'Need help?', de: 'Brauchst du Hilfe?', fr: 'Besoin d’aide ?', it: 'Ti serve aiuto?', es: '¿Necesitas ayuda?',
+    bs: 'Treba ti pomoć?', hr: 'Trebaš pomoć?'
+  },
+  'Imaš problem, nešto ti nije jasno, nešto ti se ne sviđa ili imaš prijedlog? Piši nam — tu smo da te saslušamo i poboljšamo GymLeader.': {
+    en: 'Have a problem, a question, something you would change or an idea? Write to us — we are here to listen and improve GymLeader.',
+    de: 'Hast du ein Problem, eine Frage, etwas, das dir nicht gefällt, oder einen Vorschlag? Schreib uns — wir hören zu und verbessern GymLeader.',
+    fr: 'Tu as un problème, une question, quelque chose qui ne te plaît pas ou une idée ? Écris-nous — nous sommes là pour t’écouter et améliorer GymLeader.',
+    it: 'Hai un problema, una domanda, qualcosa che non ti piace o un suggerimento? Scrivici: siamo qui per ascoltarti e migliorare GymLeader.',
+    es: '¿Tienes un problema, una duda, algo que no te gusta o una sugerencia? Escríbenos: estamos aquí para escucharte y mejorar GymLeader.',
+    bs: 'Imaš problem, nešto ti nije jasno, nešto ti se ne sviđa ili imaš prijedlog? Piši nam — tu smo da te saslušamo i poboljšamo GymLeader.',
+    hr: 'Imaš problem, nešto ti nije jasno, nešto ti se ne sviđa ili imaš prijedlog? Piši nam — tu smo da te saslušamo i poboljšamo GymLeader.'
+  },
+  'Pošalji email GymLeader podršci': {
+    en: 'Email GymLeader support', de: 'GymLeader-Support per E-Mail kontaktieren',
+    fr: 'Écrire à l’assistance GymLeader', it: 'Scrivi all’assistenza GymLeader',
+    es: 'Escribir al soporte de GymLeader', bs: 'Pošalji email GymLeader podršci', hr: 'Pošalji e-poštu GymLeader podršci'
+  },
+  'Kontaktiraj GymLeader': {
+    en: 'Contact GymLeader', de: 'GymLeader kontaktieren', fr: 'Contacter GymLeader',
+    it: 'Contatta GymLeader', es: 'Contactar con GymLeader', bs: 'Kontaktiraj GymLeader', hr: 'Kontaktiraj GymLeader'
+  },
+  'GymLeader podrška': {
+    en: 'GymLeader support', de: 'GymLeader-Support', fr: 'Assistance GymLeader', it: 'Assistenza GymLeader',
+    es: 'Soporte de GymLeader', bs: 'GymLeader podrška', hr: 'GymLeader podrška'
+  },
+  'Zatvori poruku podrške': {
+    en: 'Close support message', de: 'Support-Nachricht schließen', fr: 'Fermer le message d’assistance',
+    it: 'Chiudi il messaggio di assistenza', es: 'Cerrar el mensaje de soporte', bs: 'Zatvori poruku podrške', hr: 'Zatvori poruku podrške'
+  },
+  'Tu smo za tebe': {
+    en: 'We are here to help', de: 'Wir sind für dich da', fr: 'Nous sommes là pour toi', it: 'Siamo qui per aiutarti',
+    es: 'Estamos aquí para ayudarte', bs: 'Tu smo za tebe', hr: 'Tu smo za tebe'
+  },
+  'Imaš problem, nešto ti nije jasno, ne sviđa ti se neka funkcija ili imaš prijedlog? Piši nam — tvoje iskustvo nam pomaže da poboljšamo GymLeader.': {
+    en: 'Having trouble, confused by something, dislike a feature or have a suggestion? Write to us — your feedback helps us improve GymLeader.',
+    de: 'Hast du ein Problem, ist etwas unklar, gefällt dir eine Funktion nicht oder hast du einen Vorschlag? Schreib uns — dein Feedback hilft uns, GymLeader zu verbessern.',
+    fr: 'Tu rencontres un problème, quelque chose n’est pas clair, une fonction ne te plaît pas ou tu as une idée ? Écris-nous — ton avis nous aide à améliorer GymLeader.',
+    it: 'Hai un problema, qualcosa non è chiaro, una funzione non ti piace o hai un suggerimento? Scrivici: il tuo parere ci aiuta a migliorare GymLeader.',
+    es: '¿Tienes un problema, algo no está claro, no te gusta una función o tienes una sugerencia? Escríbenos: tu opinión nos ayuda a mejorar GymLeader.',
+    bs: 'Imaš problem, nešto ti nije jasno, ne sviđa ti se neka funkcija ili imaš prijedlog? Piši nam — tvoje iskustvo nam pomaže da poboljšamo GymLeader.',
+    hr: 'Imaš problem, nešto ti nije jasno, ne sviđa ti se neka funkcija ili imaš prijedlog? Piši nam — tvoje iskustvo pomaže nam poboljšati GymLeader.'
+  },
+  'Ako se email nije otvorio, možeš napisati poruku u Gmailu.': {
+    en: 'If your email app did not open, you can write your message in Gmail.',
+    de: 'Falls sich dein E-Mail-Programm nicht geöffnet hat, kannst du deine Nachricht in Gmail schreiben.',
+    fr: 'Si ton application de messagerie ne s’est pas ouverte, tu peux écrire ton message dans Gmail.',
+    it: 'Se l’app email non si è aperta, puoi scrivere il messaggio in Gmail.',
+    es: 'Si no se abrió tu aplicación de correo, puedes escribir el mensaje en Gmail.',
+    bs: 'Ako se email nije otvorio, možeš napisati poruku u Gmailu.',
+    hr: 'Ako se e-pošta nije otvorila, možeš napisati poruku u Gmailu.'
+  },
+  'Napiši email': {
+    en: 'Write an email', de: 'E-Mail schreiben', fr: 'Écrire un e-mail', it: 'Scrivi un’email', es: 'Escribir un correo',
+    bs: 'Napiši email', hr: 'Napiši e-poštu'
+  },
+  'Otvori Gmail': {
+    en: 'Open Gmail', de: 'Gmail öffnen', fr: 'Ouvrir Gmail', it: 'Apri Gmail', es: 'Abrir Gmail',
+    bs: 'Otvori Gmail', hr: 'Otvori Gmail'
+  },
+  'Kontaktirajte nas': {
+    en: 'Contact us', de: 'Kontaktiere uns', fr: 'Contactez-nous', it: 'Contattaci', es: 'Contáctanos',
+    bs: 'Kontaktirajte nas', hr: 'Kontaktirajte nas'
+  },
+  'Imate prijedlog, problem ili sugestiju? Nešto vam nije jasno, komplikovano je ili ne radi? Pišite nam na email — vaše poruke nam pomažu da poboljšamo GymLeader.': {
+    en: 'Have an idea, a problem or feedback? Is something unclear, too complicated or not working? Email us — your messages help us improve GymLeader.',
+    de: 'Hast du eine Idee, ein Problem oder Feedback? Ist etwas unklar, zu kompliziert oder funktioniert nicht? Schreib uns eine E-Mail — deine Nachricht hilft uns, GymLeader zu verbessern.',
+    fr: 'Vous avez une idée, un problème ou une suggestion ? Quelque chose est peu clair, trop compliqué ou ne fonctionne pas ? Écrivez-nous — vos messages nous aident à améliorer GymLeader.',
+    it: 'Hai un’idea, un problema o un suggerimento? Qualcosa non è chiaro, è troppo complicato o non funziona? Scrivici via email: i tuoi messaggi ci aiutano a migliorare GymLeader.',
+    es: '¿Tienes una idea, un problema o una sugerencia? ¿Algo no está claro, es complicado o no funciona? Escríbenos por correo: tus mensajes nos ayudan a mejorar GymLeader.',
+    bs: 'Imate prijedlog, problem ili sugestiju? Nešto vam nije jasno, komplikovano je ili ne radi? Pišite nam na email — vaše poruke nam pomažu da poboljšamo GymLeader.',
+    hr: 'Imate prijedlog, problem ili sugestiju? Nešto vam nije jasno, komplicirano je ili ne radi? Pišite nam e-poštom — vaše poruke pomažu nam poboljšati GymLeader.'
+  },
+  'Otvori email aplikaciju': {
+    en: 'Open email app', de: 'E-Mail-App öffnen', fr: 'Ouvrir la messagerie', it: 'Apri l’app email', es: 'Abrir la aplicación de correo',
+    bs: 'Otvori email aplikaciju', hr: 'Otvori aplikaciju za e-poštu'
+  },
+  'Historija trenutno nije dostupna. Pokušaj ponovo kasnije.': {
+    en: 'Workout history is unavailable right now. Please try again later.',
+    de: 'Der Trainingsverlauf ist derzeit nicht verfügbar. Bitte versuche es später erneut.',
+    fr: 'L’historique des entraînements est indisponible pour le moment. Réessayez plus tard.',
+    it: 'La cronologia degli allenamenti non è disponibile al momento. Riprova più tardi.',
+    es: 'El historial de entrenamientos no está disponible ahora. Vuelve a intentarlo más tarde.',
+    bs: 'Historija trenutno nije dostupna. Pokušaj ponovo kasnije.',
+    hr: 'Povijest treninga trenutačno nije dostupna. Pokušaj ponovno kasnije.'
+  },
+  'Tvoji treninzi': {
+    en: 'Your workouts', de: 'Deine Trainings', fr: 'Vos entraînements', it: 'I tuoi allenamenti', es: 'Tus entrenamientos',
+    bs: 'Tvoji treninzi', hr: 'Tvoji treninzi'
+  }
+};
+for (const [source, translations] of Object.entries(HOME_VALUE_CONTACT_TRANSLATIONS)) {
+  for (const language of ['en', 'de', 'fr', 'it', 'es']) TRANSLATIONS[language][source] = translations[language];
+}
 TRANSLATIONS.bs = buildBcsTranslations(TRANSLATIONS, 'bs');
 TRANSLATIONS.hr = buildBcsTranslations(TRANSLATIONS, 'hr');
 for (const [source, translations] of Object.entries(ROUTINE_ONBOARDING_TRANSLATIONS)) {
+  TRANSLATIONS.bs[source] = translations.bs;
+  TRANSLATIONS.hr[source] = translations.hr;
+}
+for (const [source, translations] of Object.entries(HOME_VALUE_CONTACT_TRANSLATIONS)) {
   TRANSLATIONS.bs[source] = translations.bs;
   TRANSLATIONS.hr[source] = translations.hr;
 }
