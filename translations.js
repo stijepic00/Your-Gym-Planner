@@ -1,7 +1,7 @@
-import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261005-bcs-settings-v132';
-import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261005-bcs-settings-v132';
-import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261005-bcs-settings-v132';
-import { buildBcsTranslations } from './translations-bs-hr.js?v=20261005-bcs-settings-v132';
+import { ROMANCE_TRANSLATIONS } from './translations-fr-it-es.js?v=20261006-routine-flow-v133';
+import { CATALOG_TRANSLATIONS } from './catalog-translations.js?v=20261006-routine-flow-v133';
+import { DYNAMIC_TRANSLATIONS } from './translations-dynamic.js?v=20261006-routine-flow-v133';
+import { buildBcsTranslations } from './translations-bs-hr.js?v=20261006-routine-flow-v133';
 // Text used by the app UI. User-created names, workout notes and exercise names
 // are intentionally never translated.
 export const TRANSLATIONS = {
@@ -1418,5 +1418,62 @@ for (const [source, values] of Object.entries(HISTORY_COVERAGE_TRANSLATIONS)) {
   ['en', 'de', 'fr', 'it', 'es'].forEach((language, index) => { TRANSLATIONS[language][source] = values[index]; });
 }
 
+const ROUTINE_ONBOARDING_TRANSLATIONS = {
+  'Ne praviš ga ponovo svake sedmice. Uobičajene dane možeš podesiti jednom u opciji „Uredi plan” i kasnije ih promijeniti.': {
+    en: 'You do not need to recreate it every week. Set your usual days once under “Edit plan” and change them whenever you like.',
+    de: 'Du musst ihn nicht jede Woche neu erstellen. Lege deine üblichen Tage einmal unter „Plan bearbeiten“ fest und ändere sie bei Bedarf.',
+    fr: 'Pas besoin de le recréer chaque semaine. Définis tes jours habituels une fois dans « Modifier le programme » et change-les quand tu veux.',
+    it: 'Non devi ricrearlo ogni settimana. Imposta una volta i giorni abituali in «Modifica programma» e cambiali quando vuoi.',
+    es: 'No tienes que crearlo de nuevo cada semana. Define tus días habituales una vez en «Editar plan» y cámbialos cuando quieras.',
+    bs: 'Ne praviš ga ponovo svake sedmice. Uobičajene dane podesiš jednom u opciji „Uredi plan” i kasnije ih možeš promijeniti.',
+    hr: 'Ne izrađuješ ga ponovno svakog tjedna. Uobičajene dane postaviš jednom u opciji „Uredi plan” i kasnije ih možeš promijeniti.'
+  },
+  'GymLeader koristi tvoj cilj, fokus, raspoloživo vrijeme, iskustvo i mjesto treninga. Pregledaj prijedlog, po potrebi ga uredi, pa odluči želiš li ga sačuvati.': {
+    en: 'GymLeader uses your goal, focus, available time, experience and training location. Review the suggestion, edit it if needed, then decide whether to save it.',
+    de: 'GymLeader nutzt dein Ziel, deinen Fokus, deine verfügbare Zeit, Erfahrung und deinen Trainingsort. Sieh dir den Vorschlag an, bearbeite ihn bei Bedarf und entscheide dann, ob du ihn speichern möchtest.',
+    fr: 'GymLeader utilise ton objectif, tes priorités, ton temps disponible, ton expérience et ton lieu d’entraînement. Consulte la proposition, modifie-la si besoin, puis décide si tu veux l’enregistrer.',
+    it: 'GymLeader usa il tuo obiettivo, le tue priorità, il tempo disponibile, l’esperienza e il luogo di allenamento. Controlla la proposta, modificala se serve e poi decidi se salvarla.',
+    es: 'GymLeader usa tu objetivo, tus prioridades, el tiempo disponible, tu experiencia y el lugar de entrenamiento. Revisa la propuesta, edítala si hace falta y decide si quieres guardarla.',
+    bs: 'GymLeader koristi tvoj cilj, fokus, raspoloživo vrijeme, iskustvo i mjesto treninga. Pregledaj prijedlog, po potrebi ga uredi, pa odluči želiš li ga spremiti.',
+    hr: 'GymLeader koristi tvoj cilj, fokus, raspoloživo vrijeme, iskustvo i mjesto treninga. Pregledaj prijedlog, po potrebi ga uredi, pa odluči želiš li ga spremiti.'
+  },
+  'Nema aktivnih planova treninga.': {
+    en: 'No active workout plans.', de: 'Keine aktiven Trainingspläne.', fr: 'Aucun programme d’entraînement actif.',
+    it: 'Nessun programma di allenamento attivo.', es: 'No hay planes de entrenamiento activos.',
+    bs: 'Nema aktivnih planova treninga.', hr: 'Nema aktivnih planova treninga.'
+  },
+  'Plan za noge — jedan trening koji možeš ponavljati.': {
+    en: 'Leg day — one workout you can repeat.', de: 'Beintraining — ein Workout, das du wiederholen kannst.',
+    fr: 'Séance jambes — un entraînement que tu peux répéter.', it: 'Gambe — un allenamento che puoi ripetere.',
+    es: 'Piernas — un entrenamiento que puedes repetir.', bs: 'Plan za noge — jedan trening koji možeš ponavljati.',
+    hr: 'Plan za noge — jedan trening koji možeš ponavljati.'
+  },
+  'Sačuvaš ga jednom i pokreneš kada želiš. Dane možeš podesiti kasnije.': {
+    en: 'Save it once and start it whenever you like. You can set the days later.',
+    de: 'Speichere es einmal und starte es, wann du möchtest. Die Tage kannst du später festlegen.',
+    fr: 'Enregistre-le une fois et lance-le quand tu veux. Tu pourras définir les jours plus tard.',
+    it: 'Salvalo una volta e avvialo quando vuoi. Potrai impostare i giorni più tardi.',
+    es: 'Guárdalo una vez y empieza cuando quieras. Puedes definir los días más adelante.',
+    bs: 'Spremiš ga jednom i pokreneš kada želiš. Dane možeš podesiti kasnije.',
+    hr: 'Spremiš ga jednom i pokreneš kada želiš. Dane možeš postaviti kasnije.'
+  },
+  'Napravi svoju rutinu': {
+    en: 'Create your own routine', de: 'Eigene Routine erstellen', fr: 'Créer ma propre routine',
+    it: 'Crea la tua routine', es: 'Crea tu propia rutina', bs: 'Napravi svoju rutinu', hr: 'Napravi svoju rutinu'
+  },
+  'Nemam svoju rutinu — napravi plan za mene': {
+    en: 'I do not have a routine — make a plan for me', de: 'Ich habe noch keine Routine — erstelle einen Plan für mich',
+    fr: 'Je n’ai pas de routine — crée un programme pour moi', it: 'Non ho una routine — crea un programma per me',
+    es: 'No tengo una rutina — crea un plan para mí', bs: 'Nemam svoju rutinu — napravi plan za mene',
+    hr: 'Nemam svoju rutinu — napravi plan za mene'
+  }
+};
+for (const [source, translations] of Object.entries(ROUTINE_ONBOARDING_TRANSLATIONS)) {
+  for (const language of ['en', 'de', 'fr', 'it', 'es']) TRANSLATIONS[language][source] = translations[language];
+}
 TRANSLATIONS.bs = buildBcsTranslations(TRANSLATIONS, 'bs');
 TRANSLATIONS.hr = buildBcsTranslations(TRANSLATIONS, 'hr');
+for (const [source, translations] of Object.entries(ROUTINE_ONBOARDING_TRANSLATIONS)) {
+  TRANSLATIONS.bs[source] = translations.bs;
+  TRANSLATIONS.hr[source] = translations.hr;
+}

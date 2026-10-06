@@ -1243,6 +1243,9 @@ html[data-theme="light"] header { background: rgba(255, 255, 255, 0.9) !importan
     .routine-empty-title { margin: 0; font-weight: 800; font-size: 1rem; }
     .routine-empty-text { margin: 6px auto 0; max-width: 280px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.45; }
     .routine-empty-state { text-align: center; padding: 24px 15px; border-style: dashed; }
+    .routine-empty-state .routine-empty-text { max-width: 540px; }
+    .routine-empty-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 620px; margin: 20px auto 0; }
+    @media (max-width: 640px) { .routine-empty-actions { grid-template-columns: 1fr; } }
     .routine-builder-intro { margin: 0 0 14px; padding-right: 36px; color: var(--text-muted); font-size: .84rem; line-height: 1.45; }
     .routine-builder-help { margin: -2px 0 9px; color: var(--text-muted); font-size: .76rem; line-height: 1.35; }
     .routine-exercise-builder { display: grid; gap: 9px; }
@@ -2393,3 +2396,13 @@ html[data-theme="light"] .dashboard-hero { background: radial-gradient(circle at
 }
 
 .meal-planner-method-note { margin: 8px 0 0; color: var(--text-muted); font-size: .8rem; line-height: 1.5; }
+
+.settings-option-row:has(.settings-option-value) { grid-template-columns: 40px minmax(0,1fr) auto; }
+.settings-option-row:has(.settings-option-value) .settings-option-value { max-width: min(34vw,14ch); overflow-wrap: normal; word-break: normal; }
+@media (max-width: 480px) {
+  .dashboard-summary-grid { grid-template-columns: 1fr; }
+  .meal-planner-saved-item > span { display: flex; flex-wrap: wrap; gap: 6px; }
+  .meal-planner-saved-item > span button { flex: 1 1 120px; }
+  #view-active-workout > .flex-between > div { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; width: 100%; }
+  #view-active-workout > .flex-between > div .btn { width: 100%; min-width: 0; white-space: normal; }
+}

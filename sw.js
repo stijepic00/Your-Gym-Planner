@@ -1,4 +1,4 @@
-const BUILD = '20261005-bcs-settings-v132';
+const BUILD = '20261006-routine-flow-v133';
 const CACHE_NAME = `gymleader-app-${BUILD}`;
 
 // Every app-shell file carries the same build identifier in index.html. A new

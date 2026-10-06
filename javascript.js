@@ -1,10 +1,10 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261005-bcs-settings-v132';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261005-bcs-settings-v132';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261005-bcs-settings-v132';
-  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261005-bcs-settings-v132';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261005-bcs-settings-v132';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261005-bcs-settings-v132';
+  import { TRANSLATIONS } from './translations.js?v=20261006-routine-flow-v133';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261006-routine-flow-v133';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-routine-flow-v133';
+  import { exerciseKey, latestExerciseHistory, maxExerciseWeight } from './exercise-history.js?v=20261006-routine-flow-v133';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-routine-flow-v133';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261006-routine-flow-v133';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -1297,7 +1297,7 @@
     const archivedRoutines = userRoutines.filter((routine) => routine.isArchived === true);
     const visibleRoutines = sortRoutinesForDisplay(activeRoutines);
 
-    let html = `
+    let html = visibleRoutines.length ? `
       <div class="routine-toolbar">
         <button class="btn btn-secondary routine-generator-button" data-action="open-plan-generator" type="button">
           ✦ Predloži plan za mene
@@ -1306,18 +1306,23 @@
           ➕ Napravi plan treninga
         </button>
       </div>
-      ${userRoutines.length > 0 ? `
-        <button class="routine-manage-link" data-action="toggle-routine-edit-mode" type="button">
-          ${escapeHtml(translateUiText(routineEditMode ? '✓ Gotovo s uređivanjem' : '✎ Uredi planove'))}
-        </button>
-      ` : ''}
+    ` : '';
+    if (userRoutines.length > 0) html += `
+      <button class="routine-manage-link" data-action="toggle-routine-edit-mode" type="button">
+        ${escapeHtml(translateUiText(routineEditMode ? '✓ Gotovo s uređivanjem' : '✎ Uredi planove'))}
+      </button>
     `;
 
     if (visibleRoutines.length === 0) {
       html += `
         <div class="card routine-empty-state">
-          <p class="routine-empty-title">Još nemaš plan treninga.</p>
-          <p class="routine-empty-text">Napravi svoj prvi plan, nazovi ga kako želiš i dodaj vježbe.</p>
+          <p class="routine-empty-title">${escapeHtml(translateUiText(userRoutines.length ? 'Nema aktivnih planova treninga.' : 'Još nemaš plan treninga.'))}</p>
+          <p class="routine-empty-text">${escapeHtml(translateUiText('Plan za noge — jedan trening koji možeš ponavljati.'))}</p>
+          <p class="routine-empty-text">${escapeHtml(translateUiText('Sačuvaš ga jednom i pokreneš kada želiš. Dane možeš podesiti kasnije.'))}</p>
+          <div class="routine-empty-actions">
+            <button class="btn btn-purple routine-create-button" data-action="choose-manual-plan" type="button">${escapeHtml(translateUiText('Napravi svoju rutinu'))}</button>
+            <button class="btn btn-secondary routine-generator-button" data-action="open-plan-generator" type="button">${escapeHtml(translateUiText('Nemam svoju rutinu — napravi plan za mene'))}</button>
+          </div>
         </div>
       `;
     } else {
@@ -4215,8 +4220,8 @@ function renderPendingSyncStatus() {
       image.removeAttribute('src');
       visual.className = 'dashboard-hero-visual dashboard-hero-neutral';
     };
-    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261005-bcs-settings-v132`;
-    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261005-bcs-settings-v132`;
+    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261006-routine-flow-v133`;
+    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261006-routine-flow-v133`;
     picture.hidden = false;
   }
 
@@ -9010,7 +9015,7 @@ function renderPendingSyncStatus() {
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
     if (!['http:', 'https:'].includes(location.protocol)) return;
-    const build = '20261005-bcs-settings-v132';
+    const build = '20261006-routine-flow-v133';
     navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
