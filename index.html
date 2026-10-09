@@ -72,10 +72,10 @@
   <link rel="apple-touch-icon" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-progress-support-v142">
   <link rel="manifest" href="manifest.webmanifest?v=20261006-progress-support-v142">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261006-support-pill-v1">
+  <link rel="stylesheet" href="styles.css?v=20261009-header-language-v145">
 
 </head>
-<body>
+<body class="app-navigation-shell">
 
 <div id="auth-boot-screen" class="auth-boot-screen" role="status" aria-live="polite" aria-label="Učitavanje GymLeader-a">
   <div class="auth-boot-glow auth-boot-glow-one"></div>
@@ -92,14 +92,31 @@
 </div>
 <script src="language-boot.js?v=20261006-progress-support-v142"></script>
 
-<header>
+<header class="app-header">
     <button type="button" class="gymleader-brand" aria-label="GymLeader početna strana" data-action="go-home">
       <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261006-progress-support-v142" alt=""></span>
       <span class="gymleader-brand-copy"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></span>
     </button>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
       <span id="user-email-display" class="user-pill" style="display:none;"></span>
+      <button id="app-menu-toggle" class="app-menu-toggle" type="button" aria-label="Otvori meni" aria-expanded="false" aria-controls="app-header-navigation" hidden><span aria-hidden="true">☰</span></button>
     </div>
+    <nav id="app-header-navigation" class="app-header-navigation" aria-label="Glavna navigacija">
+      <details id="app-header-language" class="app-header-language">
+        <summary><span>Jezik aplikacije</span>: <span id="app-header-language-name" data-no-translate lang="sr">Srpski</span></summary>
+        <div class="app-header-language-options" role="group" aria-label="Izbor jezika">
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="sr" data-no-translate lang="sr">Srpski</button>
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="bs" data-no-translate lang="bs">Bosanski</button>
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="hr" data-no-translate lang="hr">Hrvatski</button>
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="en" data-no-translate lang="en">English</button>
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="de" data-no-translate lang="de">Deutsch</button>
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="fr" data-no-translate lang="fr">Français</button>
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="it" data-no-translate lang="it">Italiano</button>
+          <button type="button" class="header-language-choice" data-action="set-language" data-language="es" data-no-translate lang="es">Español</button>
+        </div>
+      </details>
+      <a id="app-info-link" class="app-info-link" href="https://info.gymleader.app/">Informacije o GymLeaderu <span aria-hidden="true">↗</span></a>
+    </nav>
 </header>
 
 <aside id="pwa-install-banner" class="pwa-install-banner" hidden aria-live="polite">
@@ -690,7 +707,7 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20261006-workout-draft-v144"></script>
+<script type="module" src="javascript.js?v=20261009-header-language-v145"></script>
 </body>
 </html>
 

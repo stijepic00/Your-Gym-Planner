@@ -1607,3 +1607,14 @@ for (const [language, message] of Object.entries({
   bs: 'Nacrt treninga nije moguće obrisati na ovom uređaju.',
   hr: 'Nacrt treninga nije moguće izbrisati s ovog uređaja.'
 })) TRANSLATIONS[language][DRAFT_DELETE_WARNING] = message;
+
+// Header controls reuse the existing application language handler.
+const HEADER_NAV_TRANSLATIONS = {
+  'Otvori meni': { bs: 'Otvori meni', hr: 'Otvori izbornik', en: 'Open menu', de: 'Menü öffnen', fr: 'Ouvrir le menu', it: 'Apri il menu', es: 'Abrir menú' },
+  'Zatvori meni': { bs: 'Zatvori meni', hr: 'Zatvori izbornik', en: 'Close menu', de: 'Menü schließen', fr: 'Fermer le menu', it: 'Chiudi il menu', es: 'Cerrar menú' },
+  'Glavna navigacija': { bs: 'Glavna navigacija', hr: 'Glavna navigacija', en: 'Main navigation', de: 'Hauptnavigation', fr: 'Navigation principale', it: 'Navigazione principale', es: 'Navegación principal' },
+  'Informacije o GymLeaderu': { bs: 'Informacije o GymLeaderu', hr: 'Informacije o GymLeaderu', en: 'About GymLeader', de: 'Über GymLeader', fr: 'À propos de GymLeader', it: 'Informazioni su GymLeader', es: 'Acerca de GymLeader' }
+};
+for (const [source, labels] of Object.entries(HEADER_NAV_TRANSLATIONS)) {
+  for (const [language, label] of Object.entries(labels)) TRANSLATIONS[language][source] = label;
+}

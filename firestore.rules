@@ -147,7 +147,7 @@ service cloud.firestore {
         && data.startDate is string && data.startDate.size() == 10
         && data.catalogVersion is int && data.catalogVersion == 1
         && data.goal is string && data.goal in ['lose_weight', 'maintain', 'gain_weight']
-        && data.diet is string && data.diet in ['none', 'vegetarian', 'vegan', 'halal']
+        && data.diet is string && data.diet in ['none', 'vegetarian', 'vegan', 'halal', 'orthodox_fast_water', 'orthodox_fast_oil', 'orthodox_fast_fish']
         && data.people is int && data.people >= 1 && data.people <= 10
         && data.dayCount is int && data.dayCount >= 1 && data.dayCount <= 7
         && data.mealCount is int && data.mealCount >= 2 && data.mealCount <= 5

@@ -1,0 +1,338 @@
+{
+  "bs": {
+    "title": "GymLeader — Rutine, trening i napredak na jednom mjestu",
+    "description": "Sačuvaj rutine, bilježi serije, kilaže i ponavljanja, prati težinu i mjere tijela. GymLeader povezuje trening, grafikone, dnevnik ishrane i Meal Planner.",
+    "ui": ["Preskoči na sadržaj", "Početna", "Glavna navigacija", "Otvori meni", "Zatvori meni", "Jezik", "Pravne informacije", "Nazad na početnu", "Otvori GymLeader", "Mogućnosti", "Kako radi", "FAQ", "Kontakt", "Pauziraj animacije", "Pokreni animacije"],
+    "hero": ["TRENIRAJ SA VIŠE PREGLEDA", "Tvoje rutine.", "Manje pamćenja. Više fokusa na trening.", "Sačuvaj trening koji želiš ponavljati, zabilježi kilaže i ponavljanja i vidi šta si radio prošli put. GymLeader drži tvoj trening na jednom mjestu.", "Pogledaj kako radi", "Web aplikacija. Otvori je u svom pregledniku.", "TVOJ TRENING, TVOJ TEMPO", "SAČUVAJ. PONOVI. NAPREDUJ.", "Ne počinješ od nule.", "Tvoja rutina je spremna za sljedeći trening."],
+    "phrases": ["Tvoj napredak.", "Tvoja ishrana.", "Tvoja kilaža.", "Tvoje tijelo.", "Tvoji treninzi."],
+    "tags": ["Rutine", "Kilaže i ponavljanja", "Napredak"],
+    "routine": ["Jedan plan. Trening koji možeš ponavljati.", "Napravi, recimo, ‘Plan za noge’, dodaj svoje vježbe i pokreni ga kad želiš. Ne moraš praviti novu rutinu svake sedmice.", "Kako početi", "PRIMJER NAZIVA RUTINE", "Plan za noge", "Jedan trening. Ponovi ga kada želiš."],
+    "features": ["JASNIJE OD PRVOG TRENINGA", "Znaš šta radiš. Vidiš kako napreduješ.", "Za ljude koji treniraju samostalno i žele urediti svoje rutine, umjesto da svaki put traže bilješke."],
+    "cards": [
+      ["TRENING", "Rutina koja ostaje tvoja.", "Napravi vlastiti trening, dodaj vježbe i uredi plan kada ti zatreba. Sačuvana rutina spremna je za ponavljanje."],
+      ["EVIDENCIJA", "Ne oslanjaj se na pamćenje.", "Bilježi vježbe, serije, kilaže, ponavljanja i bilješke. Pogledaj prethodne rezultate i lične rekorde, pa znaš odakle krećeš."],
+      ["GRAFIKONI", "Pogledaj širu sliku.", "Vrati se završenim treninzima i pogledaj grafikone vježbi. Uporedi svoje rezultate kroz vrijeme, uz pregled aktivnosti u izabranom periodu."],
+      ["TIJELO", "Prati težinu i mjere.", "Po želji bilježi tjelesnu težinu i obime tijela. Grafikoni mjerenja pomažu da vidiš promjene kroz vrijeme."],
+      ["ISHRANA", "Obroci imaju svoje mjesto.", "Dodaj hranu u dnevnik i prati kalorije i makronutrijente. Meal Planner predlaže obroke iz kataloga prema opcijama i ograničenjima, uz listu namirnica za kupovinu."],
+      ["DOSLJEDNOST", "Vrati se svom cilju.", "Postavi sedmični cilj trening dana i pogledaj aktivnost po danima. Niz sedmica s ostvarenim ciljem pokazuje kontinuitet, kada istorija daje dovoljno podataka."]
+    ],
+    "estimate": "Nutritivne vrijednosti i cijene su procjene iz kataloga. Planer ne optimizuje plan prema preciznom kalorijskom cilju.",
+    "how": ["PRVI KORAK JE JEDNOSTAVAN", "Od rutine do napretka.", "Počni jednim treningom koji želiš ponavljati. Ostalo dodaj svojim tempom."],
+    "steps": [
+      ["Sačuvaj rutinu.", "Otvori aplikaciju, napravi nalog i dodaj vježbe u svoj plan. Nemaš rutinu? Pogledaj generator prijedloga i uredi plan prije spremanja."],
+      ["Zabilježi trening.", "Pokreni sačuvanu rutinu i unesi serije, kilaže i ponavljanja koje si odradio. Završi trening da ostane u istoriji."],
+      ["Vrati se svom napretku.", "Na sljedećem treningu ponovo otvori rutinu. Pregledaj prošle rezultate, istoriju i grafikone da vidiš kako se tvoji treninzi mijenjaju."]
+    ],
+    "faqIntro": ["DOBRO JE ZNATI", "Prije nego počneš.", "Imaš još neko pitanje? Piši nam. Tu smo i kada ti nešto u aplikaciji nije jasno.", "Kontaktiraj nas"],
+    "faq": [
+      ["Šta je GymLeader i kome je namijenjen?", "GymLeader je web aplikacija za organizovanje rutina, bilježenje treninga i praćenje napretka. Namijenjena je ljudima koji žele samostalno voditi pregled svojih treninga i ishrane."],
+      ["Moram li praviti novi plan svake sedmice?", "Ne. Jedan plan predstavlja jedan trening koji sačuvaš i možeš ponavljati kada želiš. Na primjer, ‘Plan za noge’ ostaje među tvojim rutinama dok ga ne promijeniš ili ukloniš."],
+      ["Šta ako nemam vlastitu rutinu?", "U aplikaciji možeš koristiti generator prijedloga plana. Pregledaj prijedlog i prilagodi ga prije spremanja. Ako su generatoru potrebni dodatni podaci, aplikacija će ih zatražiti."],
+      ["Moram li preuzeti aplikaciju iz prodavnice?", "GymLeader koristiš preko preglednika na telefonu ili računaru. Na podržanim uređajima možeš dodati prečicu na početni ekran. Za početak otvori gymleader.app."],
+      ["Šta mogu pratiti tokom treninga?", "Možeš bilježiti vježbe, serije, kilaže, ponavljanja i bilješke, pregledati završene treninge, lične rekorde i grafikone napretka. Praćenje tijela omogućava da po želji unosiš težinu i obime."],
+      ["Koliko su precizni podaci o ishrani?", "Kalorije, makronutrijenti i cijene u Meal Planneru su procjene iz kataloga. Provjeri porciju, sastojke i etikete, naročito ako imaš alergije. GymLeader ne zamjenjuje ljekara ili dijetetičara."],
+      ["Kako se prijavljujem?", "Na gymleader.app možeš napraviti nalog emailom i potvrditi ga verifikacionim kodom ili koristiti ponuđenu Google prijavu. Postojeći nalog otvaraš svojim izabranim načinom prijave."]
+    ],
+    "contact": ["TU SMO ZA TEBE", "Tvoja poruka nam znači.", "Imaš prijedlog, naišao si na problem ili ti nešto nije jasno? Ako je nešto komplikovano ili ti se ne sviđa, reci nam. Pomažeš nam da GymLeader bude bolji.", "Napiši nam email", "Klik otvara tvoju email aplikaciju. Ako se ne otvori, kopiraj adresu i pošalji nam poruku iz svog email servisa.", "Pitanje ili prijedlog za GymLeader"],
+    "final": ["SAČUVAJ SVOJ SLJEDEĆI KORAK", "Počni jednim treningom.", "Tvoja rutina je početak. Napredak gradiš svaki put kad se vratiš."],
+    "legal": ["Pravila korištenja", "Politika privatnosti", "GYMLEADER · INFORMACIJE", "Posljednja izmjena: 29. septembar 2026.", "Za pitanja o ovim dokumentima piši na", "Pravila korištenja GymLeader aplikacije.", "Informacije o obradi podataka u GymLeader aplikaciji."],
+    "terms": [
+      "GymLeader je aplikacija za pravljenje planova treninga, bilježenje vježbi, praćenje kilaža, ponavljanja, trajanja, napretka i ličnih rezultata.",
+      "GymLeader nije medicinska usluga i ne zamjenjuje doktora, fizioterapeuta ili kvalifikovanog trenera. Korisnik sam procjenjuje da li je određena vježba sigurna za njega. Ako imaš povredu, bolest ili nedoumicu, obrati se zdravstvenom stručnjaku.",
+      "Odgovoran/na si za tačnost podataka koje unosiš i za čuvanje pristupa svom nalogu. Nije dozvoljeno dijeljenje naloga radi zloupotrebe, neovlašten pristup tuđim podacima, pokušaj zaobilaženja sigurnosnih mjera, slanje zlonamjernog koda ili preopterećivanje aplikacije.",
+      "Trudimo se da GymLeader bude dostupan, siguran i pouzdan. Zbog problema s internetom, uređajem, serverom, održavanjem ili drugih tehničkih okolnosti može doći do prekida, kašnjenja ili gubitka podataka. Offline podaci čekaju sinhronizaciju; povremeno provjeri status sinhronizacije važnih treninga.",
+      "Možeš obrisati nalog kroz Podešavanja. Brisanje može trajno ukloniti profil, rutine, treninge i druge podatke, osim podataka koje smo dužni čuvati prema zakonu.",
+      "Naziv GymLeader, logo, dizajn, kod i sadržaj aplikacije zaštićeni su. Dobijaš ograničeno pravo korištenja aplikacije za lične ili odobrene poslovne potrebe.",
+      "Možemo mijenjati, poboljšavati ili privremeno obustaviti dijelove aplikacije. Kod važnih promjena prikazaćemo novu verziju ovih pravila."
+    ],
+    "privacy": [
+      "GymLeader obrađuje podatke potrebne za rad aplikacije i korisničkog naloga: ime ili nadimak, pol, godine, visinu, težinu, cilj, učestalost treninga, mjesto treninga, iskustvo, ciljne mišićne grupe, vježbe koje želiš ili izbjegavaš, alergije i hranu koju moraš izbjegavati, email adresu, podatke za prijavu, rutine, istoriju treninga, kilaže, ponavljanja, trajanje, bilješke, mjerenja težine i obima tijela, jezik, podešavanja i tehničke podatke potrebne za sigurnost i sinhronizaciju.",
+      "Podatke koristimo za kreiranje i održavanje naloga, prijavu i potvrdu email adrese, čuvanje rutina i treninga, sinhronizaciju između uređaja, sigurnost sistema i pružanje podrške. Podatke ne prodajemo.",
+      "Za rad aplikacije koristimo pouzdane tehničke provajdere, uključujući Firebase, Vercel i Brevo, samo u obimu potrebnom za njihove funkcije. Ako kasnije aktiviraš plaćanje, Lemon Squeezy će obrađivati podatke potrebne za naplatu prema svojim pravilima.",
+      "Možeš zatražiti pristup, ispravku, brisanje ili izvoz svojih podataka kada je to zakonski primjenjivo. Zahtjeve možeš poslati na gymleaderapp@gmail.com.",
+      "Podatke čuvamo onoliko dugo koliko je potrebno za rad naloga, sigurnost sistema ili zakonske obaveze. Koristimo razumne tehničke mjere zaštite, ali nijedan online sistem ne može garantovati apsolutnu sigurnost ili neprekidan rad.",
+      "Ovu politiku možemo ažurirati. Kada promjena zahtijeva novu potvrdu, prikazaćemo novu verziju prije nastavka korištenja aplikacije."
+    ],
+    "preference": "Javni sajt pamti samo jezički izbor u lokalnoj pohrani preglednika i, na HTTPS GymLeader domenama, u cookieju gymleader-language koji važi i za aplikaciju. Sadrži samo jezički kod, traje do godinu dana i služi da se tvoj posljednji izbor prenese između sajta i aplikacije. Ovaj sajt ne dodaje analitičko praćenje."
+  },
+  "en": {
+    "title": "GymLeader — Workout routines, tracking and progress",
+    "description": "Save workout routines, log sets, weights and reps, and track body weight and measurements. Explore GymLeader workout charts, food diary and Meal Planner.",
+    "ui": ["Skip to content", "Home", "Main navigation", "Open menu", "Close menu", "Language", "Legal information", "Back to home", "Open GymLeader", "Features", "How it works", "FAQ", "Contact", "Pause animations", "Resume animations"],
+    "hero": ["TRAIN WITH A CLEARER VIEW", "Your routines.", "Less to remember. More focus on training.", "Save a workout you want to repeat, record your weights and reps, and see what you did last time. GymLeader keeps your training in one place.", "See how it works", "A web app. Open it in your browser.", "YOUR TRAINING, YOUR PACE", "SAVE. REPEAT. PROGRESS.", "You’re not starting from scratch.", "Your routine is ready for your next workout."],
+    "phrases": ["Your progress.", "Your nutrition.", "Your weight.", "Your body.", "Your workouts."],
+    "tags": ["Routines", "Weights and reps", "Progress"],
+    "routine": ["One plan. A workout you can repeat.", "Create a ‘Leg day’ plan, add your exercises and start it whenever you want. You don’t need a new routine every week.", "Getting started", "EXAMPLE ROUTINE NAME", "Leg day", "One workout. Repeat it whenever you want."],
+    "features": ["CLEAR FROM YOUR FIRST WORKOUT", "Know what you’re doing. See your progress.", "For people who train independently and want organised routines instead of hunting for notes every time."],
+    "cards": [
+      ["TRAINING", "A routine that stays yours.", "Create your own workout, add exercises and edit your plan when needed. Your saved routine is ready to repeat."],
+      ["WORKOUT LOG", "Don’t rely on memory.", "Log exercises, sets, weights, reps and notes. Check previous results and personal records so you know where to start."],
+      ["CHARTS", "See the bigger picture.", "Revisit completed workouts and explore exercise charts. Compare results over time and review activity for your selected period."],
+      ["BODY", "Track weight and measurements.", "Optionally record body weight and circumference measurements. Measurement charts help you see changes over time."],
+      ["NUTRITION", "A place for your meals.", "Add food to your diary and track calories and macros. Meal Planner suggests catalogue meals based on your options and restrictions, with an ingredient shopping list."],
+      ["CONSISTENCY", "Come back to your goal.", "Set a weekly goal for workout days and see activity by day. A streak of weeks meeting your goal shows consistency when your history provides enough data."]
+    ],
+    "estimate": "Nutrition values and prices are catalogue estimates. The planner does not optimise meals to a precise calorie target.",
+    "how": ["A SIMPLE FIRST STEP", "From routine to progress.", "Start with one workout you want to repeat. Add the rest at your own pace."],
+    "steps": [
+      ["Save a routine.", "Open the app, create an account and add exercises to your plan. No routine yet? Review a generated suggestion and edit it before saving."],
+      ["Log your workout.", "Start your saved routine and enter the sets, weights and reps you completed. Finish the workout to keep it in your history."],
+      ["Return to your progress.", "Open the routine again for your next workout. Review previous results, history and charts to see how your training changes."]
+    ],
+    "faqIntro": ["GOOD TO KNOW", "Before you start.", "Have another question? Write to us. We’re here when something in the app isn’t clear, too.", "Contact us"],
+    "faq": [
+      ["What is GymLeader and who is it for?", "GymLeader is a web app for organising routines, logging workouts and tracking progress. It is for people who want to manage their own training and nutrition records."],
+      ["Do I need a new plan every week?", "No. One plan is one saved workout that you can repeat whenever you want. For example, ‘Leg day’ stays in your routines until you change or remove it."],
+      ["What if I don’t have a routine?", "You can use the app’s plan suggestion generator. Review and adjust the suggestion before saving. The app asks for additional information if the generator needs it."],
+      ["Do I need to download an app from a store?", "Use GymLeader in a browser on your phone or computer. On supported devices you can add a shortcut to your home screen. To start, open gymleader.app."],
+      ["What can I track during training?", "You can log exercises, sets, weights, reps and notes, then review completed workouts, personal records and progress charts. Body tracking lets you optionally record weight and circumferences."],
+      ["How accurate is the nutrition information?", "Calories, macros and prices in Meal Planner are catalogue estimates. Check portions, ingredients and labels, especially if you have allergies. GymLeader does not replace a doctor or dietitian."],
+      ["How do I sign in?", "At gymleader.app you can create an account by email and confirm it with a verification code, or use the available Google sign-in. Access an existing account using your chosen sign-in method."]
+    ],
+    "contact": ["WE’RE HERE FOR YOU", "Your message matters.", "Have a suggestion, found a problem or unsure about something? Tell us if something feels complicated or you don’t like it. You help us make GymLeader better.", "Email us", "This opens your email app. If nothing opens, copy the address and send a message using your email service.", "Question or suggestion for GymLeader"],
+    "final": ["SAVE YOUR NEXT STEP", "Start with one workout.", "Your routine is the beginning. Build progress each time you return."],
+    "legal": ["Terms of use", "Privacy policy", "GYMLEADER · INFORMATION", "Last updated: 29 September 2026.", "For questions about these documents, email", "Terms of use for the GymLeader application.", "How the GymLeader application processes data."],
+    "terms": [
+      "GymLeader is an application for creating workout plans, logging exercises and tracking weights, repetitions, duration, progress and personal results.",
+      "GymLeader is not a medical service and does not replace a doctor, physiotherapist or qualified trainer. Users must assess whether an exercise is safe for them. If you have an injury, illness or concerns, consult a healthcare professional.",
+      "You are responsible for the accuracy of the information you enter and for protecting access to your account. Sharing accounts for abuse, accessing other users’ data without permission, attempting to bypass security measures, sending malicious code or overloading the application is prohibited.",
+      "We aim to keep GymLeader available, secure and reliable. Internet, device, server, maintenance or other technical issues may cause interruptions, delays or data loss. Offline data awaits synchronisation; occasionally check the sync status of important workouts.",
+      "You can delete your account in Settings. Deletion may permanently remove your profile, routines, workouts and other data, except information we are required to retain by law.",
+      "The GymLeader name, logo, design, code and application content are protected. You receive a limited right to use the application for personal or approved business purposes.",
+      "We may change, improve or temporarily suspend parts of the application. We will display a new version of these terms for important changes."
+    ],
+    "privacy": [
+      "GymLeader processes information needed for the application and user account: name or nickname, gender, age, height, weight, goal, training frequency, training location, experience, target muscle groups, exercises you want or avoid, allergies and foods you must avoid, email address, sign-in information, routines, workout history, weights, repetitions, duration, notes, body weight and circumference measurements, language, settings and technical data needed for security and synchronisation.",
+      "We use data to create and maintain accounts, provide sign-in and email verification, save routines and workouts, synchronise devices, secure the system and provide support. We do not sell data.",
+      "We use reliable technical providers, including Firebase, Vercel and Brevo, only as needed for their functions. If you activate payments in the future, Lemon Squeezy will process billing data under its own policies.",
+      "You may request access to, correction, deletion or export of your data where applicable by law. Send requests to gymleaderapp@gmail.com.",
+      "We retain data for as long as needed to operate your account, maintain system security or meet legal obligations. We use reasonable technical safeguards, but no online system can guarantee absolute security or uninterrupted operation.",
+      "We may update this policy. Where a change requires renewed acceptance, we will display a new version before you continue using the application."
+    ],
+    "preference": "The public site remembers only your language preference in browser storage and, on HTTPS GymLeader domains, in the gymleader-language cookie shared with the app. It contains only a language code, lasts up to one year and transfers your latest choice between the site and app. This site adds no analytics tracking."
+  },
+  "de": {
+    "title": "GymLeader — Trainingspläne, Trainingstagebuch und Fortschritt",
+    "description": "Speichere Trainingsroutinen, dokumentiere Sätze, Gewichte und Wiederholungen und verfolge Gewicht und Körpermaße. Mit Diagrammen, Ernährungstagebuch und Meal Planner.",
+    "ui": ["Zum Inhalt springen", "Startseite", "Hauptnavigation", "Menü öffnen", "Menü schließen", "Sprache", "Rechtliche Informationen", "Zurück zur Startseite", "GymLeader öffnen", "Funktionen", "So funktioniert’s", "FAQ", "Kontakt", "Animationen pausieren", "Animationen fortsetzen"],
+    "hero": ["TRAINIERE MIT MEHR ÜBERBLICK", "Deine Routinen.", "Weniger merken. Mehr Fokus aufs Training.", "Speichere ein Training zum Wiederholen, notiere Gewichte und Wiederholungen und sieh nach, was du zuletzt geschafft hast. GymLeader bündelt dein Training an einem Ort.", "So funktioniert’s", "Eine Web-App. Öffne sie im Browser.", "DEIN TRAINING, DEIN TEMPO", "SPEICHERN. WIEDERHOLEN. WEITERKOMMEN.", "Du fängst nicht bei null an.", "Deine Routine ist fürs nächste Training bereit."],
+    "phrases": ["Dein Fortschritt.", "Deine Ernährung.", "Dein Gewicht.", "Deine Körpermaße.", "Dein Training."],
+    "tags": ["Routinen", "Gewichte und Wiederholungen", "Fortschritt"],
+    "routine": ["Ein Plan. Ein Training zum Wiederholen.", "Erstelle zum Beispiel einen Plan ‘Beintag’, füge Übungen hinzu und starte ihn, wann du möchtest. Du brauchst nicht jede Woche eine neue Routine.", "So legst du los", "BEISPIEL FÜR EINEN ROUTINENNAMEN", "Beintag", "Ein Training. Wiederhole es, wann du möchtest."],
+    "features": ["KLARHEIT AB DEM ERSTEN TRAINING", "Wisse, was du trainierst. Sieh deinen Fortschritt.", "Für Menschen, die selbstständig trainieren und ihre Routinen ordnen möchten, statt jedes Mal nach Notizen zu suchen."],
+    "cards": [
+      ["TRAINING", "Eine Routine, die deine bleibt.", "Erstelle dein eigenes Training, füge Übungen hinzu und passe den Plan bei Bedarf an. Die gespeicherte Routine ist jederzeit wiederholbar."],
+      ["TRAININGSTAGEBUCH", "Verlass dich nicht auf dein Gedächtnis.", "Dokumentiere Übungen, Sätze, Gewichte, Wiederholungen und Notizen. Frühere Ergebnisse und persönliche Rekorde zeigen dir deinen Ausgangspunkt."],
+      ["DIAGRAMME", "Behalte das Gesamtbild im Blick.", "Sieh dir abgeschlossene Trainings und Übungsdiagramme an. Vergleiche Ergebnisse über die Zeit und prüfe deine Aktivität im gewählten Zeitraum."],
+      ["KÖRPER", "Verfolge Gewicht und Körpermaße.", "Erfasse auf Wunsch dein Körpergewicht und Körperumfänge. Messdiagramme machen Veränderungen im Zeitverlauf sichtbar."],
+      ["ERNÄHRUNG", "Deine Mahlzeiten an einem Ort.", "Trage Lebensmittel ins Tagebuch ein und verfolge Kalorien und Makronährstoffe. Der Meal Planner schlägt Kataloggerichte passend zu deinen Optionen und Einschränkungen vor, samt Einkaufsliste."],
+      ["REGELMÄSSIGKEIT", "Bleib an deinem Ziel dran.", "Lege ein Wochenziel für Trainingstage fest und sieh deine tägliche Aktivität. Eine Serie von Wochen mit erreichtem Ziel zeigt deine Regelmäßigkeit, sofern genügend Verlaufsdaten vorhanden sind."]
+    ],
+    "estimate": "Nährwerte und Preise sind Schätzungen aus dem Katalog. Der Planer optimiert Mahlzeiten nicht auf ein genaues Kalorienziel.",
+    "how": ["DER ERSTE SCHRITT IST EINFACH", "Von der Routine zum Fortschritt.", "Beginne mit einem Training, das du wiederholen möchtest. Ergänze den Rest in deinem Tempo."],
+    "steps": [
+      ["Speichere eine Routine.", "Öffne die App, erstelle ein Konto und füge Übungen zu deinem Plan hinzu. Noch keine Routine? Prüfe einen generierten Vorschlag und passe ihn vor dem Speichern an."],
+      ["Dokumentiere dein Training.", "Starte deine gespeicherte Routine und trage absolvierte Sätze, Gewichte und Wiederholungen ein. Schließe das Training ab, damit es im Verlauf bleibt."],
+      ["Sieh dir deinen Fortschritt an.", "Öffne die Routine beim nächsten Training erneut. Vergleiche frühere Ergebnisse, Verlauf und Diagramme und sieh, wie sich dein Training entwickelt."]
+    ],
+    "faqIntro": ["GUT ZU WISSEN", "Bevor du loslegst.", "Noch eine Frage? Schreib uns. Auch wenn etwas in der App unklar ist, sind wir für dich da.", "Kontaktiere uns"],
+    "faq": [
+      ["Was ist GymLeader und für wen ist es gedacht?", "GymLeader ist eine Web-App zum Organisieren von Routinen, Dokumentieren von Trainings und Verfolgen von Fortschritten. Sie richtet sich an Menschen, die Training und Ernährung selbst dokumentieren möchten."],
+      ["Brauche ich jede Woche einen neuen Plan?", "Nein. Ein Plan ist ein gespeichertes Training, das du jederzeit wiederholen kannst. Ein ‘Beintag’ bleibt zum Beispiel in deinen Routinen, bis du ihn änderst oder löschst."],
+      ["Was mache ich ohne eigene Routine?", "Nutze den Generator für Planvorschläge in der App. Prüfe den Vorschlag und passe ihn vor dem Speichern an. Falls weitere Angaben nötig sind, fragt die App danach."],
+      ["Muss ich eine App aus einem Store herunterladen?", "GymLeader läuft im Browser auf dem Smartphone oder Computer. Auf unterstützten Geräten kannst du eine Verknüpfung zum Startbildschirm hinzufügen. Öffne zum Start gymleader.app."],
+      ["Was kann ich beim Training erfassen?", "Du kannst Übungen, Sätze, Gewichte, Wiederholungen und Notizen erfassen sowie abgeschlossene Trainings, persönliche Rekorde und Fortschrittsdiagramme ansehen. Gewicht und Körperumfänge sind optional."],
+      ["Wie genau sind die Ernährungsangaben?", "Kalorien, Makronährstoffe und Preise im Meal Planner sind Katalogschätzungen. Prüfe Portionen, Zutaten und Etiketten, besonders bei Allergien. GymLeader ersetzt weder Arzt noch Ernährungsfachkraft."],
+      ["Wie melde ich mich an?", "Auf gymleader.app kannst du ein Konto per E-Mail erstellen und mit einem Bestätigungscode verifizieren oder die angebotene Google-Anmeldung nutzen. Melde dich mit der für dein Konto gewählten Methode an."]
+    ],
+    "contact": ["WIR SIND FÜR DICH DA", "Deine Nachricht zählt.", "Du hast einen Vorschlag, ein Problem entdeckt oder eine Frage? Sag uns, wenn etwas umständlich ist oder dir nicht gefällt. Du hilfst uns, GymLeader zu verbessern.", "Schreib uns eine E-Mail", "Der Link öffnet dein E-Mail-Programm. Falls nichts passiert, kopiere die Adresse und sende eine Nachricht über deinen E-Mail-Dienst.", "Frage oder Vorschlag zu GymLeader"],
+    "final": ["HALTE DEINEN NÄCHSTEN SCHRITT FEST", "Beginne mit einem Training.", "Deine Routine ist der Anfang. Mit jeder Rückkehr baust du darauf auf."],
+    "legal": ["Nutzungsbedingungen", "Datenschutzerklärung", "GYMLEADER · INFORMATIONEN", "Zuletzt geändert: 29. September 2026.", "Bei Fragen zu diesen Dokumenten schreibe an", "Nutzungsbedingungen der GymLeader-Anwendung.", "Informationen zur Datenverarbeitung in GymLeader."],
+    "terms": [
+      "GymLeader ist eine Anwendung zum Erstellen von Trainingsplänen, Erfassen von Übungen und Verfolgen von Gewichten, Wiederholungen, Dauer, Fortschritt und persönlichen Ergebnissen.",
+      "GymLeader ist kein medizinischer Dienst und ersetzt weder Arzt noch Physiotherapeut oder qualifizierten Trainer. Du beurteilst selbst, ob eine Übung für dich sicher ist. Bei Verletzungen, Erkrankungen oder Unsicherheit wende dich an medizinisches Fachpersonal.",
+      "Du bist für korrekte Angaben und den Schutz des Zugangs zu deinem Konto verantwortlich. Missbräuchliches Teilen von Konten, unbefugter Zugriff auf fremde Daten, Umgehung von Sicherheitsmaßnahmen, das Senden schädlichen Codes und Überlastung der Anwendung sind untersagt.",
+      "Wir bemühen uns um Verfügbarkeit, Sicherheit und Zuverlässigkeit. Internet-, Geräte-, Server-, Wartungs- oder andere technische Probleme können Unterbrechungen, Verzögerungen oder Datenverlust verursachen. Offline-Daten warten auf Synchronisierung; prüfe gelegentlich den Synchronisierungsstatus wichtiger Trainings.",
+      "Du kannst dein Konto in den Einstellungen löschen. Dies kann Profil, Routinen, Trainings und weitere Daten dauerhaft entfernen, ausgenommen gesetzlich aufzubewahrende Daten.",
+      "Name, Logo, Design, Code und Inhalte von GymLeader sind geschützt. Du erhältst ein beschränktes Nutzungsrecht für persönliche oder genehmigte geschäftliche Zwecke.",
+      "Wir können Teile der Anwendung ändern, verbessern oder vorübergehend aussetzen. Bei wichtigen Änderungen zeigen wir eine neue Fassung dieser Bedingungen an."
+    ],
+    "privacy": [
+      "GymLeader verarbeitet die für Anwendung und Konto erforderlichen Daten: Name oder Spitzname, Geschlecht, Alter, Größe, Gewicht, Ziel, Trainingshäufigkeit, Trainingsort, Erfahrung, gewünschte Muskelgruppen, gewünschte oder vermiedene Übungen, Allergien und zu vermeidende Lebensmittel, E-Mail-Adresse, Anmeldedaten, Routinen, Trainingsverlauf, Gewichte, Wiederholungen, Dauer, Notizen, Gewichts- und Umfangsmessungen, Sprache, Einstellungen sowie technische Daten für Sicherheit und Synchronisierung.",
+      "Wir verwenden Daten für Erstellung und Betrieb von Konten, Anmeldung und E-Mail-Bestätigung, Speicherung von Routinen und Trainings, Gerätesynchronisierung, Systemsicherheit und Unterstützung. Wir verkaufen keine Daten.",
+      "Wir nutzen zuverlässige technische Anbieter wie Firebase, Vercel und Brevo nur im für ihre Aufgaben erforderlichen Umfang. Falls du künftig Zahlungen aktivierst, verarbeitet Lemon Squeezy die erforderlichen Abrechnungsdaten nach seinen eigenen Regeln.",
+      "Du kannst im gesetzlich vorgesehenen Umfang Zugang, Berichtigung, Löschung oder Export deiner Daten beantragen. Sende Anfragen an gymleaderapp@gmail.com.",
+      "Wir speichern Daten so lange, wie Kontobetrieb, Systemsicherheit oder gesetzliche Pflichten es erfordern. Wir setzen angemessene technische Schutzmaßnahmen ein; kein Online-System kann absolute Sicherheit oder unterbrechungsfreien Betrieb garantieren.",
+      "Wir können diese Erklärung aktualisieren. Wenn eine Änderung eine erneute Zustimmung erfordert, zeigen wir vor der weiteren Nutzung eine neue Fassung an."
+    ],
+    "preference": "Die öffentliche Website speichert nur deine Sprachwahl im Browserspeicher und auf HTTPS-GymLeader-Domains im mit der App geteilten Cookie gymleader-language. Es enthält nur einen Sprachcode, gilt bis zu einem Jahr und überträgt deine letzte Wahl zwischen Website und App. Diese Website fügt kein Analyse-Tracking hinzu."
+  },
+  "fr": {
+    "title": "GymLeader — Routines, carnet d’entraînement et progrès",
+    "description": "Enregistre tes routines, séries, charges et répétitions. Suis ton poids et tes mensurations avec GymLeader, ses graphiques, son journal alimentaire et son Meal Planner.",
+    "ui": ["Aller au contenu", "Accueil", "Navigation principale", "Ouvrir le menu", "Fermer le menu", "Langue", "Informations juridiques", "Retour à l’accueil", "Ouvrir GymLeader", "Fonctionnalités", "Comment ça marche", "FAQ", "Contact", "Mettre les animations en pause", "Reprendre les animations"],
+    "hero": ["ENTRAÎNE-TOI AVEC PLUS DE CLARTÉ", "Tes routines.", "Moins à retenir. Plus de concentration.", "Enregistre une séance à refaire, note tes charges et répétitions et retrouve tes derniers résultats. GymLeader rassemble ton entraînement au même endroit.", "Voir comment ça marche", "Une application web. Ouvre-la dans ton navigateur.", "TON ENTRAÎNEMENT, TON RYTHME", "ENREGISTRER. RÉPÉTER. PROGRESSER.", "Tu ne repars pas de zéro.", "Ta routine est prête pour la prochaine séance."],
+    "phrases": ["Tes progrès.", "Ton alimentation.", "Ton poids.", "Tes mensurations.", "Tes entraînements."],
+    "tags": ["Routines", "Charges et répétitions", "Progrès"],
+    "routine": ["Un plan. Une séance à refaire.", "Crée par exemple un plan ‘Séance jambes’, ajoute tes exercices et lance-le quand tu veux. Pas besoin d’une nouvelle routine chaque semaine.", "Pour commencer", "EXEMPLE DE NOM DE ROUTINE", "Séance jambes", "Une séance. À refaire quand tu veux."],
+    "features": ["PLUS CLAIR DÈS LA PREMIÈRE SÉANCE", "Sache quoi faire. Vois tes progrès.", "Pour les personnes qui s’entraînent seules et souhaitent organiser leurs routines sans chercher leurs notes à chaque séance."],
+    "cards": [
+      ["ENTRAÎNEMENT", "Une routine qui reste la tienne.", "Crée ta séance, ajoute des exercices et modifie ton plan selon tes besoins. Ta routine enregistrée est prête à être répétée."],
+      ["CARNET", "Ne compte pas sur ta mémoire.", "Note exercices, séries, charges, répétitions et remarques. Consulte tes derniers résultats et records personnels pour savoir d’où repartir."],
+      ["GRAPHIQUES", "Prends du recul.", "Retrouve tes séances terminées et les graphiques des exercices. Compare tes résultats dans le temps et ton activité sur la période choisie."],
+      ["CORPS", "Suis ton poids et tes mensurations.", "Si tu le souhaites, note ton poids et tes tours de corps. Les graphiques de mesures t’aident à voir leur évolution."],
+      ["ALIMENTATION", "Une place pour tes repas.", "Ajoute des aliments à ton journal et suis calories et macronutriments. Le Meal Planner suggère des repas du catalogue selon tes options et restrictions, avec une liste d’ingrédients à acheter."],
+      ["RÉGULARITÉ", "Garde ton objectif en vue.", "Fixe un objectif hebdomadaire de jours d’entraînement et consulte ton activité par jour. Une série de semaines où l’objectif est atteint montre ta régularité si l’historique contient assez de données."]
+    ],
+    "estimate": "Valeurs nutritionnelles et prix sont des estimations du catalogue. Le planificateur n’optimise pas les repas selon un objectif calorique précis.",
+    "how": ["LE PREMIER PAS EST SIMPLE", "De la routine aux progrès.", "Commence avec une séance à refaire. Ajoute le reste à ton rythme."],
+    "steps": [
+      ["Enregistre une routine.", "Ouvre l’application, crée un compte et ajoute des exercices à ton plan. Pas de routine ? Examine une suggestion du générateur et adapte-la avant de l’enregistrer."],
+      ["Note ta séance.", "Lance ta routine et saisis les séries, charges et répétitions réalisées. Termine la séance pour la conserver dans l’historique."],
+      ["Retrouve tes progrès.", "Rouvre la routine à la séance suivante. Consulte tes résultats précédents, l’historique et les graphiques pour voir ton évolution."]
+    ],
+    "faqIntro": ["BON À SAVOIR", "Avant de commencer.", "Une autre question ? Écris-nous. Nous sommes aussi là si quelque chose dans l’application n’est pas clair.", "Contacte-nous"],
+    "faq": [
+      ["Qu’est-ce que GymLeader et à qui s’adresse-t-il ?", "GymLeader est une application web pour organiser ses routines, noter ses séances et suivre ses progrès. Elle s’adresse aux personnes qui souhaitent gérer elles-mêmes leurs données d’entraînement et d’alimentation."],
+      ["Faut-il un nouveau plan chaque semaine ?", "Non. Un plan est une séance enregistrée que tu peux répéter quand tu veux. Par exemple, ‘Séance jambes’ reste dans tes routines jusqu’à sa modification ou sa suppression."],
+      ["Et si je n’ai pas de routine ?", "Tu peux utiliser le générateur de suggestions de plans. Examine et adapte la proposition avant de l’enregistrer. L’application demande des informations supplémentaires si elles sont nécessaires."],
+      ["Faut-il télécharger une application depuis une boutique ?", "GymLeader fonctionne dans le navigateur de ton téléphone ou ordinateur. Sur les appareils compatibles, tu peux ajouter un raccourci à l’écran d’accueil. Pour commencer, ouvre gymleader.app."],
+      ["Que puis-je suivre pendant l’entraînement ?", "Tu peux noter exercices, séries, charges, répétitions et remarques, puis consulter séances terminées, records personnels et graphiques. Tu peux aussi saisir ton poids et tes tours de corps si tu le souhaites."],
+      ["Les données nutritionnelles sont-elles précises ?", "Calories, macronutriments et prix du Meal Planner sont des estimations du catalogue. Vérifie portions, ingrédients et étiquettes, surtout en cas d’allergies. GymLeader ne remplace pas un médecin ou un diététicien."],
+      ["Comment me connecter ?", "Sur gymleader.app, crée un compte par email et confirme-le avec un code de vérification, ou utilise la connexion Google proposée. Pour un compte existant, utilise la méthode choisie à sa création."]
+    ],
+    "contact": ["NOUS SOMMES LÀ POUR TOI", "Ton message compte.", "Une suggestion, un problème ou une question ? Dis-nous si quelque chose est compliqué ou ne te plaît pas. Tu nous aides à améliorer GymLeader.", "Écris-nous un email", "Ce lien ouvre ton application email. Si rien ne s’ouvre, copie l’adresse et envoie un message depuis ton service de messagerie.", "Question ou suggestion pour GymLeader"],
+    "final": ["ENREGISTRE TA PROCHAINE ÉTAPE", "Commence par une séance.", "Ta routine est un point de départ. Tu avances chaque fois que tu reviens."],
+    "legal": ["Conditions d’utilisation", "Politique de confidentialité", "GYMLEADER · INFORMATIONS", "Dernière mise à jour : 29 septembre 2026.", "Pour toute question sur ces documents, écris à", "Conditions d’utilisation de l’application GymLeader.", "Informations sur le traitement des données dans GymLeader."],
+    "terms": [
+      "GymLeader est une application permettant de créer des plans d’entraînement, de noter les exercices et de suivre charges, répétitions, durée, progrès et résultats personnels.",
+      "GymLeader n’est pas un service médical et ne remplace ni médecin, ni kinésithérapeute, ni entraîneur qualifié. Il appartient à l’utilisateur d’évaluer si un exercice est sûr pour lui. En cas de blessure, maladie ou doute, consulte un professionnel de santé.",
+      "Tu es responsable de l’exactitude des données saisies et de la protection de l’accès à ton compte. Le partage abusif de comptes, l’accès non autorisé aux données d’autrui, le contournement des mesures de sécurité, l’envoi de code malveillant et la surcharge de l’application sont interdits.",
+      "Nous cherchons à maintenir GymLeader disponible, sûr et fiable. Des problèmes de connexion, d’appareil, de serveur, de maintenance ou d’autres circonstances techniques peuvent provoquer interruptions, retards ou pertes de données. Les données hors ligne attendent la synchronisation ; vérifie occasionnellement son état pour les séances importantes.",
+      "Tu peux supprimer ton compte dans les paramètres. La suppression peut effacer définitivement profil, routines, séances et autres données, sauf celles que nous devons conserver légalement.",
+      "Le nom GymLeader, son logo, design, code et contenu sont protégés. Tu bénéficies d’un droit d’utilisation limité à des fins personnelles ou professionnelles autorisées.",
+      "Nous pouvons modifier, améliorer ou suspendre temporairement des parties de l’application. En cas de changements importants, une nouvelle version de ces conditions sera affichée."
+    ],
+    "privacy": [
+      "GymLeader traite les données nécessaires à l’application et au compte : nom ou pseudonyme, sexe, âge, taille, poids, objectif, fréquence et lieu d’entraînement, expérience, groupes musculaires ciblés, exercices souhaités ou évités, allergies et aliments à éviter, adresse email, informations de connexion, routines, historique des séances, charges, répétitions, durée, remarques, mesures du poids et des tours de corps, langue, paramètres et données techniques nécessaires à la sécurité et à la synchronisation.",
+      "Nous utilisons les données pour créer et gérer les comptes, assurer la connexion et la vérification email, enregistrer routines et séances, synchroniser les appareils, sécuriser le système et fournir une assistance. Nous ne vendons pas les données.",
+      "Nous utilisons des prestataires techniques fiables, notamment Firebase, Vercel et Brevo, uniquement dans la mesure nécessaire à leurs fonctions. Si tu actives des paiements à l’avenir, Lemon Squeezy traitera les données de facturation selon ses propres règles.",
+      "Tu peux demander l’accès, la rectification, la suppression ou l’export de tes données lorsque la loi le prévoit. Envoie tes demandes à gymleaderapp@gmail.com.",
+      "Nous conservons les données aussi longtemps que nécessaire au fonctionnement du compte, à la sécurité ou aux obligations légales. Nous utilisons des protections techniques raisonnables, mais aucun système en ligne ne peut garantir une sécurité absolue ou un fonctionnement ininterrompu.",
+      "Nous pouvons actualiser cette politique. Si une modification exige une nouvelle acceptation, nous afficherons la nouvelle version avant la poursuite de l’utilisation."
+    ],
+    "preference": "Le site public mémorise uniquement la langue choisie dans le stockage du navigateur et, sur les domaines HTTPS GymLeader, dans le cookie gymleader-language partagé avec l’application. Il contient seulement un code de langue, dure jusqu’à un an et transmet ton dernier choix entre le site et l’application. Ce site n’ajoute aucun suivi analytique."
+  },
+  "it": {
+    "title": "GymLeader — Routine, diario di allenamento e progressi",
+    "description": "Salva le routine, registra serie, carichi e ripetizioni e segui peso e misure corporee. Scopri grafici, diario alimentare e Meal Planner di GymLeader.",
+    "ui": ["Vai al contenuto", "Home", "Navigazione principale", "Apri menu", "Chiudi menu", "Lingua", "Informazioni legali", "Torna alla home", "Apri GymLeader", "Funzionalità", "Come funziona", "FAQ", "Contatti", "Metti in pausa le animazioni", "Riprendi le animazioni"],
+    "hero": ["ALLENATI CON PIÙ CHIAREZZA", "Le tue routine.", "Meno cose da ricordare. Più concentrazione.", "Salva un allenamento da ripetere, annota carichi e ripetizioni e ritrova i risultati dell’ultima volta. GymLeader raccoglie il tuo allenamento in un unico posto.", "Scopri come funziona", "Un’app web. Aprila nel tuo browser.", "IL TUO ALLENAMENTO, IL TUO RITMO", "SALVA. RIPETI. MIGLIORA.", "Non riparti da zero.", "La tua routine è pronta per il prossimo allenamento."],
+    "phrases": ["I tuoi progressi.", "La tua alimentazione.", "Il tuo peso.", "Le tue misure.", "I tuoi allenamenti."],
+    "tags": ["Routine", "Carichi e ripetizioni", "Progressi"],
+    "routine": ["Un piano. Un allenamento da ripetere.", "Crea ad esempio un piano ‘Gambe’, aggiungi gli esercizi e avvialo quando vuoi. Non serve una nuova routine ogni settimana.", "Da dove iniziare", "ESEMPIO DI NOME DELLA ROUTINE", "Gambe", "Un allenamento. Ripetilo quando vuoi."],
+    "features": ["CHIAREZZA DAL PRIMO ALLENAMENTO", "Sai cosa fare. Vedi i progressi.", "Per chi si allena in autonomia e vuole organizzare le routine senza cercare gli appunti ogni volta."],
+    "cards": [
+      ["ALLENAMENTO", "Una routine che resta tua.", "Crea il tuo allenamento, aggiungi esercizi e modifica il piano quando serve. La routine salvata è pronta da ripetere."],
+      ["DIARIO", "Non affidarti alla memoria.", "Registra esercizi, serie, carichi, ripetizioni e note. Consulta risultati precedenti e record personali per sapere da dove ripartire."],
+      ["GRAFICI", "Guarda il quadro completo.", "Rivedi gli allenamenti conclusi e i grafici degli esercizi. Confronta i risultati nel tempo e l’attività nel periodo scelto."],
+      ["CORPO", "Segui peso e misure.", "Se vuoi, annota peso corporeo e circonferenze. I grafici delle misure aiutano a vedere i cambiamenti nel tempo."],
+      ["ALIMENTAZIONE", "Un posto per i tuoi pasti.", "Aggiungi alimenti al diario e segui calorie e macronutrienti. Il Meal Planner propone pasti dal catalogo in base a opzioni e restrizioni, con una lista di ingredienti da acquistare."],
+      ["COSTANZA", "Ritrova il tuo obiettivo.", "Imposta un obiettivo settimanale di giorni di allenamento e guarda l’attività quotidiana. Una serie di settimane con l’obiettivo raggiunto mostra la costanza quando la cronologia contiene dati sufficienti."]
+    ],
+    "estimate": "Valori nutrizionali e prezzi sono stime del catalogo. Il pianificatore non ottimizza i pasti per un obiettivo calorico preciso.",
+    "how": ["IL PRIMO PASSO È SEMPLICE", "Dalla routine ai progressi.", "Inizia con un allenamento da ripetere. Aggiungi il resto con i tuoi tempi."],
+    "steps": [
+      ["Salva una routine.", "Apri l’app, crea un account e aggiungi gli esercizi al piano. Non hai una routine? Valuta una proposta del generatore e modificala prima di salvarla."],
+      ["Registra l’allenamento.", "Avvia la routine salvata e inserisci serie, carichi e ripetizioni completati. Concludi l’allenamento per conservarlo nella cronologia."],
+      ["Ritrova i tuoi progressi.", "Riapri la routine al prossimo allenamento. Consulta risultati precedenti, cronologia e grafici per vedere come cambia il tuo allenamento."]
+    ],
+    "faqIntro": ["DA SAPERE", "Prima di iniziare.", "Hai altre domande? Scrivici. Siamo qui anche se qualcosa nell’app non è chiaro.", "Contattaci"],
+    "faq": [
+      ["Cos’è GymLeader e a chi serve?", "GymLeader è un’app web per organizzare routine, registrare allenamenti e seguire i progressi. È pensata per chi vuole gestire in autonomia il diario di allenamento e alimentazione."],
+      ["Devo creare un nuovo piano ogni settimana?", "No. Un piano è un allenamento salvato che puoi ripetere quando vuoi. Ad esempio, ‘Gambe’ rimane nelle tue routine finché non lo modifichi o elimini."],
+      ["E se non ho una routine?", "Puoi usare il generatore di proposte nell’app. Valuta e adatta il suggerimento prima di salvarlo. L’app chiede dati aggiuntivi solo se servono al generatore."],
+      ["Devo scaricare un’app da uno store?", "GymLeader si usa nel browser del telefono o computer. Sui dispositivi compatibili puoi aggiungere un collegamento alla schermata iniziale. Per iniziare, apri gymleader.app."],
+      ["Cosa posso registrare durante l’allenamento?", "Puoi annotare esercizi, serie, carichi, ripetizioni e note, poi consultare allenamenti conclusi, record personali e grafici. Puoi anche registrare peso e circonferenze, se vuoi."],
+      ["Quanto sono precisi i dati nutrizionali?", "Calorie, macronutrienti e prezzi del Meal Planner sono stime del catalogo. Controlla porzioni, ingredienti ed etichette, soprattutto in caso di allergie. GymLeader non sostituisce un medico o un dietista."],
+      ["Come accedo?", "Su gymleader.app puoi creare un account via email e confermarlo con un codice di verifica, oppure usare l’accesso Google disponibile. Per un account esistente usa il metodo di accesso scelto."]
+    ],
+    "contact": ["SIAMO QUI PER TE", "Il tuo messaggio conta.", "Hai un suggerimento, hai trovato un problema o qualcosa non è chiaro? Dicci se una funzione è complicata o non ti piace. Ci aiuti a migliorare GymLeader.", "Scrivici un’email", "Il link apre la tua app email. Se non si apre, copia l’indirizzo e invia un messaggio dal tuo servizio di posta.", "Domanda o suggerimento per GymLeader"],
+    "final": ["SALVA IL TUO PROSSIMO PASSO", "Inizia con un allenamento.", "La routine è il punto di partenza. Costruisci i progressi ogni volta che torni."],
+    "legal": ["Condizioni d’uso", "Informativa sulla privacy", "GYMLEADER · INFORMAZIONI", "Ultimo aggiornamento: 29 settembre 2026.", "Per domande su questi documenti scrivi a", "Condizioni d’uso dell’applicazione GymLeader.", "Informazioni sul trattamento dei dati in GymLeader."],
+    "terms": [
+      "GymLeader è un’applicazione per creare piani di allenamento, registrare esercizi e seguire carichi, ripetizioni, durata, progressi e risultati personali.",
+      "GymLeader non è un servizio medico e non sostituisce medici, fisioterapisti o allenatori qualificati. L’utente valuta se un esercizio è sicuro per sé. In caso di infortuni, malattie o dubbi, consulta un professionista sanitario.",
+      "Sei responsabile dell’esattezza dei dati inseriti e della protezione dell’accesso al tuo account. Sono vietati la condivisione abusiva degli account, l’accesso non autorizzato ai dati altrui, l’elusione delle misure di sicurezza, l’invio di codice dannoso e il sovraccarico dell’applicazione.",
+      "Ci impegniamo a mantenere GymLeader disponibile, sicuro e affidabile. Problemi di connessione, dispositivo, server, manutenzione o altre circostanze tecniche possono causare interruzioni, ritardi o perdita di dati. I dati offline attendono la sincronizzazione; controllane occasionalmente lo stato per gli allenamenti importanti.",
+      "Puoi eliminare l’account nelle impostazioni. L’eliminazione può rimuovere definitivamente profilo, routine, allenamenti e altri dati, tranne quelli che siamo tenuti a conservare per legge.",
+      "Nome, logo, design, codice e contenuti di GymLeader sono protetti. Ricevi un diritto limitato di utilizzo per scopi personali o professionali autorizzati.",
+      "Possiamo modificare, migliorare o sospendere temporaneamente parti dell’applicazione. In caso di cambiamenti importanti mostreremo una nuova versione di queste condizioni."
+    ],
+    "privacy": [
+      "GymLeader tratta i dati necessari all’applicazione e all’account: nome o soprannome, sesso, età, altezza, peso, obiettivo, frequenza e luogo di allenamento, esperienza, gruppi muscolari desiderati, esercizi desiderati o evitati, allergie e alimenti da evitare, indirizzo email, dati di accesso, routine, cronologia degli allenamenti, carichi, ripetizioni, durata, note, misure di peso e circonferenze, lingua, impostazioni e dati tecnici per sicurezza e sincronizzazione.",
+      "Usiamo i dati per creare e gestire account, consentire accesso e verifica email, salvare routine e allenamenti, sincronizzare dispositivi, proteggere il sistema e fornire assistenza. Non vendiamo i dati.",
+      "Usiamo fornitori tecnici affidabili, tra cui Firebase, Vercel e Brevo, solo nella misura necessaria alle loro funzioni. Se in futuro attivi pagamenti, Lemon Squeezy tratterà i dati di fatturazione secondo le proprie regole.",
+      "Puoi richiedere accesso, correzione, eliminazione o esportazione dei tuoi dati nei casi previsti dalla legge. Invia le richieste a gymleaderapp@gmail.com.",
+      "Conserviamo i dati per il tempo necessario al funzionamento dell’account, alla sicurezza o agli obblighi di legge. Usiamo misure tecniche ragionevoli, ma nessun sistema online può garantire sicurezza assoluta o funzionamento ininterrotto.",
+      "Possiamo aggiornare questa informativa. Se una modifica richiede una nuova accettazione, mostreremo la nuova versione prima di proseguire con l’uso dell’applicazione."
+    ],
+    "preference": "Il sito pubblico memorizza solo la lingua scelta nell’archivio del browser e, sui domini HTTPS GymLeader, nel cookie gymleader-language condiviso con l’app. Contiene solo un codice lingua, dura fino a un anno e trasferisce l’ultima scelta tra sito e app. Questo sito non aggiunge tracciamento analitico."
+  },
+  "es": {
+    "title": "GymLeader — Rutinas, diario de entrenamiento y progreso",
+    "description": "Guarda rutinas, registra series, pesos y repeticiones y sigue tu peso y medidas corporales. Descubre gráficos, diario de alimentación y Meal Planner en GymLeader.",
+    "ui": ["Saltar al contenido", "Inicio", "Navegación principal", "Abrir menú", "Cerrar menú", "Idioma", "Información legal", "Volver al inicio", "Abrir GymLeader", "Funciones", "Cómo funciona", "FAQ", "Contacto", "Pausar animaciones", "Reanudar animaciones"],
+    "hero": ["ENTRENA CON MÁS CLARIDAD", "Tus rutinas.", "Menos que recordar. Más atención al entrenamiento.", "Guarda un entrenamiento para repetirlo, anota pesos y repeticiones y consulta lo que hiciste la última vez. GymLeader reúne tu entrenamiento en un solo lugar.", "Descubre cómo funciona", "Una app web. Ábrela en tu navegador.", "TU ENTRENAMIENTO, TU RITMO", "GUARDA. REPITE. AVANZA.", "No empiezas desde cero.", "Tu rutina está lista para el próximo entrenamiento."],
+    "phrases": ["Tu progreso.", "Tu alimentación.", "Tu peso.", "Tu cuerpo.", "Tus entrenamientos."],
+    "tags": ["Rutinas", "Pesos y repeticiones", "Progreso"],
+    "routine": ["Un plan. Un entrenamiento para repetir.", "Crea, por ejemplo, un plan ‘Piernas’, añade ejercicios e inícialo cuando quieras. No necesitas una rutina nueva cada semana.", "Cómo empezar", "EJEMPLO DE NOMBRE DE RUTINA", "Piernas", "Un entrenamiento. Repítelo cuando quieras."],
+    "features": ["CLARIDAD DESDE EL PRIMER ENTRENAMIENTO", "Sabes qué hacer. Ves tu progreso.", "Para quienes entrenan por su cuenta y quieren organizar sus rutinas sin buscar notas cada vez."],
+    "cards": [
+      ["ENTRENAMIENTO", "Una rutina que sigue siendo tuya.", "Crea tu entrenamiento, añade ejercicios y modifica el plan cuando lo necesites. Tu rutina guardada está lista para repetir."],
+      ["DIARIO", "No dependas de la memoria.", "Registra ejercicios, series, pesos, repeticiones y notas. Consulta resultados anteriores y récords personales para saber desde dónde empezar."],
+      ["GRÁFICOS", "Mira el conjunto.", "Revisa entrenamientos terminados y gráficos de ejercicios. Compara resultados a lo largo del tiempo y la actividad del periodo elegido."],
+      ["CUERPO", "Sigue tu peso y tus medidas.", "Si quieres, registra el peso corporal y los perímetros. Los gráficos de medidas ayudan a ver los cambios con el tiempo."],
+      ["ALIMENTACIÓN", "Un lugar para tus comidas.", "Añade alimentos al diario y sigue calorías y macronutrientes. Meal Planner propone comidas del catálogo según tus opciones y restricciones, con una lista de ingredientes para comprar."],
+      ["CONSTANCIA", "Vuelve a tu objetivo.", "Define un objetivo semanal de días de entrenamiento y consulta tu actividad diaria. Una racha de semanas cumpliendo el objetivo muestra constancia cuando el historial aporta datos suficientes."]
+    ],
+    "estimate": "Los valores nutricionales y los precios son estimaciones del catálogo. El planificador no optimiza las comidas para un objetivo calórico preciso.",
+    "how": ["EL PRIMER PASO ES SENCILLO", "De la rutina al progreso.", "Empieza con un entrenamiento que quieras repetir. Añade el resto a tu ritmo."],
+    "steps": [
+      ["Guarda una rutina.", "Abre la app, crea una cuenta y añade ejercicios a tu plan. ¿No tienes rutina? Revisa una propuesta del generador y ajústala antes de guardarla."],
+      ["Registra tu entrenamiento.", "Inicia tu rutina y anota las series, los pesos y las repeticiones completados. Termina el entrenamiento para conservarlo en el historial."],
+      ["Consulta tu progreso.", "Vuelve a abrir la rutina en el próximo entrenamiento. Revisa resultados anteriores, historial y gráficos para ver cómo evoluciona tu entrenamiento."]
+    ],
+    "faqIntro": ["CONVIENE SABERLO", "Antes de empezar.", "¿Tienes otra pregunta? Escríbenos. También estamos aquí si algo de la app no está claro.", "Contáctanos"],
+    "faq": [
+      ["¿Qué es GymLeader y para quién es?", "GymLeader es una app web para organizar rutinas, registrar entrenamientos y seguir el progreso. Está dirigida a quienes quieren gestionar por su cuenta sus registros de entrenamiento y alimentación."],
+      ["¿Necesito un plan nuevo cada semana?", "No. Un plan es un entrenamiento guardado que puedes repetir cuando quieras. Por ejemplo, ‘Piernas’ permanece entre tus rutinas hasta que lo cambies o elimines."],
+      ["¿Y si no tengo una rutina?", "Puedes usar el generador de propuestas de planes. Revisa y adapta la propuesta antes de guardarla. La app pedirá información adicional si el generador la necesita."],
+      ["¿Debo descargar una app de una tienda?", "GymLeader funciona en el navegador del teléfono o del ordenador. En dispositivos compatibles puedes añadir un acceso directo a la pantalla de inicio. Para empezar, abre gymleader.app."],
+      ["¿Qué puedo registrar al entrenar?", "Puedes anotar ejercicios, series, pesos, repeticiones y notas, y consultar entrenamientos terminados, récords personales y gráficos. También puedes registrar peso y perímetros de forma opcional."],
+      ["¿Son precisos los datos de alimentación?", "Calorías, macronutrientes y precios de Meal Planner son estimaciones del catálogo. Revisa porciones, ingredientes y etiquetas, sobre todo si tienes alergias. GymLeader no sustituye a un médico o dietista."],
+      ["¿Cómo inicio sesión?", "En gymleader.app puedes crear una cuenta por email y confirmarla con un código de verificación, o usar el inicio de sesión con Google. Para una cuenta existente, utiliza el método elegido para ella."]
+    ],
+    "contact": ["ESTAMOS AQUÍ PARA TI", "Tu mensaje importa.", "¿Tienes una sugerencia, has encontrado un problema o algo no está claro? Cuéntanos si una función es complicada o no te gusta. Nos ayudas a mejorar GymLeader.", "Envíanos un email", "El enlace abre tu app de correo. Si no se abre, copia la dirección y envía un mensaje desde tu servicio de correo.", "Pregunta o sugerencia para GymLeader"],
+    "final": ["GUARDA TU PRÓXIMO PASO", "Empieza con un entrenamiento.", "La rutina es el comienzo. Construyes tu progreso cada vez que vuelves."],
+    "legal": ["Condiciones de uso", "Política de privacidad", "GYMLEADER · INFORMACIÓN", "Última actualización: 29 de septiembre de 2026.", "Si tienes preguntas sobre estos documentos, escribe a", "Condiciones de uso de la aplicación GymLeader.", "Información sobre el tratamiento de datos en GymLeader."],
+    "terms": [
+      "GymLeader es una aplicación para crear planes de entrenamiento, registrar ejercicios y seguir pesos, repeticiones, duración, progreso y resultados personales.",
+      "GymLeader no es un servicio médico y no sustituye a médicos, fisioterapeutas o entrenadores cualificados. Cada usuario debe valorar si un ejercicio es seguro para él. En caso de lesión, enfermedad o duda, consulta a un profesional sanitario.",
+      "Eres responsable de la exactitud de los datos introducidos y de proteger el acceso a tu cuenta. Se prohíben compartir cuentas de forma abusiva, acceder sin autorización a datos ajenos, eludir medidas de seguridad, enviar código malicioso y sobrecargar la aplicación.",
+      "Nos esforzamos por mantener GymLeader disponible, seguro y fiable. Problemas de internet, dispositivo, servidor, mantenimiento u otras circunstancias técnicas pueden provocar interrupciones, retrasos o pérdida de datos. Los datos sin conexión esperan la sincronización; comprueba ocasionalmente su estado para entrenamientos importantes.",
+      "Puedes eliminar la cuenta en Ajustes. Esto puede borrar definitivamente tu perfil, rutinas, entrenamientos y otros datos, salvo aquellos que debamos conservar por ley.",
+      "El nombre GymLeader, el logo, el diseño, el código y el contenido están protegidos. Recibes un derecho limitado de uso para fines personales o profesionales autorizados.",
+      "Podemos cambiar, mejorar o suspender temporalmente partes de la aplicación. Cuando haya cambios importantes mostraremos una nueva versión de estas condiciones."
+    ],
+    "privacy": [
+      "GymLeader trata los datos necesarios para la aplicación y la cuenta: nombre o apodo, sexo, edad, altura, peso, objetivo, frecuencia y lugar de entrenamiento, experiencia, grupos musculares deseados, ejercicios deseados o evitados, alergias y alimentos que debes evitar, email, datos de acceso, rutinas, historial, pesos, repeticiones, duración, notas, medidas de peso y perímetros, idioma, ajustes y datos técnicos para seguridad y sincronización.",
+      "Usamos los datos para crear y mantener cuentas, iniciar sesión y verificar el email, guardar rutinas y entrenamientos, sincronizar dispositivos, proteger el sistema y prestar asistencia. No vendemos datos.",
+      "Usamos proveedores técnicos fiables, entre ellos Firebase, Vercel y Brevo, solo en la medida necesaria para sus funciones. Si activas pagos en el futuro, Lemon Squeezy tratará los datos de facturación según sus propias reglas.",
+      "Puedes solicitar acceso, corrección, eliminación o exportación de tus datos cuando corresponda legalmente. Envía las solicitudes a gymleaderapp@gmail.com.",
+      "Conservamos los datos mientras sean necesarios para el funcionamiento de la cuenta, la seguridad o las obligaciones legales. Aplicamos medidas técnicas razonables, pero ningún sistema online puede garantizar seguridad absoluta o funcionamiento ininterrumpido.",
+      "Podemos actualizar esta política. Si un cambio requiere una nueva aceptación, mostraremos la nueva versión antes de continuar usando la aplicación."
+    ],
+    "preference": "El sitio público recuerda solo el idioma elegido en el almacenamiento del navegador y, en los dominios HTTPS de GymLeader, en la cookie gymleader-language compartida con la app. Contiene solo un código de idioma, dura hasta un año y transmite tu última elección entre sitio y app. Este sitio no añade seguimiento analítico."
+  }
+}

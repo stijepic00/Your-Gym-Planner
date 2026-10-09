@@ -1,6 +1,6 @@
 /*-- FIREBASE ENGINE & AUTH */
   import { TRANSLATIONS } from './translations.js?v=20261006-workout-draft-v144';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261006-progress-support-v142';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261009-header-language-v145';
   import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-progress-support-v142';
   import { exerciseKey, libraryExerciseId, latestExerciseHistory, latestExerciseNote, maxExerciseWeight } from './exercise-history.js?v=20261006-exercise-history-v143';
   import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-progress-support-v142';
@@ -8342,6 +8342,7 @@ function renderPendingSyncStatus() {
     const shoppingListIsOpen = document.getElementById('meal-planner-shopping-modal')?.style.display === 'flex';
     localStorage.setItem('gym-language', selectedLanguage);
     localStorage.setItem('gym-language-source', 'manual');
+    window.GymLeaderLanguagePreference?.write(selectedLanguage);
     applyLanguage(selectedLanguage);
     applyTheme(localStorage.getItem('gym-theme') || 'dark');
     updateAuthModePresentation();
@@ -8452,6 +8453,16 @@ function renderPendingSyncStatus() {
       button.classList.toggle('active', button.dataset.language === selectedLanguage);
       button.setAttribute('aria-pressed', String(button.dataset.language === selectedLanguage));
     });
+    const headerLanguageName = document.getElementById('app-header-language-name');
+    if (headerLanguageName) {
+      headerLanguageName.textContent = { bs: 'Bosanski', sr: 'Srpski', hr: 'Hrvatski', en: 'English', de: 'Deutsch', fr: 'Français', it: 'Italiano', es: 'Español' }[selectedLanguage];
+      headerLanguageName.lang = selectedLanguage;
+    }
+    document.querySelectorAll('.header-language-choice').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.language === selectedLanguage));
+    });
+    const menuToggle = document.getElementById('app-menu-toggle');
+    if (menuToggle) menuToggle.setAttribute('aria-label', translateUiText(menuToggle.getAttribute('aria-expanded') === 'true' ? 'Zatvori meni' : 'Otvori meni', selectedLanguage));
     const status = document.getElementById('language-settings-status');
     if (status) {
       const statusSource = 'Jezik je promijenjen.';
@@ -8499,7 +8510,56 @@ function renderPendingSyncStatus() {
     }
     applyLanguage(initialLanguage);
     localizeSubtree();
+    initializeHeaderNavigation();
     observeLocalization();
+  }
+
+  function initializeHeaderNavigation() {
+    const header = document.querySelector('.app-header');
+    const toggle = document.getElementById('app-menu-toggle');
+    const navigation = document.getElementById('app-header-navigation');
+    const languageMenu = document.getElementById('app-header-language');
+    if (!header || !toggle || !navigation || toggle.dataset.initialized) return;
+    toggle.dataset.initialized = 'true';
+    const mobile = window.matchMedia('(max-width: 1000px)');
+    function setMenu(open, returnFocus = false) {
+      const expanded = mobile.matches && open;
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.setAttribute('aria-label', translateUiText(expanded ? 'Zatvori meni' : 'Otvori meni'));
+      navigation.classList.toggle('is-open', expanded);
+      navigation.hidden = mobile.matches && !expanded;
+      if (!expanded && languageMenu) languageMenu.open = false;
+      if (returnFocus && mobile.matches) toggle.focus();
+    }
+    function syncLayout() {
+      toggle.hidden = !mobile.matches;
+      setMenu(false);
+    }
+    toggle.addEventListener('click', () => setMenu(toggle.getAttribute('aria-expanded') !== 'true'));
+    navigation.addEventListener('click', (event) => {
+      const choice = event.target.closest('[data-action="set-language"]');
+      const link = event.target.closest('a[href]');
+      if (choice && languageMenu) languageMenu.open = false;
+      if (link) window.GymLeaderLanguagePreference?.write(getCurrentLanguage());
+      if ((choice || link) && mobile.matches) setMenu(false, true);
+    });
+    document.addEventListener('click', (event) => {
+      if (!header.contains(event.target)) setMenu(false);
+      else if (languageMenu && !languageMenu.contains(event.target)) languageMenu.open = false;
+    });
+    document.addEventListener('focusin', (event) => {
+      if (!header.contains(event.target)) setMenu(false);
+      else if (languageMenu && !languageMenu.contains(event.target)) languageMenu.open = false;
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (languageMenu?.open) {
+        languageMenu.open = false;
+        languageMenu.querySelector('summary')?.focus();
+      } else if (toggle.getAttribute('aria-expanded') === 'true') setMenu(false, true);
+    });
+    mobile.addEventListener('change', syncLayout);
+    syncLayout();
   }
 
   function getInitialLanguageFromDevice() {

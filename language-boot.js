@@ -10,6 +10,30 @@
     es: { title: 'Cargando GymLeader…', message: 'Preparando tu entrenamiento.', offline: 'No tienes conexión. Vuelve a conectarte para continuar donde lo dejaste.', offlineNoCache: 'Los datos sin conexión de esta cuenta no están disponibles en este dispositivo. Conéctate y vuelve a intentarlo.', error: 'No se pudo cargar. Comprueba tu conexión y vuelve a intentarlo.', retry: 'Reintentar' }
   };
   const supportedLanguages = ['sr', 'bs', 'hr', 'en', 'de', 'fr', 'it', 'es'];
+  // Only a language code is shared with the public information subdomain.
+  const sharedCookieName = 'gymleader-language';
+  const canShareLanguage = () => window.location?.protocol === 'https:'
+    && /(^|\.)gymleader\.app$/.test(window.location.hostname);
+  const readSharedLanguage = () => {
+    if (!canShareLanguage()) return '';
+    try {
+      const value = String(document.cookie || '').split(';').map(part => part.trim())
+        .find(part => part.startsWith(sharedCookieName + '='))?.slice(sharedCookieName.length + 1);
+      return supportedLanguages.includes(value) ? value : '';
+    } catch { return ''; }
+  };
+  const writeSharedLanguage = (value) => {
+    if (!canShareLanguage() || !supportedLanguages.includes(value)) return;
+    try {
+      document.cookie = `${sharedCookieName}=${value}; Domain=gymleader.app; Path=/; Max-Age=31536000; SameSite=Lax; Secure`;
+    } catch { /* A blocked preference cookie must not prevent app loading. */ }
+  };
+  window.GymLeaderLanguagePreference = { read: readSharedLanguage, write: writeSharedLanguage };
+  const sharedLanguage = readSharedLanguage();
+  if (sharedLanguage) {
+    localStorage.setItem('gym-language', sharedLanguage);
+    localStorage.setItem('gym-language-source', 'manual');
+  }
   const savedLanguage = localStorage.getItem('gym-language');
   let language = supportedLanguages.includes(savedLanguage) ? savedLanguage : '';
 
@@ -33,6 +57,7 @@
     localStorage.setItem('gym-language-source', 'device');
   }
 
+  writeSharedLanguage(language);
   document.documentElement.lang = language === 'sr' ? 'sr-Latn' : language;
   const copy = loadingCopy[language] || loadingCopy.sr;
   const bootText = document.getElementById('auth-boot-text');
