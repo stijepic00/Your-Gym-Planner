@@ -1,6 +1,6 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261006-workout-draft-v144';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261009-header-language-v145';
+  import { TRANSLATIONS } from './translations.js?v=20261009-routine-layout-v149';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261009-routine-layout-v149';
   import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-progress-support-v142';
   import { exerciseKey, libraryExerciseId, latestExerciseHistory, latestExerciseNote, maxExerciseWeight } from './exercise-history.js?v=20261006-exercise-history-v143';
   import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-progress-support-v142';
@@ -1262,36 +1262,23 @@
 
   function scheduleDashboardSupportNote() {
     clearTimeout(dashboardSupportTimer);
-    if (!currentUser || !document.getElementById('view-dashboard')?.classList.contains('active')) return;
-    const key = `gymleader-support-nudge-v1:${currentUser.uid}`;
-    let state = { count: 0, lastShown: 0 };
-    try { state = { ...state, ...JSON.parse(localStorage.getItem(key) || '{}') }; }
-    catch { /* A private browser can still use the support link. */ }
-    if (state.count >= 2 || (state.lastShown && Date.now() - state.lastShown < DASHBOARD_SUPPORT_REPEAT_MS)) return;
-    dashboardSupportTimer = setTimeout(() => {
-      if (!currentUser || !document.getElementById('view-dashboard')?.classList.contains('active')) return;
-      if (document.visibilityState === 'hidden' || Array.from(document.querySelectorAll('.modal')).some((modal) => getComputedStyle(modal).display !== 'none')) {
-        scheduleDashboardSupportNote();
-        return;
-      }
-      const nextState = { count: state.count + 1, lastShown: Date.now() };
-      try { localStorage.setItem(key, JSON.stringify(nextState)); }
-      catch { /* Storage can be disabled; the link remains usable. */ }
-      showDashboardSupportNote();
-    }, DASHBOARD_SUPPORT_WAIT_MS);
+    dashboardSupportTimer = null;
   }
 
   function updateDashboardSupport(tabId) {
     const support = document.getElementById('dashboard-support');
     if (!support) return;
     clearTimeout(dashboardSupportTimer);
-    const onHome = tabId === 'dashboard' && Boolean(currentUser);
-    support.hidden = !onHome;
-    if (onHome) scheduleDashboardSupportNote();
-    else hideDashboardSupportNote();
+    const available = Boolean(currentUser) && (window.matchMedia('(max-width: 1000px)').matches || tabId === 'dashboard');
+    support.hidden = !available;
+    if (!available) hideDashboardSupportNote();
   }
 
   function setupDashboardSupport() {
+    window.matchMedia('(min-width: 1001px)').addEventListener('change', (event) => {
+      if (event.matches) hideDashboardSupportNote();
+      updateDashboardSupport(document.getElementById('view-dashboard')?.classList.contains('active') ? 'dashboard' : 'other');
+    });
     document.getElementById('dashboard-support-link')?.addEventListener('click', () => {
       const note = document.getElementById('dashboard-support-note');
       if (!note?.hidden) { hideDashboardSupportNote(); return; }
@@ -1438,8 +1425,8 @@
           <p class="routine-empty-text">${escapeHtml(translateUiText('Plan za noge — jedan trening koji možeš ponavljati.'))}</p>
           <p class="routine-empty-text">${escapeHtml(translateUiText('Sačuvaš ga jednom i pokreneš kada želiš. Dane možeš podesiti kasnije.'))}</p>
           <div class="routine-empty-actions">
-            <button class="btn btn-purple routine-create-button" data-action="choose-manual-plan" type="button">${escapeHtml(translateUiText('Napravi svoju rutinu'))}</button>
-            <button class="btn btn-secondary routine-generator-button" data-action="open-plan-generator" type="button">${escapeHtml(translateUiText('Nemam svoju rutinu — napravi plan za mene'))}</button>
+            <button class="btn routine-generator-button" data-action="open-plan-generator" type="button">${escapeHtml(translateUiText('Preporuči mi plan'))}</button>
+            <button class="btn btn-secondary routine-create-button" data-action="choose-manual-plan" type="button">${escapeHtml(translateUiText('Napravit ću ga ručno'))}</button>
           </div>
         </div>
       `;
@@ -2282,33 +2269,33 @@
     generatedPlanViewIndex = Math.max(0, Math.min(generatedPlanViewIndex, generatedPlanSuggestions.length - 1));
     const plan = generatedPlanSuggestions[generatedPlanViewIndex];
     const totalPlans = generatedPlanSuggestions.length;
-    const saveAllButton = `<button class="btn btn-secondary plan-generator-save-all" type="button" data-action="save-all-generated-plans" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('Sačuvaj sve planove'))}</button>`;
+    const saveAllButton = totalPlans > 1 ? `<button class="btn plan-generator-save-all" type="button" data-action="save-all-generated-plans" ${generatedPlanSaveInProgress ? 'disabled' : ''}><strong>${escapeHtml(translateUiText('Sačuvaj sve planove'))}</strong><small>${escapeHtml(translateUiText('Čuva sve generisane planove'))} (${totalPlans})</small></button>` : '';
     const warning = generatedPlanWarning ? `<p class="plan-generator-warning">${escapeHtml(translateUiText(generatedPlanWarning))}</p>` : '';
     const estimatedMinutes = Number(getEffectiveCurrentProfile().sessionMinutes) || 60;
     const exercises = plan.exercises;
     const dots = Array.from({ length: totalPlans }, (_, index) => `<i class="${index === generatedPlanViewIndex ? 'is-active' : ''}"></i>`).join('');
     const language = getCurrentLanguage();
-    const planPosition = language === 'en' ? `Plan ${generatedPlanViewIndex + 1} of ${totalPlans}`
-      : language === 'de' ? `Plan ${generatedPlanViewIndex + 1} von ${totalPlans}`
-      : `Plan ${generatedPlanViewIndex + 1} od ${totalPlans}`;
+    const planPosition = formatUiMessage('Plan {current} od {total}', { current: generatedPlanViewIndex + 1, total: totalPlans }, language);
     const previousPlanLabel = translateUiText('Prethodni plan');
     const nextPlanLabel = translateUiText('Sljedeći plan');
     results.innerHTML = `${warning}
-      <div class="plan-generator-carousel-navigation" aria-label="${escapeHtml(translateUiText('Navigacija prijedloga planova'))}">
-        <button class="btn btn-secondary plan-generator-carousel-arrow is-previous" type="button" data-action="view-previous-generated-plan" aria-label="${escapeHtml(previousPlanLabel)}" ${totalPlans < 2 || generatedPlanSaveInProgress ? 'disabled' : ''}>‹</button>
-        <button class="btn btn-secondary plan-generator-carousel-arrow is-next" type="button" data-action="view-next-generated-plan" aria-label="${escapeHtml(nextPlanLabel)}" ${totalPlans < 2 || generatedPlanSaveInProgress ? 'disabled' : ''}>›</button>
-      </div>
       <article class="plan-generator-suggestion">
+        <div class="plan-generator-carousel-navigation" aria-label="${escapeHtml(translateUiText('Navigacija prijedloga planova'))}">
+          <button class="btn btn-secondary plan-generator-carousel-arrow is-previous" type="button" data-action="view-previous-generated-plan" aria-label="${escapeHtml(previousPlanLabel)}" ${totalPlans < 2 || generatedPlanSaveInProgress ? 'disabled' : ''}>‹</button>
+          <div class="plan-generator-suggestion-heading"><h4>${escapeHtml(plan.emoji)} ${escapeHtml(getGeneratedPlanDisplayName(plan.name))}</h4><div class="plan-generator-pagination" aria-live="polite"><span class="plan-generator-dots" aria-hidden="true">${dots}</span><strong>${escapeHtml(planPosition)}</strong></div></div>
+          <button class="btn btn-secondary plan-generator-carousel-arrow is-next" type="button" data-action="view-next-generated-plan" aria-label="${escapeHtml(nextPlanLabel)}" ${totalPlans < 2 || generatedPlanSaveInProgress ? 'disabled' : ''}>›</button>
+        </div>
         <div class="plan-generator-suggestion-content">
-          <div class="plan-generator-suggestion-heading"><div><span class="settings-eyebrow">${escapeHtml(translateUiText(routineWeekdayLabels[Number(plan.scheduleDays?.[0])] || 'PRIJEDLOG'))}</span><h4>${escapeHtml(plan.emoji)} ${escapeHtml(getGeneratedPlanDisplayName(plan.name))}</h4><p>${escapeHtml(translateUiText('Fokus:'))} ${escapeHtml(getGeneratedPlanDisplayName(plan.groupTitle))} · ${escapeHtml(plan.exercises.length)} ${escapeHtml(translateUiText('vježbi'))} · ${escapeHtml(translateUiText('oko'))} ${estimatedMinutes} ${escapeHtml(translateUiText('min'))}</p></div></div>
+          <p class="plan-generator-suggestion-meta">${escapeHtml(translateUiText(routineWeekdayLabels[Number(plan.scheduleDays?.[0])] || 'PRIJEDLOG'))} · ${escapeHtml(translateUiText('Fokus:'))} ${escapeHtml(getGeneratedPlanDisplayName(plan.groupTitle))} · ${escapeHtml(plan.exercises.length)} ${escapeHtml(translateUiText('vježbi'))} · ${escapeHtml(translateUiText('oko'))} ${estimatedMinutes} ${escapeHtml(translateUiText('min'))}</p>
           <ol>${exercises.map((exercise) => {
           const reps = ['weight_reps', 'reps'].includes(exercise.measurementType) ? `${exercise.setCount} ${translateUiText('serije')} × ${exercise.repRangeMin}–${exercise.repRangeMax}` : exercise.measurementType === 'seconds' ? `${exercise.setCount} ${translateUiText('serije')} · ${translateUiText('trajanje')}` : translateUiText('kardio');
           return `<li><strong data-no-translate>${escapeHtml(getGeneratedExerciseDisplayName(exercise))}</strong><small>${escapeHtml(reps)} · ${escapeHtml(translateUiText('odmor'))} ${escapeHtml(exercise.restSeconds)} ${escapeHtml(translateUiText('sek'))}</small></li>`;
           }).join('')}</ol>
-          <div class="plan-generator-pagination" aria-live="polite"><span class="plan-generator-dots" aria-hidden="true">${dots}</span><strong>${escapeHtml(planPosition)}</strong></div>
         </div>
       </article>
-      <div class="plan-generator-actions"><button class="btn btn-secondary" type="button" data-action="regenerate-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('↻ Generiši ponovo'))}</button><button class="btn btn-secondary" type="button" data-action="edit-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('✎ Uredi ovaj plan'))}</button><button class="btn" type="button" data-action="save-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('Sačuvaj ovaj plan'))}</button></div>${saveAllButton}
+      <div class="plan-generator-actions"><button class="btn btn-secondary" type="button" data-action="regenerate-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('↻ Generiši ponovo'))}</button><button class="btn btn-secondary" type="button" data-action="edit-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}>${escapeHtml(translateUiText('✎ Uredi ovaj plan'))}</button></div>
+      <div class="plan-generator-save-actions">${saveAllButton}<button class="btn ${totalPlans > 1 ? 'btn-secondary ' : ''}plan-generator-save-one" type="button" data-action="save-generated-plan" data-generated-plan-id="${escapeHtml(plan.id)}" ${generatedPlanSaveInProgress ? 'disabled' : ''}><strong>${escapeHtml(translateUiText('Sačuvaj ovaj plan'))}</strong><small>${escapeHtml(translateUiText('Čuva samo ovaj plan'))}</small></button></div>
+      ${userRoutines.length ? `<button class="routine-manage-link" type="button" data-action="view-saved-routines">${escapeHtml(translateUiText('Moji planovi treninga'))} →</button>` : ''}
     `;
   }
 
@@ -2445,6 +2432,8 @@
       generatedPlanViewIndex = Math.max(0, Math.min(generatedPlanViewIndex, generatedPlanSuggestions.length - 1));
       if (generatedPlanSuggestions.length) renderGeneratedPlanSuggestions();
       else document.getElementById('plan-generator-modal')?.style.setProperty('display', 'none');
+      window.renderWorkouts();
+      if (!generatedPlanSuggestions.length) showSavedRoutineActions(saved.id);
       ShowToast(saved.queued ? 'Plan je sačuvan lokalno i čeka sinhronizaciju.' : 'Plan je sačuvan u tvojim planovima treninga.');
     } catch (error) {
       console.error('Generated plan save diagnostic:', error);
@@ -2482,6 +2471,8 @@
       generatedPlanWarning = '';
       pendingGeneratedPlanId = null;
       document.getElementById('plan-generator-modal')?.style.setProperty('display', 'none');
+      window.renderWorkouts();
+      showSavedRoutineActions();
       ShowToast(`Dodano je ${savedCount} planova u tvoje planove treninga.`);
     } catch (error) {
       console.error('Generated plans save diagnostic:', error);
@@ -2493,6 +2484,19 @@
     }
   };
 
+  function showSavedRoutineActions(routineId) {
+    window.switchTab('workouts');
+    const list = document.getElementById('workout-list');
+    if (!list) return;
+    document.getElementById('routine-save-feedback')?.remove();
+    const feedback = document.createElement('section');
+    feedback.id = 'routine-save-feedback';
+    feedback.className = 'card routine-save-feedback';
+    feedback.setAttribute('aria-label', translateUiText('Sačuvano u tvojim planovima'));
+    feedback.innerHTML = `<p>${escapeHtml(translateUiText('Sačuvano u tvojim planovima'))}</p>${routineId ? `<button class="btn" type="button" data-action="start-routine" data-routine-id="${escapeHtml(routineId)}">${escapeHtml(translateUiText('Započni trening'))}</button>` : `<p class="routine-builder-help">${escapeHtml(translateUiText('Odaberi rutinu ispod i pokreni trening kada želiš.'))}</p>`}`;
+    list.prepend(feedback);
+  }
+
   function addRoutineExerciseRow(listId, exercise = { name: '', measurementType: 'weight_reps' }) {
     const list = document.getElementById(listId);
     if (!list) return;
@@ -2502,8 +2506,7 @@
     row.className = 'routine-exercise-row';
     if (normalizedExercise.libraryExerciseId) row.dataset.libraryExerciseId = normalizedExercise.libraryExerciseId;
     row.innerHTML = `
-      <input class="custom-input routine-exercise-name" type="text" maxlength="100" placeholder="Upiši naziv vježbe" value="${escapeHtml(name)}">
-      <button type="button" class="routine-remove-exercise" data-action="remove-routine-exercise" aria-label="Ukloni vježbu">×</button>
+      <div class="routine-exercise-main"><input class="custom-input routine-exercise-name" type="text" maxlength="100" aria-label="Naziv vježbe" placeholder="Upiši naziv vježbe" value="${escapeHtml(name)}"><p class="routine-exercise-summary" aria-live="polite"></p></div>
       <details class="routine-exercise-settings">
         <summary>Dodatne opcije</summary>
         <label class="routine-exercise-type-label">Kako pratiš ovu vježbu?
@@ -2524,11 +2527,13 @@
           <label>Odmor između serija (sek)<input class="custom-input routine-exercise-rest-seconds" type="number" min="0" max="1800" step="5" value="${escapeHtml(normalizedExercise.restSeconds)}"></label>
         </div>
       </details>
+      <button type="button" class="routine-remove-exercise" data-action="remove-routine-exercise" aria-label="Ukloni vježbu">×</button>
     `;
     list.appendChild(row);
     localizeExerciseNameInput(row.querySelector('.routine-exercise-name'));
     syncRoutineExerciseSettingsVisibility(row);
     row.querySelector('.routine-exercise-type')?.addEventListener('change', () => syncRoutineExerciseSettingsVisibility(row));
+    row.addEventListener('input', () => syncRoutineExerciseSettingsVisibility(row));
   }
 
   function syncRoutineExerciseSettingsVisibility(row) {
@@ -2538,6 +2543,13 @@
     row.querySelector('.routine-setting-time')?.classList.toggle('is-hidden', !['seconds', 'cardio'].includes(type));
     const timeUnit = row.querySelector('.routine-time-unit');
     if (timeUnit) timeUnit.textContent = type === 'cardio' ? '(min)' : '(sek)';
+    const summary = row.querySelector('.routine-exercise-summary');
+    if (summary) {
+      const sets = row.querySelector('.routine-exercise-set-count')?.value || '—';
+      const min = row.querySelector('.routine-exercise-rep-min')?.value || '—';
+      const max = row.querySelector('.routine-exercise-rep-max')?.value || '—';
+      summary.innerHTML = `<span data-no-translate>${escapeHtml(sets)}</span> <span>${escapeHtml(translateUiText('serije'))}</span> · ${['weight_reps', 'reps'].includes(type) ? `<span data-no-translate>${escapeHtml(min)}–${escapeHtml(max)}</span> <span>${escapeHtml(translateUiText('ponavljanja'))}</span>` : `<span>${escapeHtml(translateUiText(type === 'cardio' ? 'Kardio' : 'Trajanje u sekundama'))}</span>`}`;
+    }
   }
 
   window.addRoutineExercise = function(name = '') {
@@ -2600,6 +2612,7 @@
     if (list.querySelectorAll('.routine-exercise-row').length <= 1) {
       row.querySelector('.routine-exercise-name').value = '';
       row.querySelector('.routine-exercise-type').value = 'weight_reps';
+      syncRoutineExerciseSettingsVisibility(row);
       return;
     }
     row.remove();
@@ -2664,6 +2677,7 @@
       document.getElementById('createRoutineModal').style.display = 'none';
       window.renderWorkouts();
       ShowToast(saved.queued ? 'Novi plan je sačuvan lokalno i čeka sinhronizaciju.' : 'Novi plan uspješno kreiran! 🔥');
+      showSavedRoutineActions(saved.id);
     } catch (e) {
       ShowToast(translateUiText('Plan nije moguće kreirati. Pokušaj ponovo.'), 'error');
     }
@@ -6772,7 +6786,7 @@ function renderPendingSyncStatus() {
       const allowed = allowedIds.has(item.id);
       const slotLabel = copy[meal.slot] || copy.snack;
       const portions = ingredients.map((ingredient) => `${escapeHtml(ingredient.name)} ${formatFoodNumber(ingredient.quantity * options.people)} ${escapeHtml(ingredient.unit)}`).join(' · ');
-      return `<article class="meal-planner-meal"><small>${slotLabel} · ${item.minutes} min · ${copy.estimate} ${escapeHtml(mealPlanCurrencyAmount(item.costEur * options.people, options.currency))}</small><strong>${escapeHtml(getMealRecipeName(item, getCurrentLanguage()))}</strong><p>${copy.people(options.people)}: ${portions}</p><p>${copy.perPerson} ${formatFoodNumber(nutrition.calories)} kcal · ${getMacroLabels().protein} ${formatFoodNumber(nutrition.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(nutrition.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(nutrition.fatG)} g</p>${allowed ? `<div class="meal-planner-meal-actions"><button class="btn btn-secondary" data-action="replace-meal-plan-meal" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.replace}</button><button class="btn btn-secondary" data-action="add-meal-plan-meal-to-diary" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.addDiary}</button></div>` : `<p>${copy.unsafe}</p>`}</article>`;
+      return `<article class="meal-planner-meal"><details class="meal-planner-meal-details"><summary><small>${slotLabel} · ${item.minutes} min · ${copy.estimate} ${escapeHtml(mealPlanCurrencyAmount(item.costEur * options.people, options.currency))}</small><strong>${escapeHtml(getMealRecipeName(item, getCurrentLanguage()))}</strong><p>${copy.perPerson} ${formatFoodNumber(nutrition.calories)} kcal · ${getMacroLabels().protein} ${formatFoodNumber(nutrition.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(nutrition.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(nutrition.fatG)} g</p></summary><p class="meal-planner-meal-portions">${copy.people(options.people)}: ${portions}</p></details>${allowed ? `<div class="meal-planner-meal-actions"><button class="btn btn-secondary" data-action="replace-meal-plan-meal" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.replace}</button><button class="btn btn-secondary" data-action="add-meal-plan-meal-to-diary" data-day-index="${dayIndex}" data-meal-index="${mealIndex}" type="button">${copy.addDiary}</button></div>` : `<p>${copy.unsafe}</p>`}</article>`;
     }).join('');
     root.innerHTML = `<div class="card meal-planner-result-head"><span class="settings-eyebrow">${copy.proposal}</span><h3>${copy.day(plan.days.length)} · ${copy.mealsPerDay(options.mealCount)}</h3><div class="meal-planner-summary"><span>${copy.people(options.people)}</span><span>${copy.totalEstimate} ${escapeHtml(cost)}</span><span>${copy.budget} ${formatFoodNumber(options.budget)} ${escapeHtml(options.currency)}</span>${fastLabel ? `<span class="meal-planner-fast-badge">${escapeHtml(fastLabel)}</span>` : ''}</div><p>${escapeHtml(mealPlannerFormCopy().disclaimer)}</p>${unsafe ? `<p>${copy.unsafePlan}</p>` : ''}<div class="meal-planner-result-actions">${!plan.id && !unsafe ? `<button class="btn" data-action="save-meal-plan" type="button">${copy.save}</button>` : ''}<button class="btn btn-secondary" data-action="open-meal-plan-shopping-list" type="button">${navigation.shopping}</button><button class="btn btn-secondary" data-action="open-meal-planner" type="button">${copy.newPlan}</button><button class="btn btn-secondary" data-action="discard-meal-plan" type="button">${copy.close}</button></div><p id="meal-planner-save-status" class="settings-status" role="status"></p></div><section class="card meal-planner-day"><div class="meal-planner-day-navigation"><button class="btn btn-secondary" data-action="view-previous-meal-plan-day" type="button" aria-label="${navigation.previous}" ${dayIndex === 0 ? 'disabled' : ''}>‹</button><div><span>${navigation.dayOf(dayIndex + 1, plan.days.length)}</span><h4>${escapeHtml(formatMealPlanDate(day.date))}</h4></div><button class="btn btn-secondary" data-action="view-next-meal-plan-day" type="button" aria-label="${navigation.next}" ${dayIndex === plan.days.length - 1 ? 'disabled' : ''}>›</button></div><div class="meal-planner-day-totals">${copy.dailyEstimate} <strong>${formatFoodNumber(totals.calories)} kcal</strong> · ${getMacroLabels().protein} ${formatFoodNumber(totals.proteinG)} g · ${getMacroLabels().carbs} ${formatFoodNumber(totals.carbsG)} g · ${getMacroLabels().fat} ${formatFoodNumber(totals.fatG)} g</div><div class="meal-planner-meals">${meals}</div></section>`;
   }
@@ -8433,6 +8447,12 @@ function renderPendingSyncStatus() {
 
   function applyLanguage(language) {
     const selectedLanguage = SUPPORTED_LANGUAGES.includes(language) ? language : 'sr';
+    const guideSlugs = { bs: 'kako-radi', sr: 'kako-radi', hr: 'kako-funkcionira', en: 'how-it-works', de: 'so-funktioniert-es', fr: 'comment-ca-marche', it: 'come-funziona', es: 'como-funciona' };
+    const infoBase = `https://info.gymleader.app/${selectedLanguage}/`;
+    const infoLink = document.getElementById('app-info-link');
+    const guideLink = document.getElementById('dashboard-guide-link');
+    if (infoLink) infoLink.href = infoBase;
+    if (guideLink) guideLink.href = `${infoBase}#${guideSlugs[selectedLanguage]}`;
     const pageTitles = {
       sr: 'GymLeader | Planiraj trening i prati napredak',
       en: 'GymLeader | Plan your workouts and track progress',
@@ -8519,6 +8539,12 @@ function renderPendingSyncStatus() {
     const toggle = document.getElementById('app-menu-toggle');
     const navigation = document.getElementById('app-header-navigation');
     const languageMenu = document.getElementById('app-header-language');
+    const primaryNav = document.getElementById('bottom-nav');
+    const support = document.getElementById('dashboard-support');
+    const primaryNavHome = primaryNav?.parentNode;
+    const primaryNavNext = primaryNav?.nextSibling;
+    const supportHome = support?.parentNode;
+    const supportNext = support?.nextSibling;
     if (!header || !toggle || !navigation || toggle.dataset.initialized) return;
     toggle.dataset.initialized = 'true';
     const mobile = window.matchMedia('(max-width: 1000px)');
@@ -8529,9 +8555,18 @@ function renderPendingSyncStatus() {
       navigation.classList.toggle('is-open', expanded);
       navigation.hidden = mobile.matches && !expanded;
       if (!expanded && languageMenu) languageMenu.open = false;
+      if (!expanded && mobile.matches) hideDashboardSupportNote();
       if (returnFocus && mobile.matches) toggle.focus();
     }
     function syncLayout() {
+      if (primaryNav) {
+        if (mobile.matches && primaryNavHome && primaryNav.parentNode !== primaryNavHome) primaryNavHome.insertBefore(primaryNav, primaryNavNext?.parentNode === primaryNavHome ? primaryNavNext : null);
+        if (!mobile.matches && primaryNav.parentNode !== header) header.insertBefore(primaryNav, document.getElementById('user-header-info'));
+      }
+      if (support) {
+        if (mobile.matches && support.parentNode !== navigation) navigation.appendChild(support);
+        if (!mobile.matches && supportHome && support.parentNode !== supportHome) supportHome.insertBefore(support, supportNext?.parentNode === supportHome ? supportNext : null);
+      }
       toggle.hidden = !mobile.matches;
       setMenu(false);
     }
@@ -9127,6 +9162,10 @@ function renderPendingSyncStatus() {
           break;
         case 'save-generated-plan':
           window.saveGeneratedPlan(button.dataset.generatedPlanId || '');
+          break;
+        case 'view-saved-routines':
+          document.getElementById('plan-generator-modal')?.style.setProperty('display', 'none');
+          window.switchTab('workouts');
           break;
         case 'edit-generated-plan':
           window.editGeneratedPlan(button.dataset.generatedPlanId || '');

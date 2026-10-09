@@ -72,7 +72,7 @@
   <link rel="apple-touch-icon" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-progress-support-v142">
   <link rel="manifest" href="manifest.webmanifest?v=20261006-progress-support-v142">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261009-header-language-v145">
+  <link rel="stylesheet" href="styles.css?v=20261009-light-mobile-v157">
 
 </head>
 <body class="app-navigation-shell">
@@ -99,11 +99,11 @@
     </button>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
       <span id="user-email-display" class="user-pill" style="display:none;"></span>
-      <button id="app-menu-toggle" class="app-menu-toggle" type="button" aria-label="Otvori meni" aria-expanded="false" aria-controls="app-header-navigation" hidden><span aria-hidden="true">☰</span></button>
+      <button id="app-menu-toggle" class="app-menu-toggle" type="button" aria-label="Otvori meni" aria-expanded="false" aria-controls="app-header-navigation" hidden><span class="app-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span></button>
     </div>
     <nav id="app-header-navigation" class="app-header-navigation" aria-label="Glavna navigacija">
       <details id="app-header-language" class="app-header-language">
-        <summary><span>Jezik aplikacije</span>: <span id="app-header-language-name" data-no-translate lang="sr">Srpski</span></summary>
+        <summary aria-label="Izbor jezika aplikacije"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg><span class="app-header-language-label">Jezik aplikacije</span><span id="app-header-language-name" data-no-translate lang="sr">Srpski</span></summary>
         <div class="app-header-language-options" role="group" aria-label="Izbor jezika">
           <button type="button" class="header-language-choice" data-action="set-language" data-language="sr" data-no-translate lang="sr">Srpski</button>
           <button type="button" class="header-language-choice" data-action="set-language" data-language="bs" data-no-translate lang="bs">Bosanski</button>
@@ -115,7 +115,7 @@
           <button type="button" class="header-language-choice" data-action="set-language" data-language="es" data-no-translate lang="es">Español</button>
         </div>
       </details>
-      <a id="app-info-link" class="app-info-link" href="https://info.gymleader.app/">Informacije o GymLeaderu <span aria-hidden="true">↗</span></a>
+      <a id="app-info-link" class="app-info-link" href="https://info.gymleader.app/bs/">Vodič i informacije <span aria-hidden="true">↗</span></a>
     </nav>
 </header>
 
@@ -237,6 +237,7 @@
           <h1 id="dashboard-hero-name" data-no-translate aria-live="polite">GymLeader</h1>
           <p id="dashboard-primary-help">Spreman/na za današnji trening?</p>
           <button id="dashboard-primary-action" class="btn dashboard-hero-action" data-action="switch-tab" data-tab="workouts">▶ Započni trening</button>
+          <a id="dashboard-guide-link" class="dashboard-guide-link" href="https://info.gymleader.app/bs/#kako-radi">Novi si? Pogledaj kako GymLeader radi <span aria-hidden="true">→</span></a>
         </div>
         <div id="dashboard-hero-visual" class="dashboard-hero-visual dashboard-hero-neutral" aria-hidden="true"><picture id="dashboard-hero-picture" hidden><source id="dashboard-hero-mobile-source" media="(max-width: 560px)" type="image/webp"><img id="dashboard-hero-image" alt="" decoding="async" fetchpriority="high"></picture></div>
       </section>
@@ -606,7 +607,7 @@
     <p class="profile-modal-help">Možeš dobiti prijedlog prema svom profilu ili jednostavno unijeti vlastiti plan.</p>
     <div class="plan-creation-choice-actions">
       <button class="plan-creation-choice" data-action="choose-plan-generator" type="button"><strong>✦ Preporuči mi plan</strong><span>GymLeader koristi tvoje ciljeve, iskustvo i preferencije.</span></button>
-      <button class="plan-creation-choice" data-action="choose-manual-plan" type="button"><strong>✎ Unijet ću svoj plan</strong><span>Dodaj naziv i vježbe koje želiš raditi.</span></button>
+      <button class="plan-creation-choice" data-action="choose-manual-plan" type="button"><strong><span aria-hidden="true">✎</span> Napravit ću ga ručno</strong><span>Dodaj naziv i vježbe koje želiš raditi.</span></button>
     </div>
     <button class="btn btn-secondary plan-creation-cancel" data-action="close-modal" data-modal-id="plan-creation-choice-modal" type="button">Otkaži</button>
   </div>
@@ -656,13 +657,14 @@
     <p class="routine-builder-help">Upiši naziv i odaberi vježbu iz biblioteke.</p>
     <section class="exercise-library-picker exercise-library-picker-primary" data-library-picker-for="new-routine-exercises-list">
       <input class="custom-input exercise-library-search" type="search" placeholder="Pretraži vježbe, npr. čučanj" aria-label="Pretraži vježbe">
+      <details class="exercise-library-filter-details"><summary>Dodatne opcije</summary><div class="exercise-library-controls"><select class="custom-input exercise-library-muscle" aria-label="Mišićna grupa"></select><select class="custom-input exercise-library-equipment" aria-label="Oprema"></select><select class="custom-input exercise-library-place" aria-label="Mjesto treninga"><option value="">Svako mjesto</option><option value="gym">Teretana</option><option value="home">Kuća</option><option value="street">Street workout</option></select></div></details>
       <p class="exercise-library-count" aria-live="polite"></p><div class="exercise-library-results"></div>
     </section>
     <label class="routine-added-exercises-label" for="new-routine-exercises-list">Dodane vježbe</label>
     <div id="new-routine-exercises-list" class="routine-exercise-builder"></div>
     <button type="button" class="btn btn-secondary routine-text-import-button" data-action="open-import-modal">📋 Dodaj plan iz teksta</button>
 
-    <div style="display: flex; gap: 10px; margin-top: 12px;">
+    <div class="routine-builder-actions">
       <button class="btn" data-action="submit-new-routine">Sačuvaj plan</button>
       <button class="btn btn-secondary" data-action="close-modal" data-modal-id="createRoutineModal">Otkaži</button>
     </div>
@@ -707,7 +709,7 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20261009-header-language-v145"></script>
+<script type="module" src="javascript.js?v=20261009-mobile-menu-v156"></script>
 </body>
 </html>
 

@@ -1613,8 +1613,46 @@ const HEADER_NAV_TRANSLATIONS = {
   'Otvori meni': { bs: 'Otvori meni', hr: 'Otvori izbornik', en: 'Open menu', de: 'Menü öffnen', fr: 'Ouvrir le menu', it: 'Apri il menu', es: 'Abrir menú' },
   'Zatvori meni': { bs: 'Zatvori meni', hr: 'Zatvori izbornik', en: 'Close menu', de: 'Menü schließen', fr: 'Fermer le menu', it: 'Chiudi il menu', es: 'Cerrar menú' },
   'Glavna navigacija': { bs: 'Glavna navigacija', hr: 'Glavna navigacija', en: 'Main navigation', de: 'Hauptnavigation', fr: 'Navigation principale', it: 'Navigazione principale', es: 'Navegación principal' },
-  'Informacije o GymLeaderu': { bs: 'Informacije o GymLeaderu', hr: 'Informacije o GymLeaderu', en: 'About GymLeader', de: 'Über GymLeader', fr: 'À propos de GymLeader', it: 'Informazioni su GymLeader', es: 'Acerca de GymLeader' }
+  'Vodič i informacije': { bs: 'Vodič i informacije', sr: 'Vodič i informacije', hr: 'Vodič i informacije', en: 'Guides & information', de: 'Guide & Informationen', fr: 'Guide et informations', it: 'Guide e informazioni', es: 'Guía e información' },
+  'Novi si? Pogledaj kako GymLeader radi': { bs: 'Prvi put koristiš GymLeader? Pogledaj kako radi', sr: 'Prvi put koristiš GymLeader? Pogledaj kako radi', hr: 'Prvi put koristiš GymLeader? Pogledaj kako radi', en: 'New to GymLeader? See how it works', de: 'Neu bei GymLeader? So funktioniert es', fr: 'Tu découvres GymLeader ? Découvre son fonctionnement', it: 'È la prima volta su GymLeader? Scopri come funziona', es: '¿Es tu primera vez en GymLeader? Mira cómo funciona' }
 };
+TRANSLATIONS.bs = buildBcsTranslations(TRANSLATIONS, 'bs');
+TRANSLATIONS.hr = buildBcsTranslations(TRANSLATIONS, 'hr');
+Object.assign(TRANSLATIONS.bs, Object.fromEntries(Object.entries(HEADER_NAV_TRANSLATIONS).map(([source, labels]) => [source, labels.bs])));
+Object.assign(TRANSLATIONS.hr, Object.fromEntries(Object.entries(HEADER_NAV_TRANSLATIONS).map(([source, labels]) => [source, labels.hr])));
 for (const [source, labels] of Object.entries(HEADER_NAV_TRANSLATIONS)) {
+  for (const language of ['en', 'de', 'fr', 'it', 'es']) TRANSLATIONS[language][source] = labels[language];
+}
+
+// First-routine UX: reuse the existing language dictionaries and handlers.
+const FIRST_ROUTINE_COPY = {
+  'Preporuči mi plan': ['Preporuči mi plan', 'Preporuči mi plan', 'Recommend a plan', 'Empfiehl mir einen Plan', 'Propose-moi un programme', 'Consigliami un programma', 'Recomiéndame una rutina'],
+  'Napravit ću ga ručno': ['Napravit ću ga ručno', 'Napravit ću ga ručno', 'Create it manually', 'Manuell erstellen', 'Créer manuellement', 'Crea manualmente', 'Crear manualmente'],
+  'Sačuvaj cijeli skup rutina': ['Sačuvaj cijeli skup rutina', 'Spremi cijeli skup rutina', 'Save the entire set of routines', 'Alle Routinen speichern', 'Enregistrer toutes les séances', 'Salva tutte le routine', 'Guardar todas las rutinas'],
+  'Svaki prijedlog se čuva kao zasebna rutina koju možeš ponavljati.': ['Svaki prijedlog se čuva kao zasebna rutina koju možeš ponavljati.', 'Svaki prijedlog sprema se kao zasebna rutina koju možeš ponavljati.', 'Each suggestion is saved as a separate routine you can repeat.', 'Jeder Vorschlag wird als eigene Routine gespeichert, die du wiederholen kannst.', 'Chaque proposition est enregistrée comme une séance distincte que tu peux répéter.', 'Ogni proposta viene salvata come routine separata che puoi ripetere.', 'Cada propuesta se guarda como una rutina independiente que puedes repetir.'],
+  'Pregledaš jednu rutinu. Dugme ispod čuva samo prikazanu rutinu.': ['Pregledaš jednu rutinu. Dugme ispod čuva samo prikazanu rutinu.', 'Pregledavaš jednu rutinu. Gumb ispod sprema samo prikazanu rutinu.', 'You are viewing one routine. The button below saves only this routine.', 'Du siehst eine Routine. Die Schaltfläche unten speichert nur diese Routine.', 'Tu consultes une séance. Le bouton ci-dessous enregistre uniquement cette séance.', 'Stai visualizzando una routine. Il pulsante sotto salva solo questa routine.', 'Estás viendo una rutina. El botón de abajo guarda solo esta rutina.'],
+  'Sačuvano u tvojim planovima': ['Sačuvano u tvojim planovima', 'Spremljeno u tvojim planovima', 'Saved to your plans', 'In deinen Plänen gespeichert', 'Enregistré dans tes programmes', 'Salvato nei tuoi programmi', 'Guardado en tus planes'],
+  'Odaberi rutinu ispod i pokreni trening kada želiš.': ['Odaberi rutinu ispod i pokreni trening kada želiš.', 'Odaberi rutinu ispod i pokreni trening kada želiš.', 'Choose a routine below and start whenever you are ready.', 'Wähle unten eine Routine und starte, wenn du bereit bist.', 'Choisis une séance ci-dessous et commence quand tu veux.', 'Scegli una routine qui sotto e inizia quando vuoi.', 'Elige una rutina abajo y empieza cuando quieras.'],
+  'ponavljanja': ['ponavljanja', 'ponavljanja', 'reps', 'Wiederholungen', 'répétitions', 'ripetizioni', 'repeticiones']
+};
+for (const [source, labels] of Object.entries(FIRST_ROUTINE_COPY)) {
+  ['bs', 'hr', 'en', 'de', 'fr', 'it', 'es'].forEach((language, index) => { TRANSLATIONS[language][source] = labels[index]; });
+}
+
+const ROUTINE_PREVIEW_ACTION_COPY = {
+  'Čuva sve generisane planove': {
+    bs: 'Čuva sve generisane planove', hr: 'Sprema sve predložene planove',
+    en: 'Saves all suggested plans', de: 'Speichert alle vorgeschlagenen Pläne',
+    fr: 'Enregistre tous les programmes proposés', it: 'Salva tutti i programmi proposti',
+    es: 'Guarda todos los planes sugeridos'
+  },
+  'Čuva samo ovaj plan': {
+    bs: 'Čuva samo ovaj plan', hr: 'Sprema samo ovaj plan',
+    en: 'Saves only this plan', de: 'Speichert nur diesen Plan',
+    fr: 'Enregistre uniquement ce programme', it: 'Salva solo questo programma',
+    es: 'Guarda solo este plan'
+  }
+};
+for (const [source, labels] of Object.entries(ROUTINE_PREVIEW_ACTION_COPY)) {
   for (const [language, label] of Object.entries(labels)) TRANSLATIONS[language][source] = label;
 }
