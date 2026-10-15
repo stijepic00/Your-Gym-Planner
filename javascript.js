@@ -3845,7 +3845,7 @@
     return queue.find((item) => item.id === next.id) || next;
   }
 
-  async function writeUserDocument(path, data, { merge = true, deleteFields = [] } = {}) {
+  async function writeUserDocument(path, data, { merge = true, deleteFields = [], timeoutMs = 0 } = {}) {
     const operation = { userId: currentUser?.uid, kind: 'set', path, data, merge, deleteFields };
     if (currentUser && path === `users/${currentUser.uid}`) {
       const nextProfile = { ...getEffectiveCurrentProfile(), ...(data || {}) };
@@ -3858,7 +3858,8 @@
     }
     try {
       if (!navigator.onLine) throw Object.assign(new Error('offline'), { code: 'unavailable' });
-      await executePendingOperation(operation);
+      if (timeoutMs > 0) await executePendingOperationWithTimeout(operation, timeoutMs);
+      else await executePendingOperation(operation);
       return { queued: false };
     } catch (error) {
       if (!isOfflineError(error)) throw error;
@@ -4049,6 +4050,7 @@
 
   let previousWorkoutMotivationIndex = -1;
   let activeWorkoutCompletion = null;
+  let workoutReflectionSaveInProgress = false;
   const workoutCompletionCopy = {
     bs: { eyebrow:'TRENING ZAVRŠEN', title:name => `Svaka čast, ${name} — još jedan trening je iza tebe!`, messages:['Svaki trening koji završiš gradi naviku koju vrijedi čuvati.','Uradio/la si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.','Ne mora svaki trening biti savršen — važno je što si se pojavio/la.'], cloud:'Trening je sačuvan na tvom nalogu.', queued:'Trening je sačuvan na ovom uređaju i čeka sinhronizaciju.', reflect:'Kako si se osjećao/la danas?', group:'Raspoloženje nakon treninga', moods:['Odlično','Dobro','Bilo je teško'], note:'Kratka bilješka (opcionalno)', placeholder:'Kako je prošlo danas?', local:'Osjećaj i bilješka čuvaju se uz ovaj završeni trening.', save:'Sačuvaj trening', saving:'Čuvanje…', saveFailed:'Bilješku nije moguće sačuvati. Pokušaj ponovo.', reflectionSaved:'Osjećaj i bilješka su sačuvani uz trening.', reflectionQueued:'Osjećaj i bilješka čekaju internet i sinhronizaciju.' },
     sr: { eyebrow:'TRENING ZAVRŠEN', title:name => `Svaka čast, ${name} — još jedan trening je iza tebe!`, messages:['Svaki trening koji završiš gradi naviku koju vredi čuvati.','Ovo je bio dobar korak za tebe. Ponesi taj osećaj i u ostatak dana.','Ne mora svaki trening biti savršen — važno je što si ga odradio.'], cloud:'Trening je sačuvan na tvom nalogu.', queued:'Trening je sačuvan na ovom uređaju i čeka sinhronizaciju.', reflect:'Kako ti je bilo danas?', group:'Raspoloženje posle treninga', moods:['Odlično','Dobro','Bilo je teško'], note:'Kratka beleška (opciono)', placeholder:'Kako je prošlo danas?', local:'Osećaj i beleška čuvaju se uz ovaj završeni trening.', save:'Sačuvaj trening', saving:'Čuvanje…', saveFailed:'Belešku nije moguće sačuvati. Pokušaj ponovo.', reflectionSaved:'Osećaj i beleška su sačuvani uz trening.', reflectionQueued:'Osećaj i beleška čekaju internet i sinhronizaciju.' },
@@ -4110,6 +4112,7 @@
     const modal = document.getElementById('workout-completion-modal');
     if (!modal || !workoutId || !userId || !['cloud', 'queued'].includes(status)) return;
     activeWorkoutCompletion = { workoutId, userId, status };
+    workoutReflectionSaveInProgress = false;
     const copy = getWorkoutCompletionCopy(getCurrentLanguage());
     const messageIndex = Math.floor(Math.random() * copy.messages.length);
     const selectedIndex = copy.messages.length > 1 && messageIndex === previousWorkoutMotivationIndex
@@ -4144,6 +4147,7 @@
     if (note) note.value = '';
     modal.querySelectorAll('.workout-mood-option').forEach(option => option.setAttribute('aria-pressed', 'false'));
     activeWorkoutCompletion = null;
+    workoutReflectionSaveInProgress = false;
   };
 
   window.saveWorkoutCompletionReflection = async function() {
@@ -4152,6 +4156,7 @@
       window.closeWorkoutCompletionScreen();
       return;
     }
+    if (workoutReflectionSaveInProgress) return;
     const modal = document.getElementById('workout-completion-modal');
     const copy = getWorkoutCompletionCopy(getCurrentLanguage());
     const button = document.getElementById('workout-completion-done');
@@ -4159,13 +4164,15 @@
     const note = String(document.getElementById('workout-reflection-note')?.value || '').trim().slice(0, 240);
     if (!mood && !note) {
       window.closeWorkoutCompletionScreen();
+      ShowToast(completion.status === 'queued' ? copy.queued : copy.cloud);
       return;
     }
+    workoutReflectionSaveInProgress = true;
     if (button) { button.disabled = true; button.textContent = copy.saving; }
     try {
       const result = await writeUserDocument(`workouts/${completion.workoutId}`, {
         workoutReflection: { mood: mood || null, note, recordedAt: new Date().toISOString() }
-      });
+      }, { timeoutMs: 6000 });
       if (completion.userId !== currentUser?.uid) { window.closeWorkoutCompletionScreen(); return; }
       window.closeWorkoutCompletionScreen();
       ShowToast(result.queued ? copy.reflectionQueued : copy.reflectionSaved);
@@ -4174,6 +4181,8 @@
       const status = document.getElementById('workout-completion-status');
       if (status) status.textContent = copy.saveFailed;
       if (button) { button.disabled = false; button.textContent = copy.save; }
+    } finally {
+      workoutReflectionSaveInProgress = false;
     }
   };
 
