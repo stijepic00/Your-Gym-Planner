@@ -4130,6 +4130,11 @@
     setText('workout-reflection-note-label', copy.note);
     setText('workout-reflection-local-note', copy.local);
     setText('workout-completion-done', copy.save);
+    const doneButton = document.getElementById('workout-completion-done');
+    if (doneButton) {
+      doneButton.disabled = false;
+      doneButton.setAttribute('aria-busy', 'false');
+    }
     const note = document.getElementById('workout-reflection-note');
     if (note) { note.value = ''; note.placeholder = copy.placeholder; }
     const group = modal.querySelector('.workout-mood-options');
@@ -4146,6 +4151,11 @@
     const note = document.getElementById('workout-reflection-note');
     if (note) note.value = '';
     modal.querySelectorAll('.workout-mood-option').forEach(option => option.setAttribute('aria-pressed', 'false'));
+    const button = document.getElementById('workout-completion-done');
+    if (button) {
+      button.disabled = false;
+      button.setAttribute('aria-busy', 'false');
+    }
     activeWorkoutCompletion = null;
     workoutReflectionSaveInProgress = false;
   };
@@ -4168,7 +4178,7 @@
       return;
     }
     workoutReflectionSaveInProgress = true;
-    if (button) { button.disabled = true; button.textContent = copy.saving; }
+    if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); button.textContent = copy.saving; }
     try {
       const result = await writeUserDocument(`workouts/${completion.workoutId}`, {
         workoutReflection: { mood: mood || null, note, recordedAt: new Date().toISOString() }
@@ -4180,7 +4190,7 @@
       console.error('Bilješku nakon treninga nije moguće sačuvati:', error);
       const status = document.getElementById('workout-completion-status');
       if (status) status.textContent = copy.saveFailed;
-      if (button) { button.disabled = false; button.textContent = copy.save; }
+      if (button) { button.disabled = false; button.setAttribute('aria-busy', 'false'); button.textContent = copy.save; }
     } finally {
       workoutReflectionSaveInProgress = false;
     }
