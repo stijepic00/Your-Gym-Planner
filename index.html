@@ -68,11 +68,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-progress-support-v142">
-  <link rel="apple-touch-icon" sizes="512x512" href="assets/gymleader-icon.png?v=20261006-progress-support-v142">
-  <link rel="manifest" href="manifest.webmanifest?v=20261006-progress-support-v142">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261009-light-mobile-v157">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/gymleader-icon.png?v=20261015-offline-cache-v158">
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/gymleader-icon.png?v=20261015-offline-cache-v158">
+  <link rel="manifest" href="manifest.webmanifest?v=20261015-offline-cache-v158">
+  <link rel="stylesheet" href="styles.css?v=20261015-offline-cache-v158">
 
 </head>
 <body class="app-navigation-shell">
@@ -83,18 +82,18 @@
   <div class="auth-boot-orbit auth-boot-orbit-one"><span></span></div>
   <div class="auth-boot-orbit auth-boot-orbit-two"><span></span></div>
   <div class="auth-boot-card">
-    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261006-progress-support-v142" alt=""></div>
+    <div class="auth-boot-mark"><img src="assets/gymleader-mark-v2.png?v=20261015-offline-cache-v158" alt=""></div>
     <div class="auth-boot-wordmark"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></div>
     <div class="auth-boot-progress"><span></span></div>
     <p id="auth-boot-text">Pripremamo tvoj trening.</p>
     <button id="auth-boot-retry" class="auth-boot-retry" type="button" hidden>Pokušaj ponovo</button>
   </div>
 </div>
-<script src="language-boot.js?v=20261006-progress-support-v142"></script>
+<script src="language-boot.js?v=20261015-offline-cache-v158"></script>
 
 <header class="app-header">
     <button type="button" class="gymleader-brand" aria-label="GymLeader početna strana" data-action="go-home">
-      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261006-progress-support-v142" alt=""></span>
+      <span class="gymleader-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261015-offline-cache-v158" alt=""></span>
       <span class="gymleader-brand-copy"><strong>Gym<span>Leader</span></strong><small>TRAIN. TRACK. LEAD.</small></span>
     </button>
     <div id="user-header-info" style="display: flex; align-items: center; gap: 8px;">
@@ -120,7 +119,7 @@
 </header>
 
 <aside id="pwa-install-banner" class="pwa-install-banner" hidden aria-live="polite">
-  <img src="assets/gymleader-icon.png?v=20261006-progress-support-v142" alt="GymLeader" class="pwa-install-icon">
+  <img src="assets/gymleader-icon.png?v=20261015-offline-cache-v158" alt="GymLeader" class="pwa-install-icon">
   <div class="pwa-install-copy"><strong>Otvori GymLeader kao aplikaciju</strong><span>Dodaj prečicu na početni ekran i otvaraj trening jednim dodirom.</span></div>
   <button class="pwa-install-button" data-action="install-app" type="button">Instaliraj</button>
   <button class="pwa-install-dismiss" data-action="dismiss-install" type="button" aria-label="Kasnije">×</button>
@@ -135,7 +134,7 @@
       <div class="card auth-card">
         <div class="auth-welcome">
           <div class="auth-brand-lockup" aria-label="GymLeader">
-            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261006-progress-support-v142" alt=""></span>
+            <span class="auth-brand-mark" aria-hidden="true"><img src="assets/gymleader-mark-v2.png?v=20261015-offline-cache-v158" alt=""></span>
             <span>Gym<span>Leader</span></span>
           </div>
           <h1 id="auth-title">Prijavi se u GymLeader</h1>
@@ -561,6 +560,30 @@
   </section>
 </div>
 
+<div id="workout-completion-modal" class="modal workout-completion-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="workout-completion-title" aria-describedby="workout-completion-status">
+  <section class="workout-completion-card">
+    <div class="workout-completion-flame" aria-hidden="true">🔥</div>
+    <span id="workout-completion-eyebrow" class="settings-eyebrow">TRENING ZAVRŠEN</span>
+    <h2 id="workout-completion-title">Svaka čast — još jedan trening je iza tebe!</h2>
+    <p id="workout-completion-message" class="workout-completion-message"></p>
+    <p id="workout-completion-status" class="workout-completion-status" role="status"></p>
+    <fieldset class="workout-reflection">
+      <legend id="workout-reflection-title">Kako si se osjećao/la danas?</legend>
+      <div class="workout-mood-options" role="group" aria-label="Raspoloženje nakon treninga">
+        <button type="button" class="workout-mood-option" data-action="select-workout-mood" data-mood="great" aria-pressed="false"><span aria-hidden="true">⚡</span><small id="workout-mood-great">Odlično</small></button>
+        <button type="button" class="workout-mood-option" data-action="select-workout-mood" data-mood="good" aria-pressed="false"><span aria-hidden="true">🙂</span><small id="workout-mood-good">Dobro</small></button>
+        <button type="button" class="workout-mood-option" data-action="select-workout-mood" data-mood="tough" aria-pressed="false"><span aria-hidden="true">💪</span><small id="workout-mood-tough">Bilo je teško</small></button>
+      </div>
+      <label id="workout-reflection-note-label" for="workout-reflection-note">Kratka bilješka (opcionalno)</label>
+      <textarea id="workout-reflection-note" class="custom-input" rows="2" maxlength="240" placeholder="Kako je prošlo danas?"></textarea>
+      <small id="workout-reflection-local-note" class="workout-reflection-local-note">Osjećaj i bilješka čuvaju se uz ovaj završeni trening.</small>
+    </fieldset>
+    <div class="workout-completion-actions">
+      <button class="btn" data-action="save-workout-reflection" type="button" id="workout-completion-done">Sačuvaj trening</button>
+    </div>
+  </section>
+</div>
+
 <nav id="bottom-nav" style="display: none;">
     <button class="nav-item active" data-action="switch-tab" data-tab="dashboard">
       <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Početna
@@ -709,7 +732,7 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20261009-mobile-menu-v156"></script>
+<script type="module" src="javascript.js?v=20261015-offline-cache-v158"></script>
 </body>
 </html>
 

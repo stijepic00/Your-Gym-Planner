@@ -1,10 +1,10 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261009-routine-layout-v149';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261009-routine-layout-v149';
-  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261006-progress-support-v142';
-  import { exerciseKey, libraryExerciseId, latestExerciseHistory, latestExerciseNote, maxExerciseWeight } from './exercise-history.js?v=20261006-exercise-history-v143';
-  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261006-progress-support-v142';
-  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261006-progress-support-v142';
+  import { TRANSLATIONS } from './translations.js?v=20261015-offline-cache-v158';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261015-offline-cache-v158';
+  import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261015-offline-cache-v158';
+  import { exerciseKey, libraryExerciseId, latestExerciseHistory, latestExerciseNote, maxExerciseWeight } from './exercise-history.js?v=20261015-offline-cache-v158';
+  import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261015-offline-cache-v158';
+  import { MEAL_CURRENCIES, getMealRecipe, getMealRecipeName, recipeNutrition, recipeIngredients, eligibleMealRecipes, mealPlanTotals, buildMealPlan, replaceMealInPlan, validMealPlanOptions, validStoredMealPlan } from './meal-planner.js?v=20261015-offline-cache-v158';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { 
     getAuth, 
@@ -102,6 +102,7 @@
   const finishingWorkoutSessions = new Set();
   let activeWorkoutEditMode = false;
   let chartInstance = null;
+  let chartLibraryPromise = null;
   let routinesUnsubscribe = null;
   let navigationGuardReady = false;
   let routineEditMode = false;
@@ -979,6 +980,8 @@
       }
     }
     if (currentUser?.uid !== user?.uid) {
+      profileReadSucceeded = false;
+      currentProfileData = null;
       profileWizardReturnTo = '';
       resetActiveWorkoutState();
       resetHistoryCoverage();
@@ -1019,33 +1022,39 @@
       if (logoutBtn) logoutBtn.style.display = 'inline-block';
       
       if (mailDisplay) {
-        let profileTimeout;
-        try {
-          const userDoc = navigator.onLine ? await Promise.race([
-            getDoc(doc(db, "users", user.uid)),
-            new Promise((_, reject) => { profileTimeout = setTimeout(() => reject(new Error('Profile read timeout')), 8000); })
-          ]) : null;
-          if (!isCurrentSession()) return;
-          profileReadSucceeded = Boolean(userDoc);
-          currentProfileData = userDoc?.exists() ? userDoc.data() : readProfileCache(user.uid);
-          if (currentProfileData) writeProfileCache(user.uid, currentProfileData);
-          if (hasAcceptedCurrentLegalVersion(currentProfileData)) {
-            writeLegalAcceptanceCache(user.uid, currentProfileData);
-          } else if (navigator.onLine) {
-            clearLegalAcceptanceCache(user.uid);
-          }
-          if (currentProfileData?.fullName) {
-            mailDisplay.innerText = currentProfileData.fullName;
-          } else {
-            mailDisplay.innerText = user.email;
-          }
-        } catch {
-          if (!isCurrentSession()) return;
+        const cachedProfile = readProfileCache(user.uid);
+        if (navigator.onLine && cachedProfile) {
+          // A UID-scoped cached profile lets a returning user enter the app
+          // immediately. Refresh it from Firestore without holding the boot UI.
           profileReadSucceeded = false;
-          currentProfileData = readProfileCache(user.uid);
-          mailDisplay.innerText = currentProfileData?.fullName || user.email;
-        } finally {
-          clearTimeout(profileTimeout);
+          currentProfileData = cachedProfile;
+          mailDisplay.innerText = cachedProfile.fullName || user.email;
+          void refreshCurrentProfileInBackground(user, isCurrentSession, mailDisplay);
+        } else {
+          let profileTimeout;
+          try {
+            const userDoc = navigator.onLine ? await Promise.race([
+              getDoc(doc(db, "users", user.uid)),
+              new Promise((_, reject) => { profileTimeout = setTimeout(() => reject(new Error('Profile read timeout')), 8000); })
+            ]) : null;
+            if (!isCurrentSession()) return;
+            profileReadSucceeded = Boolean(userDoc);
+            currentProfileData = userDoc?.exists() ? userDoc.data() : cachedProfile;
+            if (currentProfileData) writeProfileCache(user.uid, currentProfileData);
+            if (hasAcceptedCurrentLegalVersion(currentProfileData)) {
+              writeLegalAcceptanceCache(user.uid, currentProfileData);
+            } else if (navigator.onLine) {
+              clearLegalAcceptanceCache(user.uid);
+            }
+            mailDisplay.innerText = currentProfileData?.fullName || user.email;
+          } catch {
+            if (!isCurrentSession()) return;
+            profileReadSucceeded = false;
+            currentProfileData = cachedProfile;
+            mailDisplay.innerText = currentProfileData?.fullName || user.email;
+          } finally {
+            clearTimeout(profileTimeout);
+          }
         }
         mailDisplay.style.display = 'inline-block';
       }
@@ -1119,6 +1128,40 @@
       showAuthBootError(!navigator.onLine);
     }
   }
+  async function refreshCurrentProfileInBackground(user, isCurrentSession, mailDisplay) {
+    let profileTimeout;
+    const cachedAcceptance = hasAcceptedCurrentLegalVersion(readProfileCache(user.uid))
+      || readLegalAcceptanceCache(user.uid);
+    try {
+      const userDoc = await Promise.race([
+        getDoc(doc(db, "users", user.uid)),
+        new Promise((_, reject) => { profileTimeout = setTimeout(() => reject(new Error('Profile read timeout')), 8000); })
+      ]);
+      if (!isCurrentSession()) return;
+      profileReadSucceeded = Boolean(userDoc);
+      currentProfileData = userDoc?.exists() ? userDoc.data() : readProfileCache(user.uid);
+      if (currentProfileData) writeProfileCache(user.uid, currentProfileData);
+      if (hasAcceptedCurrentLegalVersion(currentProfileData)) {
+        writeLegalAcceptanceCache(user.uid, currentProfileData);
+      } else {
+        clearLegalAcceptanceCache(user.uid);
+      }
+      if (mailDisplay) mailDisplay.innerText = currentProfileData?.fullName || user.email;
+      if (hasAcceptedCurrentLegalVersion(currentProfileData) || cachedAcceptance) {
+        showLegalAcceptanceIfRequired();
+      }
+      if (hasCurrentLegalAcceptance()) showGenderProfileGateIfRequired();
+    } catch (error) {
+      if (!isCurrentSession()) return;
+      profileReadSucceeded = false;
+      currentProfileData = readProfileCache(user.uid);
+      if (!currentProfileData) showAuthBootError(!navigator.onLine);
+      console.warn('Profil nije osvježen u pozadini:', error?.code || error?.message || 'network');
+    } finally {
+      clearTimeout(profileTimeout);
+    }
+  }
+
   window.retryGymLeaderBoot = async () => {
     if (!authObserved && typeof auth.authStateReady === 'function') {
       try { await Promise.race([auth.authStateReady(), new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 8000))]); }
@@ -4004,6 +4047,136 @@
 
   window.syncPendingWorkoutsNow = syncPendingWorkouts;
 
+  let previousWorkoutMotivationIndex = -1;
+  let activeWorkoutCompletion = null;
+  const workoutCompletionCopy = {
+    bs: { eyebrow:'TRENING ZAVRŠEN', title:name => `Svaka čast, ${name} — još jedan trening je iza tebe!`, messages:['Svaki trening koji završiš gradi naviku koju vrijedi čuvati.','Uradio/la si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.','Ne mora svaki trening biti savršen — važno je što si se pojavio/la.'], cloud:'Trening je sačuvan na tvom nalogu.', queued:'Trening je sačuvan na ovom uređaju i čeka sinhronizaciju.', reflect:'Kako si se osjećao/la danas?', group:'Raspoloženje nakon treninga', moods:['Odlično','Dobro','Bilo je teško'], note:'Kratka bilješka (opcionalno)', placeholder:'Kako je prošlo danas?', local:'Osjećaj i bilješka čuvaju se uz ovaj završeni trening.', save:'Sačuvaj trening', saving:'Čuvanje…', saveFailed:'Bilješku nije moguće sačuvati. Pokušaj ponovo.', reflectionSaved:'Osjećaj i bilješka su sačuvani uz trening.', reflectionQueued:'Osjećaj i bilješka čekaju internet i sinhronizaciju.' },
+    sr: { eyebrow:'TRENING ZAVRŠEN', title:name => `Svaka čast, ${name} — još jedan trening je iza tebe!`, messages:['Svaki trening koji završiš gradi naviku koju vredi čuvati.','Ovo je bio dobar korak za tebe. Ponesi taj osećaj i u ostatak dana.','Ne mora svaki trening biti savršen — važno je što si ga odradio.'], cloud:'Trening je sačuvan na tvom nalogu.', queued:'Trening je sačuvan na ovom uređaju i čeka sinhronizaciju.', reflect:'Kako ti je bilo danas?', group:'Raspoloženje posle treninga', moods:['Odlično','Dobro','Bilo je teško'], note:'Kratka beleška (opciono)', placeholder:'Kako je prošlo danas?', local:'Osećaj i beleška čuvaju se uz ovaj završeni trening.', save:'Sačuvaj trening', saving:'Čuvanje…', saveFailed:'Belešku nije moguće sačuvati. Pokušaj ponovo.', reflectionSaved:'Osećaj i beleška su sačuvani uz trening.', reflectionQueued:'Osećaj i beleška čekaju internet i sinhronizaciju.' },
+    hr: { eyebrow:'TRENING ZAVRŠEN', title:name => `Svaka čast, ${name} — još jedan trening je iza tebe!`, messages:['Svaki trening koji odradiš gradi naviku koju vrijedi njegovati.','Učinio/la si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.','Ne mora svaki trening biti savršen — važno je da si se pojavio/la.'], cloud:'Trening je spremljen na tvom računu.', queued:'Trening je spremljen na ovom uređaju i čeka sinkronizaciju.', reflect:'Kako si se osjećao/la danas?', group:'Raspoloženje nakon treninga', moods:['Odlično','Dobro','Bilo je teško'], note:'Kratka bilješka (neobavezno)', placeholder:'Kako je prošlo danas?', local:'Osjećaj i bilješka spremaju se uz ovaj završeni trening.', save:'Spremi trening', saving:'Spremanje…', saveFailed:'Bilješku nije moguće spremiti. Pokušaj ponovno.', reflectionSaved:'Osjećaj i bilješka spremljeni su uz trening.', reflectionQueued:'Osjećaj i bilješka čekaju internet i sinkronizaciju.' },
+    en: { eyebrow:'WORKOUT COMPLETE', title:name => `Nice work, ${name} — another workout is behind you!`, messages:['Every workout you finish helps build a habit worth keeping.','You did something good for yourself. Take that feeling into the rest of your day.','A workout does not have to be perfect — showing up counts.'], cloud:'Your workout is saved to your account.', queued:'Your workout is saved on this device and waiting to sync.', reflect:'How did you feel today?', group:'Post-workout mood', moods:['Great','Good','That was tough'], note:'A short note (optional)', placeholder:'How did it go today?', local:'Your mood and note are saved with this completed workout.', save:'Save workout', saving:'Saving…', saveFailed:'Your note could not be saved. Please try again.', reflectionSaved:'Your mood and note were saved with the workout.', reflectionQueued:'Your mood and note are saved here and waiting to sync.' },
+    de: { eyebrow:'TRAINING ABGESCHLOSSEN', title:name => `Stark, ${name} — ein weiteres Training liegt hinter dir!`, messages:['Jedes Training stärkt eine Gewohnheit, die es wert ist, gepflegt zu werden.','Du hast dir selbst etwas Gutes getan. Nimm dieses Gefühl mit in den Rest des Tages.','Ein Training muss nicht perfekt sein — wichtig ist, dass du da warst.'], cloud:'Dein Training wurde in deinem Konto gespeichert.', queued:'Dein Training ist auf diesem Gerät gespeichert und wartet auf die Synchronisierung.', reflect:'Wie hast du dich heute gefühlt?', group:'Stimmung nach dem Training', moods:['Sehr gut','Gut','Ganz schön anstrengend'], note:'Kurze Notiz (optional)', placeholder:'Wie lief es heute?', local:'Deine Stimmung und Notiz werden mit diesem Training gespeichert.', save:'Training speichern', saving:'Wird gespeichert…', saveFailed:'Deine Notiz konnte nicht gespeichert werden. Bitte versuche es erneut.', reflectionSaved:'Stimmung und Notiz wurden mit dem Training gespeichert.', reflectionQueued:'Stimmung und Notiz sind gespeichert und warten auf die Synchronisierung.' },
+    fr: { eyebrow:'ENTRAÎNEMENT TERMINÉ', title:name => `Bravo, ${name} — un entraînement de plus derrière toi !`, messages:['Chaque entraînement terminé renforce une habitude qui compte.','Tu as fait du bien à ton corps. Garde cette énergie pour la suite de ta journée.','Un entraînement n’a pas besoin d’être parfait : l’important, c’est d’avoir pris le temps de t’entraîner.'], cloud:'Ton entraînement est enregistré sur ton compte.', queued:'Ton entraînement est enregistré sur cet appareil et attend la synchronisation.', reflect:'Comment as-tu vécu ta séance aujourd’hui ?', group:'Humeur après l’entraînement', moods:['Super','Bien','C’était difficile'], note:'Petite note (facultatif)', placeholder:'Comment ça s’est passé ?', local:'Ton humeur et ta note sont enregistrées avec cet entraînement.', save:'Enregistrer l’entraînement', saving:'Enregistrement…', saveFailed:'Impossible d’enregistrer ta note. Réessaie.', reflectionSaved:'Ton humeur et ta note ont été enregistrées avec l’entraînement.', reflectionQueued:'Ton humeur et ta note sont enregistrées et attendent la synchronisation.' },
+    it: { eyebrow:'ALLENAMENTO COMPLETATO', title:name => `Ottimo lavoro, ${name} — un altro allenamento è alle spalle!`, messages:['Ogni allenamento completato rafforza un’abitudine preziosa.','Hai fatto qualcosa di buono per te. Porta questa energia nel resto della giornata.','Un allenamento non deve essere perfetto: esserci è già importante.'], cloud:'L’allenamento è stato salvato nel tuo account.', queued:'L’allenamento è salvato su questo dispositivo e attende la sincronizzazione.', reflect:'Com’è stato l’allenamento di oggi?', group:'Umore dopo l’allenamento', moods:['Alla grande','Bene','È stato duro'], note:'Una breve nota (facoltativa)', placeholder:'Com’è andata oggi?', local:'Umore e nota vengono salvati con questo allenamento.', save:'Salva allenamento', saving:'Salvataggio…', saveFailed:'Non è stato possibile salvare la nota. Riprova.', reflectionSaved:'Umore e nota sono stati salvati con l’allenamento.', reflectionQueued:'Umore e nota sono salvati e attendono la sincronizzazione.' },
+    es: { eyebrow:'ENTRENAMIENTO COMPLETADO', title:name => `¡Muy bien, ${name}! Has terminado otro entrenamiento.`, messages:['Cada entrenamiento que completas ayuda a crear un hábito que merece la pena.','Has hecho algo bueno por ti. Lleva esa sensación contigo el resto del día.','El entrenamiento no tiene que ser perfecto: lo importante es haber venido.'], cloud:'El entrenamiento se ha guardado en tu cuenta.', queued:'El entrenamiento está guardado en este dispositivo y espera sincronizarse.', reflect:'¿Cómo te has sentido hoy?', group:'Ánimo después de entrenar', moods:['Genial','Bien','Ha sido duro'], note:'Una nota breve (opcional)', placeholder:'¿Qué tal ha ido hoy?', local:'Tu estado de ánimo y nota se guardan con este entrenamiento.', save:'Guardar entrenamiento', saving:'Guardando…', saveFailed:'No se ha podido guardar la nota. Inténtalo de nuevo.', reflectionSaved:'Tu ánimo y tu nota se han guardado con el entrenamiento.', reflectionQueued:'Tu ánimo y tu nota están guardados y esperan sincronizarse.' }
+  };
+
+  function getWorkoutCompletionName() {
+    const fullName = currentProfileData?.fullName || currentUser?.displayName || currentUser?.email?.split('@')[0] || translateUiText('Korisnik');
+    return String(fullName).trim().split(/\s+/)[0] || translateUiText('Korisnik');
+  }
+
+  function getWorkoutCompletionCopy(language) {
+    const copy = workoutCompletionCopy[language] || workoutCompletionCopy.sr;
+    const gender = getProfileGender();
+    if (!['bs', 'sr', 'hr'].includes(language)) return copy;
+    const gendered = { ...copy, messages: [...copy.messages] };
+    if (language === 'bs') {
+      gendered.messages[1] = gender === 'male' ? 'Uradio si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.'
+        : gender === 'female' ? 'Uradila si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.'
+          : 'Ovo je bio dobar korak za tebe. Ponesi taj osjećaj i u ostatak dana.';
+      gendered.messages[2] = gender === 'male' ? 'Ne mora svaki trening biti savršen — važno je što si se pojavio.'
+        : gender === 'female' ? 'Ne mora svaki trening biti savršen — važno je što si se pojavila.'
+          : 'Ne mora svaki trening biti savršen — važno je da je odrađen.';
+      gendered.reflect = gender === 'male' ? 'Kako si se osjećao danas?' : gender === 'female' ? 'Kako si se osjećala danas?' : 'Kako ti je bilo danas?';
+    } else if (language === 'hr') {
+      gendered.messages[1] = gender === 'male' ? 'Učinio si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.'
+        : gender === 'female' ? 'Učinila si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.'
+          : 'Ovo je bio dobar korak za tebe. Ponesi taj osjećaj i u ostatak dana.';
+      gendered.messages[2] = gender === 'male' ? 'Ne mora svaki trening biti savršen — važno je da si se pojavio.'
+        : gender === 'female' ? 'Ne mora svaki trening biti savršen — važno je da si se pojavila.'
+          : 'Ne mora svaki trening biti savršen — važno je da je odrađen.';
+      gendered.reflect = gender === 'male' ? 'Kako si se osjećao danas?' : gender === 'female' ? 'Kako si se osjećala danas?' : 'Kako ti je bilo danas?';
+    } else if (language === 'sr') {
+      gendered.messages[1] = gender === 'male' ? 'Uradio si nešto dobro za sebe. Ponesi taj osećaj i u ostatak dana.'
+        : gender === 'female' ? 'Uradila si nešto dobro za sebe. Ponesi taj osećaj i u ostatak dana.'
+          : 'Ovo je bio dobar korak za tebe. Ponesi taj osećaj i u ostatak dana.';
+      gendered.messages[2] = gender === 'male' ? 'Ne mora svaki trening biti savršen — važno je što si se pojavio.'
+        : gender === 'female' ? 'Ne mora svaki trening biti savršen — važno je što si se pojavila.'
+          : 'Ne mora svaki trening biti savršen — važno je da je završen.';
+      gendered.reflect = gender === 'male' ? 'Kako si se osećao danas?' : gender === 'female' ? 'Kako si se osećala danas?' : 'Kako ti je bilo danas?';
+    } else {
+      gendered.messages[1] = gender === 'male' ? 'Uradio si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.'
+        : gender === 'female' ? 'Uradila si nešto dobro za sebe. Ponesi taj osjećaj i u ostatak dana.'
+          : 'Ovo je bio dobar korak za tebe. Ponesi taj osjećaj i u ostatak dana.';
+      gendered.messages[2] = gender === 'male' ? 'Ne mora svaki trening biti savršen — važno je što si ga odradio.'
+        : gender === 'female' ? 'Ne mora svaki trening biti savršen — važno je što si ga odradila.'
+          : 'Ne mora svaki trening biti savršen — važno je da je završen.';
+      gendered.reflect = gender === 'male' ? 'Kako si se osjećao danas?' : gender === 'female' ? 'Kako si se osjećala danas?' : 'Kako ti je bilo danas?';
+    }
+    return gendered;
+  }
+
+  window.showWorkoutCompletionScreen = function(status, workoutId, userId) {
+    const modal = document.getElementById('workout-completion-modal');
+    if (!modal || !workoutId || !userId || !['cloud', 'queued'].includes(status)) return;
+    activeWorkoutCompletion = { workoutId, userId, status };
+    const copy = getWorkoutCompletionCopy(getCurrentLanguage());
+    const messageIndex = Math.floor(Math.random() * copy.messages.length);
+    const selectedIndex = copy.messages.length > 1 && messageIndex === previousWorkoutMotivationIndex
+      ? (messageIndex + 1) % copy.messages.length : messageIndex;
+    previousWorkoutMotivationIndex = selectedIndex;
+    const setText = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = value; };
+    setText('workout-completion-eyebrow', copy.eyebrow);
+    setText('workout-completion-title', copy.title(getWorkoutCompletionName()));
+    setText('workout-completion-message', copy.messages[selectedIndex]);
+    setText('workout-completion-status', status === 'cloud' ? copy.cloud : copy.queued);
+    setText('workout-reflection-title', copy.reflect);
+    setText('workout-mood-great', copy.moods[0]);
+    setText('workout-mood-good', copy.moods[1]);
+    setText('workout-mood-tough', copy.moods[2]);
+    setText('workout-reflection-note-label', copy.note);
+    setText('workout-reflection-local-note', copy.local);
+    setText('workout-completion-done', copy.save);
+    const note = document.getElementById('workout-reflection-note');
+    if (note) { note.value = ''; note.placeholder = copy.placeholder; }
+    const group = modal.querySelector('.workout-mood-options');
+    if (group) group.setAttribute('aria-label', copy.group);
+    modal.querySelectorAll('.workout-mood-option').forEach(option => option.setAttribute('aria-pressed', 'false'));
+    modal.style.display = 'flex';
+    document.getElementById('workout-completion-title')?.focus?.({ preventScroll: true });
+  };
+
+  window.closeWorkoutCompletionScreen = function() {
+    const modal = document.getElementById('workout-completion-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    const note = document.getElementById('workout-reflection-note');
+    if (note) note.value = '';
+    modal.querySelectorAll('.workout-mood-option').forEach(option => option.setAttribute('aria-pressed', 'false'));
+    activeWorkoutCompletion = null;
+  };
+
+  window.saveWorkoutCompletionReflection = async function() {
+    const completion = activeWorkoutCompletion;
+    if (!completion || completion.userId !== currentUser?.uid) {
+      window.closeWorkoutCompletionScreen();
+      return;
+    }
+    const modal = document.getElementById('workout-completion-modal');
+    const copy = getWorkoutCompletionCopy(getCurrentLanguage());
+    const button = document.getElementById('workout-completion-done');
+    const mood = modal?.querySelector('.workout-mood-option[aria-pressed="true"]')?.dataset.mood || '';
+    const note = String(document.getElementById('workout-reflection-note')?.value || '').trim().slice(0, 240);
+    if (!mood && !note) {
+      window.closeWorkoutCompletionScreen();
+      return;
+    }
+    if (button) { button.disabled = true; button.textContent = copy.saving; }
+    try {
+      const result = await writeUserDocument(`workouts/${completion.workoutId}`, {
+        workoutReflection: { mood: mood || null, note, recordedAt: new Date().toISOString() }
+      });
+      if (completion.userId !== currentUser?.uid) { window.closeWorkoutCompletionScreen(); return; }
+      window.closeWorkoutCompletionScreen();
+      ShowToast(result.queued ? copy.reflectionQueued : copy.reflectionSaved);
+    } catch (error) {
+      console.error('Bilješku nakon treninga nije moguće sačuvati:', error);
+      const status = document.getElementById('workout-completion-status');
+      if (status) status.textContent = copy.saveFailed;
+      if (button) { button.disabled = false; button.textContent = copy.save; }
+    }
+  };
+
   window.finishWorkout = async function() {
     if (!currentUser) {
       ShowToast("Morate biti prijavljeni da biste sačuvali trening!", 'error');
@@ -4101,14 +4274,14 @@
       currentWorkout = null;
       if (workout.completionState === 'queued') {
         renderDashboard();
-        ShowToast('Sačuvano na uređaju — čeka internet.');
         switchTab('dashboard');
+        window.showWorkoutCompletionScreen('queued', workoutId, workout.userId);
       } else {
         vibrate([100, 50, 100]);
-        ShowToast('Trening sačuvan u "workouts" kolekciju! ☁️💪');
-        await loadCloudData();
-        // A slow history refresh must not navigate away from a new workout.
-        if (isPendingQueueSession(workout.userId, session) && !currentWorkout) switchTab('dashboard');
+        switchTab('dashboard');
+        window.showWorkoutCompletionScreen('cloud', workoutId, workout.userId);
+        try { await loadCloudData(); }
+        catch (refreshError) { console.error('Trening je sačuvan, ali osvježavanje pregleda nije uspjelo:', refreshError); }
       }
     } catch (error) {
       if (isCurrentSession()) {
@@ -4418,8 +4591,8 @@ function renderPendingSyncStatus() {
       image.removeAttribute('src');
       visual.className = 'dashboard-hero-visual dashboard-hero-neutral';
     };
-    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261006-progress-support-v142`;
-    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261006-progress-support-v142`;
+    mobileSource.srcset = `assets/home-hero-${variant}-mobile.webp?v=20261015-offline-cache-v158`;
+    image.src = `assets/home-hero-${variant}-desktop.webp?v=20261015-offline-cache-v158`;
     picture.hidden = false;
   }
 
@@ -5474,7 +5647,36 @@ function renderPendingSyncStatus() {
     renderAnalyticsChart();
   }
 
+  function loadChartLibrary() {
+    if (typeof Chart !== 'undefined') return Promise.resolve(Chart);
+    if (chartLibraryPromise) return chartLibraryPromise;
+    chartLibraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+      script.async = true;
+      script.onload = () => typeof Chart !== 'undefined' ? resolve(Chart) : reject(new Error('Chart.js did not expose its API'));
+      script.onerror = () => reject(new Error('Chart.js could not be loaded'));
+      document.head.appendChild(script);
+    }).finally(() => { chartLibraryPromise = null; });
+    return chartLibraryPromise;
+  }
+
   window.renderAnalyticsChart = function() {
+    if (typeof Chart === 'undefined') {
+      if (!chartLibraryPromise) {
+        const empty = document.getElementById('analytics-empty-state');
+        if (empty) { empty.textContent = translateUiText('Učitavanje…'); empty.style.display = 'block'; }
+        void loadChartLibrary()
+          .then(() => window.renderAnalyticsChart())
+          .catch(() => {
+            if (empty) {
+              empty.textContent = window.GymLeaderLoadingCopy?.[getCurrentLanguage()]?.error || 'Loading failed. Check your connection and try again.';
+              empty.style.display = 'block';
+            }
+          });
+      }
+      return;
+    }
     const select = document.getElementById('analytics-ex-select');
     const exKey = select.value;
     if (!exKey) return;
@@ -5741,7 +5943,7 @@ function renderPendingSyncStatus() {
       const uid=currentUser.uid, mode=localStorage.getItem(`gym-body-progress-mode-v1-${uid}`)==='manual'?'manual':'silhouette';
       const gender=getProfileGender(), female=gender==='female', selectedKey=localStorage.getItem(`gym-body-selected-metric-v1-${uid}`)||'waistCm';
       const selected=defs.find(x=>x.key===selectedKey)||defs[0];
-      const svg = `<img class="body-silhouette-svg" src="${female?'/assets/gymleader-body-female.svg?v=20260930-20':'/assets/gymleader-body-male.svg?v=20260930-20'}" alt="${escapeHtml(translateUiText(female?'Ženska silueta':'Muška silueta'))}">`;
+      const svg = `<img class="body-silhouette-svg" src="${female?'/assets/gymleader-body-female.svg?v=20261015-offline-cache-v158':'/assets/gymleader-body-male.svg?v=20261015-offline-cache-v158'}" alt="${escapeHtml(translateUiText(female?'Ženska silueta':'Muška silueta'))}">`;
       const sign=x=>x==null?translateUiText('Nema ranijeg zapisa'):`${x>0?'+':''}${formatLocalizedNumber(x)}`;
       const callouts=defs.map(x=>{const d=delta(x.key);if(!d)return '';const t=d.delta==null?translateUiText('prvo mjerenje'):`${d.delta>0?'+':''}${formatLocalizedNumber(d.delta)} cm ${translateUiText('od početka')}`;return `<div class="body-callout body-callout-${x.side} body-callout-${x.pos}"><i class="body-callout-line" aria-hidden="true"></i><small>${escapeHtml(translateUiText(x.label))}</small><strong>${formatLocalizedNumber(d.value)} cm</strong><em class="${d.delta==null?'is-neutral':d.delta>0?'is-positive':'is-negative'}">${escapeHtml(t)}</em></div>`}).join('');
       const weight=delta('weightKg'), weightCard=weight?`<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v2m-7 2h14l2 14H3L5 7Zm7 3-2 4h4l-2-4Z"/></svg></span><div><small>${escapeHtml(translateUiText('Tvoja težina'))}</small><strong>${formatLocalizedNumber(weight.value)} kg</strong><em class="${weight.delta==null?'is-neutral':weight.delta>0?'is-positive':'is-negative'}">${escapeHtml(weight.delta==null?translateUiText('Dodaj još jedno mjerenje'):`${weight.delta>0?'+':''}${formatLocalizedNumber(weight.delta)} kg ${translateUiText('od početka')}`)}</em><small>${escapeHtml(translateUiText('Posljednje mjerenje:'))} ${escapeHtml(formatDateClean(weight.date))}</small></div></div>`:`<div class="body-weight-highlight"><span class="body-weight-icon" aria-hidden="true">⚖</span><div><small>${escapeHtml(translateUiText('Tvoja težina'))}</small><strong>${escapeHtml(translateUiText('Nema zapisa'))}</strong><em class="is-neutral">${escapeHtml(translateUiText('Dodaj prvo mjerenje.'))}</em></div></div>`;
@@ -5777,7 +5979,15 @@ function renderPendingSyncStatus() {
 
   function renderBodyChart() {
     const canvas = document.getElementById('body-weight-chart');
-    if (!canvas || typeof Chart === 'undefined') return;
+    if (!canvas) return;
+    if (typeof Chart === 'undefined') {
+      if (!chartLibraryPromise) {
+        void loadChartLibrary()
+          .then(() => renderBodyChart())
+          .catch(() => ShowToast(window.GymLeaderLoadingCopy?.[getCurrentLanguage()]?.error || 'Loading failed. Check your connection and try again.', 'error'));
+      }
+      return;
+    }
     if (bodyChartInstance) bodyChartInstance.destroy();
     const metric = document.getElementById('body-metric-select')?.value || 'weightKg';
     const labels = { weightKg: `${translateUiText('Težina')} (kg)`, waistCm: `${translateUiText('Struk')} (cm)`, chestCm: `${translateUiText('Grudi')} (cm)`, armCm: `${translateUiText('Ruka')} (cm)`, legCm: `${translateUiText('Noga')} (cm)`, thighCm: `${translateUiText('Bedro')} (cm)`, calfCm: `${translateUiText('List')} (cm)`, hipsCm: `${translateUiText('Kukovi')} (cm)` };
@@ -8740,7 +8950,6 @@ function renderPendingSyncStatus() {
       if (!(select instanceof HTMLSelectElement) || !select.matches('.history-editor-exercise-type')) return;
       window.changeHistoryWorkoutExerciseType(select.dataset.exerciseIndex, select.value);
     });
-
     document.addEventListener('click', (event) => {
       const button = event.target instanceof Element ? event.target.closest('[data-action]') : null;
       if (!button) return;
@@ -8753,6 +8962,14 @@ function renderPendingSyncStatus() {
       }
 
       switch (action) {
+        case 'select-workout-mood': {
+          const group = button.closest('.workout-mood-options');
+          group?.querySelectorAll('.workout-mood-option').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
+          break;
+        }
+        case 'save-workout-reflection':
+          window.saveWorkoutCompletionReflection();
+          break;
         case 'toggle-theme':
           applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
           renderProfileSettings();
@@ -9284,27 +9501,21 @@ function renderPendingSyncStatus() {
 
   function registerOfflineWorker() {
     if (!('serviceWorker' in navigator)) return;
-    if (!['http:', 'https:'].includes(location.protocol)) return;
     if (isLocalDevelopment) {
       // Live Server should always read current workspace files. A service
       // worker from an earlier local build can keep serving stale modules.
-      void navigator.serviceWorker.getRegistrations()
-        .then((registrations) => Promise.all(registrations
-          .filter((registration) => {
-            const script = registration.active?.scriptURL || registration.waiting?.scriptURL || '';
-            return script && new URL(script).pathname === '/sw.js' && registration.scope === `${location.origin}/`;
-          })
-          .map((registration) => registration.unregister())))
-        .catch((error) => console.warn('Lokalni offline worker nije uklonjen:', error));
+      // language-boot.js performs this cleanup before the main module loads.
       return;
     }
-    const build = '20261006-progress-support-v142';
-    navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
-      .then((registration) => {
-        if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        return registration.update();
-      })
-      .catch((error) => console.warn('Offline worker nije registrovan:', error));
+    if (!window.GymLeaderServiceWorkerRegistrationStarted) {
+      const build = '20261015-offline-cache-v158';
+      navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
+        .then((registration) => {
+          if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          return registration.update();
+        })
+        .catch((error) => console.warn('Offline worker nije registrovan:', error));
+    }
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }
 

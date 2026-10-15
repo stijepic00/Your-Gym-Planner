@@ -1,4 +1,30 @@
 (() => {
+  function startOfflineWorkerEarly() {
+    if (!('serviceWorker' in navigator) || !['http:', 'https:'].includes(location.protocol)) return;
+    const isLocalDevelopment = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+    window.GymLeaderServiceWorkerRegistrationStarted = true;
+    if (isLocalDevelopment) {
+      void navigator.serviceWorker.getRegistrations()
+        .then((registrations) => Promise.all(registrations
+          .filter((registration) => {
+            const script = registration.active?.scriptURL || registration.waiting?.scriptURL || '';
+            return script && new URL(script).pathname === '/sw.js' && registration.scope === `${location.origin}/`;
+          })
+          .map((registration) => registration.unregister())))
+        .catch((error) => console.warn('Lokalni offline worker nije uklonjen:', error));
+      return;
+    }
+    const build = '20261015-offline-cache-v158';
+    navigator.serviceWorker.register(`/sw.js?v=${build}`, { scope: '/', updateViaCache: 'none' })
+      .then((registration) => {
+        if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        return registration.update();
+      })
+      .catch((error) => console.warn('Offline worker nije registrovan:', error));
+  }
+
+  startOfflineWorkerEarly();
+
   const loadingCopy = {
     sr: { title: 'Učitavanje GymLeadera…', message: 'Pripremamo tvoj trening.', offline: 'Nema internet veze. Čim se veza vrati, možeš nastaviti gdje si stao.', offlineNoCache: 'Offline podaci za ovaj nalog nisu dostupni na uređaju. Poveži se i pokušaj ponovo.', error: 'Učitavanje nije uspjelo. Provjeri vezu i pokušaj ponovo.', retry: 'Pokušaj ponovo' },
     bs: { title: 'Učitavanje GymLeadera…', message: 'Pripremamo tvoj trening.', offline: 'Nema internet veze. Kada se veza vrati, možeš nastaviti gdje si stao.', offlineNoCache: 'Podaci za rad bez interneta za ovaj račun nisu dostupni na uređaju. Poveži se i pokušaj ponovo.', error: 'Učitavanje nije uspjelo. Provjeri vezu i pokušaj ponovo.', retry: 'Pokušaj ponovo' },

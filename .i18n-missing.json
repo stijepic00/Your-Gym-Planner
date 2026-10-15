@@ -1,0 +1,1610 @@
+[
+  [
+    "AIzaSyCPZxiv-5ob5aYhcVvyuQ_uFu8Q2i6rcSk",
+    41
+  ],
+  [
+    "1:106914789522:web:f287e0e84d3252cb328e4b",
+    46
+  ],
+  [
+    "G-0JYERN1S89",
+    47
+  ],
+  [
+    "&amp;",
+    72
+  ],
+  [
+    "&lt;",
+    73
+  ],
+  [
+    "&gt;",
+    74
+  ],
+  [
+    "&quot;",
+    75
+  ],
+  [
+    "pendingOperations",
+    151
+  ],
+  [
+    "heightCm",
+    159
+  ],
+  [
+    "weightKg",
+    4903
+  ],
+  [
+    "trainingFrequency",
+    159
+  ],
+  [
+    "trainingLocation",
+    159
+  ],
+  [
+    "experienceLevel",
+    159
+  ],
+  [
+    "sessionMinutes",
+    159
+  ],
+  [
+    "targetMuscleGroups",
+    159
+  ],
+  [
+    "preferredExercises",
+    159
+  ],
+  [
+    "avoidedExercises",
+    159
+  ],
+  [
+    "foodAllergies",
+    159
+  ],
+  [
+    "Nije izabrano",
+    174
+  ],
+  [
+    "Lokalni cache profila nije mogao biti sačuvan:",
+    247
+  ],
+  [
+    "newRoutineEmojiInput",
+    2288
+  ],
+  [
+    "Sign in to GymLeader →",
+    338
+  ],
+  [
+    "Create a GymLeader account →",
+    338
+  ],
+  [
+    "Anmelden →",
+    345
+  ],
+  [
+    "GymLeader-Konto erstellen →",
+    347
+  ],
+  [
+    "oder erstelle ein GymLeader-Konto mit Google:",
+    348
+  ],
+  [
+    "Napravi lozinku za GymLeader",
+    397
+  ],
+  [
+    "gymleader-profile-wizard-draft:",
+    5891
+  ],
+  [
+    "Escape",
+    461
+  ],
+  [
+    "Tab",
+    466
+  ],
+  [
+    "Sakrij lozinku",
+    483
+  ],
+  [
+    "Lozinke se ne podudaraju.",
+    6636
+  ],
+  [
+    "Lozinke se podudaraju.",
+    518
+  ],
+  [
+    "Nacrt registracije nije sačuvan:",
+    534
+  ],
+  [
+    "Unesi ime, prezime ili nadimak.",
+    663
+  ],
+  [
+    "Auth greška:",
+    679
+  ],
+  [
+    "Google Auth diagnostic:",
+    700
+  ],
+  [
+    "forgotPasswordModal",
+    725
+  ],
+  [
+    "Zaboravljena lozinka?",
+    727
+  ],
+  [
+    "var(--danger)",
+    6633
+  ],
+  [
+    "Ako taj GymLeader nalog postoji, na email je poslat link za novu lozinku. Provjeri i Spam folder.",
+    765
+  ],
+  [
+    "var(--primary)",
+    6633
+  ],
+  [
+    "Password reset diagnostic:",
+    770
+  ],
+  [
+    "Lokalna potvrda pravila nije mogla biti sačuvana:",
+    837
+  ],
+  [
+    "Lokalna potvrda pravila nije mogla biti uklonjena:",
+    846
+  ],
+  [
+    "Legal acceptance diagnostic:",
+    897
+  ],
+  [
+    "Odjavio si se.",
+    991
+  ],
+  [
+    "Odjavila si se.",
+    991
+  ],
+  [
+    "Odjava nije uspjela:",
+    997
+  ],
+  [
+    "sr-Latn-RS",
+    1012
+  ],
+  [
+    "en-GB",
+    1012
+  ],
+  [
+    "de-DE",
+    1012
+  ],
+  [
+    "fr-FR",
+    1012
+  ],
+  [
+    "it-IT",
+    1012
+  ],
+  [
+    "es-ES",
+    1012
+  ],
+  [
+    "Lokalni cache rutina nije mogao biti sačuvan:",
+    1227
+  ],
+  [
+    "userId",
+    5237
+  ],
+  [
+    "Greška u uživo slušanju rutina:",
+    1262
+  ],
+  [
+    "Plan je kopiran.",
+    1315
+  ],
+  [
+    "Routine duplicate diagnostic:",
+    1317
+  ],
+  [
+    "Plan je arhiviran.",
+    1344
+  ],
+  [
+    "editRoutineEmojiInput",
+    1372
+  ],
+  [
+    "editRoutineNameInput",
+    1373
+  ],
+  [
+    "editRoutineModal",
+    1417
+  ],
+  [
+    "Plan je obrisan.",
+    1420
+  ],
+  [
+    "newRoutineNameInput",
+    2289
+  ],
+  [
+    "createRoutineModal",
+    7786
+  ],
+  [
+    "potisak nogama",
+    1533
+  ],
+  [
+    "Biceps",
+    1548
+  ],
+  [
+    "Triceps",
+    1548
+  ],
+  [
+    "Podlaktice",
+    1548
+  ],
+  [
+    "Kvadriceps",
+    1549
+  ],
+  [
+    "Listovi",
+    1549
+  ],
+  [
+    "Aduktori",
+    1549
+  ],
+  [
+    "Abduktori",
+    1549
+  ],
+  [
+    "Trup",
+    1550
+  ],
+  [
+    "Kettlebell",
+    1551
+  ],
+  [
+    "NFD",
+    5071
+  ],
+  [
+    "Samo ponavljanja",
+    4185
+  ],
+  [
+    "[data-library-picker-for]",
+    7138
+  ],
+  [
+    "nemam vjezbi",
+    1723
+  ],
+  [
+    "nema vjezbi",
+    1723
+  ],
+  [
+    "nemam posebne vjezbe",
+    1733
+  ],
+  [
+    "Uredi prijedlog plana",
+    2077
+  ],
+  [
+    "Generated plan save diagnostic:",
+    2132
+  ],
+  [
+    "Generated plans save diagnostic:",
+    2169
+  ],
+  [
+    "(min)",
+    2220
+  ],
+  [
+    "Dodatne opcije",
+    2186
+  ],
+  [
+    "Trajanje u sekundama",
+    4185
+  ],
+  [
+    "Raspon ponavljanja",
+    2195
+  ],
+  [
+    "Broj serija",
+    2200
+  ],
+  [
+    "card exercise-block custom-cardio-block",
+    2998
+  ],
+  [
+    "card exercise-block",
+    3034
+  ],
+  [
+    "display:flex; gap:4px; margin-left:8px;",
+    2612
+  ],
+  [
+    "Pomjeri gore",
+    2613
+  ],
+  [
+    "Pomjeri dole",
+    2613
+  ],
+  [
+    "button, input, textarea, select",
+    2644
+  ],
+  [
+    "hollow hold",
+    2683
+  ],
+  [
+    "Minute",
+    5970
+  ],
+  [
+    "📝 Napomena (opcionalno)...",
+    2828
+  ],
+  [
+    "var(--bg-card-border)",
+    2956
+  ],
+  [
+    "var(--accent-purple)",
+    2972
+  ],
+  [
+    "indexedDB",
+    3139
+  ],
+  [
+    "IndexedDB nije dostupan",
+    3140
+  ],
+  [
+    "pendingWorkouts",
+    6741
+  ],
+  [
+    "IndexedDB greška",
+    3153
+  ],
+  [
+    "IndexedDB nije dostupan; koristi se privremeni fallback.",
+    3186
+  ],
+  [
+    "Red je sačuvan u fallback localStorage:",
+    3212
+  ],
+  [
+    "Offline red promjena je sačuvan u localStorage fallbacku:",
+    3245
+  ],
+  [
+    "Offline red promjena nije učitan iz IndexedDB-a:",
+    3269
+  ],
+  [
+    "Nema aktivnog naloga za offline izmjenu.",
+    3288
+  ],
+  [
+    "failed to fetch",
+    3353
+  ],
+  [
+    "network timeout",
+    3367
+  ],
+  [
+    "Slanje nije uspjelo",
+    3447
+  ],
+  [
+    "Greška pri sinhronizaciji treninga:",
+    3437
+  ],
+  [
+    "Greška pri sinhronizaciji lokalne izmjene:",
+    3449
+  ],
+  [
+    "Lokalne izmjene su sinhronizovane sa Cloudom.",
+    3468
+  ],
+  [
+    "Greška pri čuvanju:",
+    3558
+  ],
+  [
+    "Lokalni cache istorije nije mogao biti sačuvan:",
+    3582
+  ],
+  [
+    "Greška pri učitavanju sa clouda:",
+    3613
+  ],
+  [
+    "a izmjena čeka",
+    3648
+  ],
+  [
+    "e izmjene čekaju",
+    3648
+  ],
+  [
+    "Choose a goal that works for you. You can change it any time.",
+    3811
+  ],
+  [
+    "Workouts per week",
+    3812
+  ],
+  [
+    "This goal is saved on this device.",
+    3814
+  ],
+  [
+    "Trainingseinheiten",
+    3826
+  ],
+  [
+    "Wochen",
+    3825
+  ],
+  [
+    "Trainingseinheiten pro Woche",
+    3830
+  ],
+  [
+    "Dieses Ziel wird auf diesem Gerät gespeichert.",
+    3832
+  ],
+  [
+    "You have not trained yet this week.",
+    3853
+  ],
+  [
+    "How many days would you like to train each week?",
+    3855
+  ],
+  [
+    "If you work out more than once on the same day, it counts as one day.",
+    3856
+  ],
+  [
+    "Workout days per week",
+    3857
+  ],
+  [
+    "Tag",
+    5588
+  ],
+  [
+    "Tage",
+    5588
+  ],
+  [
+    "Diese Woche hast du noch nicht trainiert.",
+    3864
+  ],
+  [
+    "An wie vielen Tagen möchtest du pro Woche trainieren?",
+    3866
+  ],
+  [
+    "Mehrere Workouts am selben Tag zählen als ein Trainingstag.",
+    3867
+  ],
+  [
+    "Sedmični cilj nije mogao biti sačuvan lokalno:",
+    3944
+  ],
+  [
+    "Das Ziel konnte auf diesem Gerät nicht gespeichert werden.",
+    3946
+  ],
+  [
+    "off day",
+    3983
+  ],
+  [
+    "trajanje:",
+    3984
+  ],
+  [
+    "importNotesArea",
+    4043
+  ],
+  [
+    "importNotesModal",
+    7632
+  ],
+  [
+    "Greška pri čuvanju rutine:",
+    4093
+  ],
+  [
+    "Trajanje (min)",
+    4175
+  ],
+  [
+    "Kalorije (opcionalno)",
+    4175
+  ],
+  [
+    "Sekunde",
+    4178
+  ],
+  [
+    "Ponavljanja",
+    4181
+  ],
+  [
+    "Ukloni seriju",
+    4182
+  ],
+  [
+    "+ Dodaj seriju",
+    4183
+  ],
+  [
+    "Workout history update diagnostic:",
+    4334
+  ],
+  [
+    "Workout history delete diagnostic:",
+    4371
+  ],
+  [
+    "maxWeight",
+    4545
+  ],
+  [
+    "progressChart",
+    4580
+  ],
+  [
+    "rgba(59, 130, 246, 0.15)",
+    4591
+  ],
+  [
+    "rgba(255,255,255,0.05)",
+    4605
+  ],
+  [
+    "Plus Jakarta Sans",
+    4607
+  ],
+  [
+    "Pripremam…",
+    4615
+  ],
+  [
+    "bodyMeasurements",
+    4917
+  ],
+  [
+    "foodEntries",
+    5322
+  ],
+  [
+    "mealPlans",
+    5633
+  ],
+  [
+    "User data export diagnostic:",
+    4648
+  ],
+  [
+    "0 20px 40px rgba(0,0,0,0.6), 0 0 25px rgba(239, 68, 68, 0.4)",
+    4666
+  ],
+  [
+    "0 20px 40px rgba(0,0,0,0.6), 0 0 25px var(--primary-glow)",
+    4666
+  ],
+  [
+    "Lokalni cache mjerenja nije mogao biti sačuvan:",
+    4701
+  ],
+  [
+    "Body measurements load diagnostic:",
+    4728
+  ],
+  [
+    "waistCm",
+    4871
+  ],
+  [
+    "chestCm",
+    4871
+  ],
+  [
+    "armCm",
+    4871
+  ],
+  [
+    "legCm",
+    4871
+  ],
+  [
+    "thighCm",
+    4871
+  ],
+  [
+    "calfCm",
+    4871
+  ],
+  [
+    "hipsCm",
+    4871
+  ],
+  [
+    "Gotovo",
+    4819
+  ],
+  [
+    "rgba(56,189,248,.16)",
+    4850
+  ],
+  [
+    "rgba(148,163,184,.08)",
+    4850
+  ],
+  [
+    "measuredAt",
+    4871
+  ],
+  [
+    "težinu",
+    4903
+  ],
+  [
+    "Body measurement save diagnostic:",
+    4928
+  ],
+  [
+    "Body measurement delete diagnostic:",
+    4963
+  ],
+  [
+    "Lokalni cache ishrane nije mogao biti sačuvan:",
+    4997
+  ],
+  [
+    "dailyCaloriesGoal",
+    5005
+  ],
+  [
+    "dailyProteinGoal",
+    5006
+  ],
+  [
+    "dailyCarbsGoal",
+    5007
+  ],
+  [
+    "dailyFatGoal",
+    5008
+  ],
+  [
+    "Omiljeni obroci nisu mogli biti sačuvani lokalno:",
+    5058
+  ],
+  [
+    ".food-goal-row strong",
+    5203
+  ],
+  [
+    "Eintrag",
+    5221
+  ],
+  [
+    "Einträge",
+    5221
+  ],
+  [
+    "Food entries load diagnostic:",
+    5245
+  ],
+  [
+    "Food entry save diagnostic:",
+    5334
+  ],
+  [
+    "Food entry delete diagnostic:",
+    5360
+  ],
+  [
+    "npr. 140",
+    5387
+  ],
+  [
+    "Nutrition goals save diagnostic:",
+    5440
+  ],
+  [
+    "Nutrition goals clear diagnostic:",
+    5463
+  ],
+  [
+    "Orthodox fasting",
+    5470
+  ],
+  [
+    "Fast without oil",
+    5470
+  ],
+  [
+    "Plant-based food without oil or fish.",
+    5470
+  ],
+  [
+    "Fast with oil",
+    5470
+  ],
+  [
+    "Plant-based food with vegetable oil.",
+    5470
+  ],
+  [
+    "Fast with fish",
+    5470
+  ],
+  [
+    "Fasting food with fish, without meat, dairy or eggs.",
+    5470
+  ],
+  [
+    "Fasting rules can depend on the day and personal practice. Check your choice before generating the plan.",
+    5470
+  ],
+  [
+    "Fish + oil",
+    5470
+  ],
+  [
+    "Orthodoxes Fasten",
+    5473
+  ],
+  [
+    "Fasten ohne Öl",
+    5473
+  ],
+  [
+    "Pflanzliche Nahrung ohne Öl und Fisch.",
+    5473
+  ],
+  [
+    "Fasten mit Öl",
+    5473
+  ],
+  [
+    "Pflanzliche Nahrung mit Pflanzenöl.",
+    5473
+  ],
+  [
+    "Fasten mit Fisch",
+    5473
+  ],
+  [
+    "Fastenspeisen mit Fisch, ohne Fleisch, Milchprodukte oder Eier.",
+    5473
+  ],
+  [
+    "Fastenregeln können vom Tag und der persönlichen Praxis abhängen. Prüfe deine Auswahl vor der Planerstellung.",
+    5473
+  ],
+  [
+    "Fisch + Öl",
+    5473
+  ],
+  [
+    "Pravoslavni post",
+    5476
+  ],
+  [
+    "Post na vodi",
+    5476
+  ],
+  [
+    "Biljna hrana bez ulja i ribe.",
+    5476
+  ],
+  [
+    "Post na ulju",
+    5476
+  ],
+  [
+    "Biljna hrana uz dozvoljeno biljno ulje.",
+    5476
+  ],
+  [
+    "Post sa ribom",
+    5476
+  ],
+  [
+    "Posna hrana uz ribu, bez mesa, mlijeka i jaja.",
+    5476
+  ],
+  [
+    "Riba + ulje",
+    5476
+  ],
+  [
+    "Previous day",
+    5539
+  ],
+  [
+    "Next day",
+    5539
+  ],
+  [
+    "Shopping list",
+    5539
+  ],
+  [
+    "Vorheriger Tag",
+    5540
+  ],
+  [
+    "Nächster Tag",
+    5540
+  ],
+  [
+    "Einkaufsliste",
+    5540
+  ],
+  [
+    "Gesamtmengen für den gesamten Plan.",
+    5540
+  ],
+  [
+    "Prethodni dan",
+    5541
+  ],
+  [
+    "Sljedeći dan",
+    5541
+  ],
+  [
+    "Lista za kupovinu",
+    5541
+  ],
+  [
+    "Po osobi: oko",
+    5549
+  ],
+  [
+    "Procjena po osobi:",
+    5549
+  ],
+  [
+    "Ukupna procjena:",
+    5549
+  ],
+  [
+    "Otvori",
+    5550
+  ],
+  [
+    "Zamijeni",
+    5550
+  ],
+  [
+    "Dodaj u dnevnik",
+    5550
+  ],
+  [
+    "Novi prijedlog",
+    5551
+  ],
+  [
+    "Zatvori prijedlog",
+    5551
+  ],
+  [
+    "PRIJEDLOG OBROKA",
+    5551
+  ],
+  [
+    "Kalorije, makroi i cijene su procjene. Cijene su lokalni okvirni iznosi, bez podataka iz prodavnica; omjeri valuta su ilustrativni. Provjeri sastojke i deklaracije, posebno kod alergija. Ovaj plan nije zamjena za doktora ili nutricionistu.",
+    5554
+  ],
+  [
+    "Iz planera obroka; nutritivne vrijednosti su procjena.",
+    5560
+  ],
+  [
+    "Loading saved meal plans…",
+    5567
+  ],
+  [
+    "Saved plans are unavailable. Check your connection and try again.",
+    5567
+  ],
+  [
+    "Per person: about",
+    5569
+  ],
+  [
+    "Estimated per person:",
+    5569
+  ],
+  [
+    "Total estimate:",
+    5569
+  ],
+  [
+    "Open",
+    5570
+  ],
+  [
+    "Swap",
+    5570
+  ],
+  [
+    "Add to food diary",
+    5570
+  ],
+  [
+    "New suggestion",
+    5571
+  ],
+  [
+    "Close suggestion",
+    5571
+  ],
+  [
+    "MEAL SUGGESTION",
+    5571
+  ],
+  [
+    "Some restrictions have changed or cannot be recognized. Create a new plan before adding meals.",
+    5573
+  ],
+  [
+    "Calories, macros and prices are estimates. Prices are local illustrative amounts, not store prices; currency factors are illustrative. Check ingredients and labels, especially for allergies. This plan does not replace a doctor or dietitian.",
+    5574
+  ],
+  [
+    "Check the date, budget, number of people, days and meals.",
+    5575
+  ],
+  [
+    "There are not enough suitable recipes for these restrictions and preparation time. Change your choices or wait for a larger recipe catalogue.",
+    5577
+  ],
+  [
+    "No other suitable replacement fits these restrictions and budget.",
+    5579
+  ],
+  [
+    "Meal swapped. Save the plan if you want to keep the change.",
+    5579
+  ],
+  [
+    "From the meal planner; nutrition values are estimates.",
+    5580
+  ],
+  [
+    "The allergy and restriction list is too long. Shorten the entry.",
+    5581
+  ],
+  [
+    "You can save up to 10 plans. Delete an old plan before saving a new one.",
+    5581
+  ],
+  [
+    "Load your saved plans first, then try again.",
+    5582
+  ],
+  [
+    "Your restrictions have changed. Create a new plan.",
+    5582
+  ],
+  [
+    "The plan could not be saved. Check your connection and try again.",
+    5583
+  ],
+  [
+    "The plan could not be deleted.",
+    5584
+  ],
+  [
+    "Gespeicherte Essenspläne werden geladen…",
+    5587
+  ],
+  [
+    "Gespeicherte Pläne sind nicht verfügbar. Prüfe deine Verbindung und versuche es erneut.",
+    5587
+  ],
+  [
+    "Person",
+    5588
+  ],
+  [
+    "Personen",
+    5588
+  ],
+  [
+    "Schätzung",
+    5589
+  ],
+  [
+    "Pro Person: etwa",
+    5589
+  ],
+  [
+    "Geschätzt pro Person:",
+    5589
+  ],
+  [
+    "Gesamtschätzung:",
+    5589
+  ],
+  [
+    "Öffnen",
+    5590
+  ],
+  [
+    "Tauschen",
+    5590
+  ],
+  [
+    "Ins Ernährungstagebuch",
+    5590
+  ],
+  [
+    "Neuer Vorschlag",
+    5591
+  ],
+  [
+    "Vorschlag schließen",
+    5591
+  ],
+  [
+    "ESSENSVORSCHLAG",
+    5591
+  ],
+  [
+    "Diese Mahlzeit entspricht deinen Einschränkungen nicht mehr. Erstelle einen neuen Plan.",
+    5592
+  ],
+  [
+    "Einige Einschränkungen haben sich geändert oder werden nicht erkannt. Erstelle vor dem Hinzufügen von Mahlzeiten einen neuen Plan.",
+    5593
+  ],
+  [
+    "Kalorien, Makros und Preise sind Schätzungen. Die Preise sind lokale Richtwerte, keine Ladenpreise; Währungsfaktoren sind beispielhaft. Prüfe Zutaten und Etiketten, besonders bei Allergien. Dieser Plan ersetzt keine ärztliche oder ernährungsfachliche Beratung.",
+    5594
+  ],
+  [
+    "Prüfe Datum, Budget sowie die Anzahl der Personen, Tage und Mahlzeiten.",
+    5595
+  ],
+  [
+    "Für diese Einschränkungen und Zubereitungszeit gibt es nicht genug passende Rezepte. Ändere deine Auswahl oder warte auf einen größeren Rezeptkatalog.",
+    5597
+  ],
+  [
+    "Keine andere passende Alternative liegt innerhalb dieser Einschränkungen und des Budgets.",
+    5599
+  ],
+  [
+    "Mahlzeit getauscht. Speichere den Plan, wenn du die Änderung behalten möchtest.",
+    5599
+  ],
+  [
+    "Prüfe die Mahlzeit und klicke zur Bestätigung auf „Mahlzeit speichern“.",
+    5600
+  ],
+  [
+    "Aus dem Essensplaner; Nährwerte sind Schätzungen.",
+    5600
+  ],
+  [
+    "Die Liste mit Allergien und Einschränkungen ist zu lang. Kürze die Eingabe.",
+    5601
+  ],
+  [
+    "Du kannst bis zu 10 Pläne speichern. Lösche einen alten Plan, bevor du einen neuen speicherst.",
+    5601
+  ],
+  [
+    "Lade zuerst deine gespeicherten Pläne und versuche es erneut.",
+    5602
+  ],
+  [
+    "Deine Einschränkungen haben sich geändert. Erstelle einen neuen Plan.",
+    5602
+  ],
+  [
+    "Der Plan konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut.",
+    5603
+  ],
+  [
+    "Der Plan konnte nicht gelöscht werden.",
+    5604
+  ],
+  [
+    "createdAt",
+    5633
+  ],
+  [
+    "Meal plans load diagnostic:",
+    5640
+  ],
+  [
+    "Meal plan save diagnostic:",
+    5743
+  ],
+  [
+    "Meal plan delete diagnostic:",
+    5818
+  ],
+  [
+    "Body tracking setting diagnostic:",
+    5861
+  ],
+  [
+    "Odgovori na svako polje ili izaberi opciju „Nemam“.",
+    5938
+  ],
+  [
+    "Alergije i hrana koju izbjegavam",
+    5960
+  ],
+  [
+    "🤸 Street workout",
+    5970
+  ],
+  [
+    "Pregledaj svoje odgovore",
+    5970
+  ],
+  [
+    "Osnovni podaci",
+    5991
+  ],
+  [
+    "Izaberi iskustvo",
+    5991
+  ],
+  [
+    "Srednji nivo — treniram redovno",
+    5991
+  ],
+  [
+    "Napredni nivo — treniram godinama",
+    5991
+  ],
+  [
+    "Nastavi",
+    6135
+  ],
+  [
+    "Pregled odgovora",
+    6130
+  ],
+  [
+    "Unesi ime ili nadimak.",
+    6152
+  ],
+  [
+    "Izaberi jednu opciju.",
+    6153
+  ],
+  [
+    "Unesi godine od 13 do 100.",
+    6154
+  ],
+  [
+    "Unesi visinu od 100 do 250 cm.",
+    6155
+  ],
+  [
+    "Izaberi fokus.",
+    6157
+  ],
+  [
+    "Unesi broj od 1 do 14.",
+    6158
+  ],
+  [
+    "Izaberi iskustvo u treniranju.",
+    6160
+  ],
+  [
+    "Izaberi cijelo tijelo ili barem jednu grupu.",
+    6162
+  ],
+  [
+    ".profile-wizard-step:not([hidden])",
+    6185
+  ],
+  [
+    "Ime",
+    6206
+  ],
+  [
+    "Visina",
+    6206
+  ],
+  [
+    "Fokus",
+    6206
+  ],
+  [
+    "Mjesto",
+    6206
+  ],
+  [
+    "Iskustvo",
+    6206
+  ],
+  [
+    ".profile-preferences-section .profile-modal-help",
+    6242
+  ],
+  [
+    "Uredi ime, pol i osnovne podatke o sebi.",
+    6254
+  ],
+  [
+    "✓ Odabrano — klikni za uklanjanje",
+    6290
+  ],
+  [
+    "Nemam",
+    6290
+  ],
+  [
+    "godine (13–100)",
+    6335
+  ],
+  [
+    "visinu (100–250 cm)",
+    6336
+  ],
+  [
+    "Required profile save diagnostic:",
+    6374
+  ],
+  [
+    "Gender save diagnostic:",
+    6406
+  ],
+  [
+    "Srpski",
+    "HTML"
+  ],
+  [
+    "English",
+    "HTML"
+  ],
+  [
+    "Deutsch",
+    "HTML"
+  ],
+  [
+    "Français",
+    "HTML"
+  ],
+  [
+    "Italiano",
+    "HTML"
+  ],
+  [
+    "Español",
+    "HTML"
+  ],
+  [
+    "Svijetli prikaz",
+    7175
+  ],
+  [
+    "Light mode",
+    7176
+  ],
+  [
+    "Heller Modus",
+    7177
+  ],
+  [
+    "Dunkler Modus",
+    7177
+  ],
+  [
+    "UH",
+    7029
+  ],
+  [
+    "KH",
+    7029
+  ],
+  [
+    "C",
+    7029
+  ],
+  [
+    "M",
+    7029
+  ],
+  [
+    "F",
+    7029
+  ],
+  [
+    "K",
+    "HTML"
+  ],
+  [
+    "Postavi GymLeader lozinku",
+    6659
+  ],
+  [
+    "Napravi posebnu lozinku",
+    6551
+  ],
+  [
+    "Ponovi lozinku",
+    6551
+  ],
+  [
+    "Unesi trenutnu GymLeader lozinku.",
+    6595
+  ],
+  [
+    "Nova lozinka mora imati najmanje 8 karaktera, jedno slovo i jedan broj.",
+    6596
+  ],
+  [
+    "Nove lozinke se ne podudaraju.",
+    6597
+  ],
+  [
+    "Password change diagnostic:",
+    6610
+  ],
+  [
+    "Postavljam…",
+    6637
+  ],
+  [
+    "Google password linking diagnostic:",
+    6649
+  ],
+  [
+    "Lokalni red nije mogao biti očišćen:",
+    6752
+  ],
+  [
+    "Brisanje naloga…",
+    6770
+  ],
+  [
+    "Uklanjamo nalog i sve povezane podatke…",
+    6771
+  ],
+  [
+    "POST",
+    8129
+  ],
+  [
+    "RECENT_LOGIN_REQUIRED",
+    6782
+  ],
+  [
+    "Uklanjanje profilne slike nije uspjelo:",
+    6903
+  ],
+  [
+    "Svetli prikaz",
+    7003
+  ],
+  [
+    "P",
+    7029
+  ],
+  [
+    "L",
+    7029
+  ],
+  [
+    "[data-no-translate]",
+    7042
+  ],
+  [
+    "[placeholder], [title], [aria-label], [alt]",
+    7067
+  ],
+  [
+    "script, style, textarea, code, [data-no-translate]",
+    7097
+  ],
+  [
+    "characterData",
+    7089
+  ],
+  [
+    "onboardingModal",
+    8214
+  ],
+  [
+    "GymLeader | Plan your workouts and track progress",
+    7210
+  ],
+  [
+    "GymLeader | Plane dein Training und verfolge deinen Fortschritt",
+    7211
+  ],
+  [
+    "sr-Latn",
+    7214
+  ],
+  [
+    "button, input, textarea, select, a",
+    7361
+  ],
+  [
+    ".exercise-library-muscle, .exercise-library-equipment, .exercise-library-place",
+    7393
+  ],
+  [
+    "[data-action]",
+    7403
+  ],
+  [
+    "serviceWorker",
+    7956
+  ],
+  [
+    "http:",
+    7957
+  ],
+  [
+    "https:",
+    7957
+  ],
+  [
+    "SKIP_WAITING",
+    7961
+  ],
+  [
+    "Offline worker nije registrovan:",
+    7964
+  ],
+  [
+    "(display-mode: standalone)",
+    7970
+  ],
+  [
+    "Content-Type",
+    8007
+  ],
+  [
+    "Missing App Check token",
+    8011
+  ],
+  [
+    "X-Firebase-AppCheck",
+    8012
+  ],
+  [
+    "ACCOUNT_EXISTS",
+    8051
+  ],
+  [
+    "Vercel API nije vratio JSON odgovor. Provjerite Vercel Function Logs.",
+    8056
+  ],
+  [
+    "Greška sa Brevo servisa:",
+    8063
+  ],
+  [
+    "Brevo greška:",
+    8064
+  ],
+  [
+    "Mrežna ili server greška:",
+    8067
+  ],
+  [
+    "verificationModal",
+    8149
+  ],
+  [
+    "Email verification failed",
+    8140
+  ],
+  [
+    "Napravi prvi plan →",
+    8206
+  ],
+  [
+    "Treniram u teretani",
+    8194
+  ],
+  [
+    "Nazovi ga, na primjer, Noge ili Dan A.",
+    8201
+  ],
+  [
+    "Spreman si za prvi plan",
+    8203
+  ],
+  [
+    "Spremna si za prvi plan",
+    8203
+  ],
+  [
+    "Nastavi →",
+    8206
+  ],
+  [
+    "RSD",
+    "HTML"
+  ],
+  [
+    "&times;",
+    "HTML"
+  ]
+]
