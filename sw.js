@@ -1,4 +1,4 @@
-const BUILD = '20261015-offline-cache-v158';
+const BUILD = '20261015-workout-save-feedback-v2';
 const CACHE_NAME = `gymleader-app-${BUILD}`;
 const CACHE_PREFIX = 'gymleader-app-';
 

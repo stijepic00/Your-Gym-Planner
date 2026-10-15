@@ -4281,20 +4281,37 @@
       if (!isCurrentSession()) return;
       if (!clearWorkoutDraft()) throw new Error('Workout draft cleanup failed');
       currentWorkout = null;
-      if (workout.completionState === 'queued') {
-        renderDashboard();
+
+      // The write is already confirmed at this point. Show that confirmation before
+      // rendering Home: a dashboard rendering error must never make a saved workout
+      // look as if the Save button did nothing.
+      const completionStatus = workout.completionState;
+      try {
+        window.showWorkoutCompletionScreen(completionStatus, workoutId, workout.userId);
+      } catch (completionUiError) {
+        console.error('Trening je sačuvan, ali potvrdu nije moguće prikazati:', completionUiError);
+        ShowToast(translateUiText('Trening je sačuvan.'), 'success');
+      }
+
+      try {
+        if (completionStatus === 'cloud') vibrate([100, 50, 100]);
         switchTab('dashboard');
-        window.showWorkoutCompletionScreen('queued', workoutId, workout.userId);
-      } else {
-        vibrate([100, 50, 100]);
-        switchTab('dashboard');
-        window.showWorkoutCompletionScreen('cloud', workoutId, workout.userId);
-        try { await loadCloudData(); }
-        catch (refreshError) { console.error('Trening je sačuvan, ali osvježavanje pregleda nije uspjelo:', refreshError); }
+        if (completionStatus === 'cloud') {
+          try { await loadCloudData(); }
+          catch (refreshError) { console.error('Trening je sačuvan, ali osvježavanje pregleda nije uspjelo:', refreshError); }
+        }
+      } catch (dashboardError) {
+        // Keep the confirmed completion visible even when a non-critical dashboard
+        // refresh fails. The saved workout can still be seen after a normal refresh.
+        console.error('Trening je sačuvan, ali prelazak na pregled nije uspio:', dashboardError);
+        ShowToast(translateUiText('Trening je sačuvan. Pregled možeš osvježiti kasnije.'), 'info');
       }
     } catch (error) {
-      if (isCurrentSession()) {
-        console.error('Greška pri čuvanju:', error);
+      console.error('Greška pri čuvanju treninga:', error);
+      if (workout.completionState === 'cloud' || workout.completionState === 'queued') {
+        // Do not hide a confirmed write if only local cleanup or UI work failed.
+        ShowToast(translateUiText('Trening je sačuvan. Osvježi stranicu da nastaviš.'), 'info');
+      } else if (isCurrentSession()) {
         ShowToast(translateUiText('Trening nije moguće sačuvati. Provjeri internet i pokušaj ponovo.'), 'error');
       }
     } finally {
