@@ -179,5 +179,5 @@ test('private page is not linked from normal app and service worker does not cac
   const appHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const serviceWorker = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
   assert.doesNotMatch(appHtml, /admin\.html/);
-  assert.match(serviceWorker, /url\.pathname === '\/admin\.html'/);
+  assert.match(serviceWorker, /PRIVATE_PATHS\s*=\s*new Set\(\['\/admin\.html', '\/admin\.js', '\/admin\.css'\]\)/);
 });

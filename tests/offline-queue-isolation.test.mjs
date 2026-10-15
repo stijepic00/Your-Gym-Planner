@@ -80,6 +80,7 @@ function harness({ fallback = false, storage = new Map(), database = fakeDatabas
   const app = { storage, database, requests, server, timers, idbUnavailable: fallback, sendHook: null };
   const c = {
     currentUser: null, auth: { currentUser: null }, db: {},
+    isLocalDevelopment: false,
     pendingQueueSession: 0, pendingQueueWrites: new Map(), pendingDbPromise: null,
     pendingWorkoutsMemory: [], pendingOperationsMemory: [],
     pendingWorkoutsLoaded: false, pendingOperationsLoaded: false,

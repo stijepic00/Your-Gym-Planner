@@ -1,0 +1,49 @@
+# Local secrets and environment configuration
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+# Private credentials, certificates, and keys
+*service-account*.json
+*firebase-adminsdk*.json
+*-credentials*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Local platform state and generated dependencies
+.firebase/
+.vercel/
+node_modules/
+coverage/
+dist/
+build/
+.cache/
+
+# User data, exports, logs, temporary files, and local backups
+*.sqlite
+*.sqlite3
+*.db
+*.log
+*.tmp
+*.bak
+*.backup
+*.zip
+*.tar
+*.gz
+exports/
+user-data/
+local-backups/
+backups/
+
+# Local AI/editor and operating-system files
+.codex-remote-attachments/
+.codex/
+.DS_Store
+Thumbs.db
+desktop.ini

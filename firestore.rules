@@ -67,7 +67,7 @@ service cloud.firestore {
     }
 
     function validWorkout(data) {
-      return data.keys().hasOnly(['userId', 'userEmail', 'name', 'date', 'durationSeconds', 'exercises'])
+      return data.keys().hasOnly(['userId', 'userEmail', 'name', 'date', 'durationSeconds', 'exercises', 'workoutReflection'])
         && data.keys().hasAll(['userId', 'name', 'date', 'exercises'])
         && data.userId is string
         && data.name is string
@@ -82,7 +82,16 @@ service cloud.firestore {
           || (data.durationSeconds is number && data.durationSeconds >= 0 && data.durationSeconds <= 86400))
         && (!('userEmail' in data)
           || data.userEmail == null
-          || (data.userEmail is string && data.userEmail.size() <= 254));
+          || (data.userEmail is string && data.userEmail.size() <= 254))
+        && (!('workoutReflection' in data)
+          || (data.workoutReflection is map
+            && data.workoutReflection.keys().hasOnly(['mood', 'note', 'recordedAt'])
+            && data.workoutReflection.keys().hasAll(['mood', 'note', 'recordedAt'])
+            && (data.workoutReflection.mood == null || data.workoutReflection.mood in ['great', 'good', 'tough'])
+            && data.workoutReflection.note is string
+            && data.workoutReflection.note.size() <= 240
+            && data.workoutReflection.recordedAt is string
+            && data.workoutReflection.recordedAt.size() <= 40));
     }
 
     function validBodyMeasurement(data) {

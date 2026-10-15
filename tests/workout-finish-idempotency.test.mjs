@@ -82,6 +82,7 @@ function harness(storage = new Map(), cloud = new Map(), queue = new Map()) {
     translateUiText: value => value, updateProgress() {}, checkPR() {}, vibrate() {},
     renderActiveWorkoutUI: () => { nodes.get('active-exercises-container').children = [exercise()]; },
     switchTab: tab => { a.tab = tab; }, ShowToast: message => { a.toast = message; },
+    showWorkoutCompletionScreen: status => { a.completion = status; },
     loadCloudData: async () => {}, renderDashboard() {}, writeHistoryCache() {}, schedulePendingWorkoutSync() {},
     doc: (_, ...parts) => parts.join('/'),
     isOfflineError: error => error.code === 'unavailable'
@@ -317,6 +318,41 @@ test('Slow history refresh does not disable or navigate away from a new session'
   await saving;
   assert.equal(a.c.currentWorkout.sessionId, id);
   assert.equal(a.tab, 'active-workout');
+});
+
+test('Completion screen follows a confirmed cloud write, not a failed write', async () => {
+  const a = harness();
+  a.start();
+  a.sendHook = async () => { throw Object.assign(new Error('permission denied'), { code: 'permission-denied' }); };
+  await a.c.finishWorkout();
+  assert.equal(a.completion, undefined);
+  a.sendHook = null;
+  await a.c.finishWorkout();
+  assert.equal(a.completion, 'cloud');
+  assert.equal(a.cloud.size, 1);
+});
+
+test('A dashboard rendering failure cannot hide confirmation of an already saved workout', async () => {
+  const a = harness();
+  a.start();
+  a.c.switchTab = () => { throw new Error('dashboard render failed'); };
+  await a.c.finishWorkout();
+  assert.equal(a.cloud.size, 1);
+  assert.equal(a.completion, 'cloud');
+  assert.equal(a.c.currentWorkout, null);
+  assert.equal(a.storage.has(a.c.getWorkoutDraftKey('A')), false);
+  assert.match(a.toast, /Trening je sačuvan/);
+});
+
+test('Offline completion screen states that the workout is queued for sync', async () => {
+  const a = harness();
+  a.start();
+  a.c.navigator.onLine = false;
+  a.sendHook = async () => { throw Object.assign(new Error('offline'), { code: 'unavailable' }); };
+  await a.c.finishWorkout();
+  assert.equal(a.completion, 'queued');
+  assert.equal(a.queue.size, 1);
+  assert.equal(a.queue.values().next().value.data.mood, undefined, 'Reflection is not written into the existing workout record');
 });
 
 for (const [index, { name, run }] of tests.entries()) {

@@ -40,6 +40,7 @@ function harness({ online = true, cached = null, readProfile, loadQueue } = {}) 
     navigationGuardReady: false, userRoutines: [], routinesUnsubscribe: null,
     GymLeaderLoadingCopy: { en: { error: 'Loading failed. Try again.', offlineNoCache: 'Offline data unavailable.' } },
     getCurrentLanguage: () => 'en',
+    hasCurrentLegalAcceptance: () => true,
     onAuthStateChanged: (_, callback) => { observer = callback; },
     getDoc: readProfile || (async () => ({ exists: () => true, data: () => ({ fullName: 'Test', accepted: true }) })),
     doc: () => ({}), readProfileCache: () => cached,
@@ -74,6 +75,22 @@ function harness({ online = true, cached = null, readProfile, loadQueue } = {}) 
   assert.equal(h.node('auth-boot-screen').classList.contains('is-hidden'), true);
   assert.equal(h.calls.queueStarted, 1);
   queue.resolve();
+}
+
+// A returning user with a UID-scoped profile cache reaches the app immediately;
+// Firestore refreshes the profile after the boot screen has already closed.
+{
+  const serverProfile = deferred();
+  const h = harness({ cached: { fullName: 'Cached Profile' }, readProfile: () => serverProfile.promise });
+  await h.emit();
+  assert.equal(h.node('auth-boot-screen').classList.contains('is-hidden'), true);
+  assert.equal(h.node('user-email-display').innerText, 'Cached Profile');
+  assert.equal(vm.runInContext('profileReadSucceeded', h.c), false);
+  serverProfile.resolve({ exists: () => true, data: () => ({ fullName: 'Fresh Profile' }) });
+  await tick();
+  await tick();
+  assert.equal(h.node('user-email-display').innerText, 'Fresh Profile');
+  assert.equal(vm.runInContext('profileReadSucceeded', h.c), true);
 }
 
 // 1. Normal first boot exposes the app and starts background loads.
@@ -144,4 +161,4 @@ function harness({ online = true, cached = null, readProfile, loadQueue } = {}) 
   assert.deepEqual(h.calls.tabs, []);
 }
 
-console.log('PASS: first boot, duplicate auth, retry, offline boot, delayed Auth and local App Check diagnostics');
+console.log('PASS: first boot, cached-profile fast boot, background profile refresh, retry, offline boot, delayed Auth and local App Check diagnostics');
