@@ -1656,3 +1656,15 @@ const ROUTINE_PREVIEW_ACTION_COPY = {
 for (const [source, labels] of Object.entries(ROUTINE_PREVIEW_ACTION_COPY)) {
   for (const [language, label] of Object.entries(labels)) TRANSLATIONS[language][source] = label;
 }
+
+// Active workout ordering uses the same dictionaries and language preference.
+const WORKOUT_ORDER_COPY = {
+  'Redoslijed vježbi': ['Redoslijed vježbi', 'Redoslijed vježbi', 'Exercise order', 'Übungsreihenfolge', 'Ordre des exercices', 'Ordine degli esercizi', 'Orden de ejercicios'],
+  'Izaberi novu poziciju. Promjena važi samo za ovaj trening.': ['Izaberi novu poziciju. Promjena važi samo za ovaj trening.', 'Odaberi novu poziciju. Promjena vrijedi samo za ovaj trening.', 'Choose a new position. Changes apply only to this workout.', 'Wähle eine neue Position. Änderungen gelten nur für dieses Training.', 'Choisis une nouvelle position. Les changements concernent uniquement cet entraînement.', 'Scegli una nuova posizione. Le modifiche valgono solo per questo allenamento.', 'Elige una nueva posición. Los cambios se aplican solo a este entrenamiento.'],
+  'Nova pozicija': ['Nova pozicija', 'Nova pozicija', 'New position', 'Neue Position', 'Nouvelle position', 'Nuova posizione', 'Nueva posición'],
+  '+ Dodaj seriju': ['+ Dodaj seriju', '+ Dodaj seriju', '+ Add set', '+ Satz hinzufügen', '+ Ajouter une série', '+ Aggiungi serie', '+ Añadir serie'],
+  'Sačuvaj': ['Sačuvaj', 'Spremi', 'Save', 'Speichern', 'Enregistrer', 'Salva', 'Guardar']
+};
+for (const [source, labels] of Object.entries(WORKOUT_ORDER_COPY)) {
+  ['bs', 'hr', 'en', 'de', 'fr', 'it', 'es'].forEach((language, index) => { TRANSLATIONS[language][source] = labels[index]; });
+}

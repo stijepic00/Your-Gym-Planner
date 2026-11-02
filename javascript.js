@@ -1,6 +1,6 @@
 /*-- FIREBASE ENGINE & AUTH */
-  import { TRANSLATIONS } from './translations.js?v=20261015-offline-cache-v158';
-  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261015-offline-cache-v158';
+  import { TRANSLATIONS } from './translations.js?v=20261102-workout-order-v161';
+  import { translateText, canonicalUiText, formatUiMessage, LOCALES, SUPPORTED_LANGUAGES } from './ui-i18n.js?v=20261102-workout-order-v161';
   import { EXERCISE_LIBRARY, getLibraryExerciseById, getLibraryExerciseName, getLibraryExerciseDisplayName, getDisplayLibraryExercise, getExerciseDisplayName, getLibraryExerciseTrainingPlaces, resolveLibraryExercise } from './exercise-library.js?v=20261015-offline-cache-v158';
   import { exerciseKey, libraryExerciseId, latestExerciseHistory, latestExerciseNote, maxExerciseWeight } from './exercise-history.js?v=20261015-offline-cache-v158';
   import { FOOD_LIBRARY, FOOD_LIBRARY_CATEGORIES, getFoodLibraryName } from './food-library.js?v=20261015-offline-cache-v158';
@@ -2793,6 +2793,7 @@
   }
 
   function resetActiveWorkoutState() {
+    window.closeWorkoutExerciseOrder?.();
     currentWorkout = null;
     updateFinishWorkoutButton();
     activeWorkoutEditMode = false;
@@ -3028,7 +3029,7 @@
               <span></span>
             </div>
           </div>
-          <button class="btn btn-secondary mt-12 set-edit-add" style="display:none; padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+          <button type="button" class="btn btn-secondary mt-12 set-edit-add" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">${escapeHtml(translateUiText('+ Dodaj seriju'))}</button>
           <input type="text" class="note-input ex-note" value="${escapeHtml(ex.notes || '')}" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
         `;
         container.appendChild(card);
@@ -3092,11 +3093,7 @@
     document.querySelectorAll('.btn-remove-ex').forEach((button) => {
       button.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
     });
-    document.querySelectorAll('.exercise-block').forEach((block) => ensureExerciseEditControls(block));
     document.querySelectorAll('[data-action="remove-set-row"]').forEach((control) => {
-      control.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
-    });
-    document.querySelectorAll('.set-edit-add').forEach((control) => {
       control.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
     });
     const addExerciseButton = document.querySelector('[data-action="toggle-custom-modal"]');
@@ -3105,67 +3102,80 @@
     if (button) button.textContent = activeWorkoutEditMode ? '✓ Gotovo' : '✎ Uredi trening';
   };
 
-  function ensureExerciseEditControls(block) {
-    const header = block.querySelector('.flex-between');
-    if (!header) return;
-    let controls = header.querySelector('.exercise-edit-controls');
-    if (!controls) {
-      controls = document.createElement('div');
-      controls.className = 'exercise-edit-controls';
-      controls.style.cssText = 'display:flex; gap:4px; margin-left:8px;';
-      controls.innerHTML = `
-        <button type="button" class="exercise-move-control" style="display:inline-flex;" data-action="move-exercise-up" title="Pomjeri gore">↑</button>
-        <button type="button" class="exercise-move-control" style="display:inline-flex;" data-action="move-exercise-down" title="Pomjeri dole">↓</button>`;
-      header.appendChild(controls);
-    }
-    controls.style.display = activeWorkoutEditMode ? 'flex' : 'none';
-    const addSetButton = block.querySelector('.set-edit-add');
-    if (addSetButton) addSetButton.style.display = activeWorkoutEditMode ? 'inline-flex' : 'none';
+  let workoutExerciseOrderDraft = null;
+
+  function renderWorkoutExerciseOrder(focusIndex = null) {
+    const list = document.getElementById('workout-order-list');
+    if (!list || !workoutExerciseOrderDraft) return;
+    const blocks = workoutExerciseOrderDraft.blocks;
+    list.replaceChildren(...blocks.map((block, index) => {
+      const row = document.createElement('li');
+      // Exercise names are user content, including duplicate or translated names.
+      row.dataset.noTranslate = '';
+      const name = block.querySelector('h3')?.textContent.trim() || block.getAttribute('data-name') || '';
+      row.innerHTML = `<span class="workout-order-number">${index + 1}</span><span class="workout-order-name">${escapeHtml(name)}</span><select class="workout-order-position" data-workout-order-index="${index}" aria-label="${escapeHtml(translateUiText('Nova pozicija'))}: ${index + 1}. ${escapeHtml(name)}">${blocks.map((_, position) => `<option value="${position}"${position === index ? ' selected' : ''}>${position + 1}</option>`).join('')}</select>`;
+      return row;
+    }));
+    if (focusIndex !== null) list.children[focusIndex]?.querySelector('select')?.focus();
   }
 
-  window.moveExerciseBlock = function(button, direction) {
-    if (!activeWorkoutEditMode) return;
-    const block = button.closest('.exercise-block');
+  window.openWorkoutExerciseOrder = function() {
+    if (!ownsActiveWorkout() || finishingWorkoutSessions.has(`${currentWorkout.userId}:${currentWorkout.sessionId}`)) return;
+    const modal = document.getElementById('workout-order-modal');
     const container = document.getElementById('active-exercises-container');
-    if (!block || !container) return;
-    if (direction === 'up' && block.previousElementSibling?.classList.contains('exercise-block')) {
-      container.insertBefore(block, block.previousElementSibling);
-    } else if (direction === 'down' && block.nextElementSibling?.classList.contains('exercise-block')) {
-      container.insertBefore(block.nextElementSibling, block);
-    }
-    saveWorkoutDraft();
+    if (!modal || !container || modal.open) return;
+    workoutExerciseOrderDraft = {
+      workout: currentWorkout,
+      trigger: document.activeElement,
+      blocks: [...container.children].filter((block) => block.classList.contains('exercise-block'))
+    };
+    modal.querySelector('#workout-order-title').textContent = translateUiText('Redoslijed vježbi');
+    modal.querySelector('#workout-order-help').textContent = translateUiText('Izaberi novu poziciju. Promjena važi samo za ovaj trening.');
+    modal.querySelector('[data-action="save-workout-order"]').textContent = translateUiText('Sačuvaj');
+    modal.querySelector('[data-action="cancel-workout-order"]').textContent = translateUiText('Otkaži');
+    renderWorkoutExerciseOrder();
+    // Native dialog provides keyboard focus containment and an inert background.
+    modal.showModal();
   };
 
-  function setupTouchReorder() {
+  window.setWorkoutExercisePosition = function(from, to) {
+    const blocks = workoutExerciseOrderDraft?.blocks;
+    if (!blocks || !Number.isInteger(from) || !Number.isInteger(to)
+      || from < 0 || to < 0 || from >= blocks.length || to >= blocks.length || from === to) return;
+    const [block] = blocks.splice(from, 1);
+    blocks.splice(to, 0, block);
+    renderWorkoutExerciseOrder(to);
+  };
+
+  window.closeWorkoutExerciseOrder = function() {
+    const trigger = workoutExerciseOrderDraft?.trigger;
+    workoutExerciseOrderDraft = null;
+    const modal = document.getElementById('workout-order-modal');
+    if (modal?.open) modal.close();
+    if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+  };
+
+  window.saveWorkoutExerciseOrder = function() {
+    const draft = workoutExerciseOrderDraft;
     const container = document.getElementById('active-exercises-container');
-    if (!container || container.dataset.touchReorderReady === 'true') return;
-    container.dataset.touchReorderReady = 'true';
-    let touchStart = null;
-
-    container.addEventListener('touchstart', (event) => {
-      if (!activeWorkoutEditMode || event.touches.length !== 1) return;
-      if (event.target.closest('button, input, textarea, select')) return;
-      const block = event.target.closest('.exercise-block');
-      if (!block) return;
-      touchStart = { block, y: event.touches[0].clientY };
-      block.classList.add('touch-reorder-active');
-    }, { passive: true });
-
-    container.addEventListener('touchend', (event) => {
-      if (!touchStart) return;
-      const { block, y } = touchStart;
-      touchStart = null;
-      block.classList.remove('touch-reorder-active');
-      const delta = event.changedTouches[0].clientY - y;
-      if (Math.abs(delta) < 40) return;
-      window.moveExerciseBlock(block, delta < 0 ? 'up' : 'down');
-    }, { passive: true });
-
-    container.addEventListener('touchcancel', () => {
-      if (touchStart?.block) touchStart.block.classList.remove('touch-reorder-active');
-      touchStart = null;
-    }, { passive: true });
-  }
+    if (!draft || !container || !ownsActiveWorkout() || draft.workout !== currentWorkout
+      || finishingWorkoutSessions.has(`${currentWorkout.userId}:${currentWorkout.sessionId}`)) {
+      window.closeWorkoutExerciseOrder();
+      return;
+    }
+    const original = [...container.children].filter((block) => block.classList.contains('exercise-block'));
+    if (original.length !== draft.blocks.length || !original.every((block) => draft.blocks.includes(block))) {
+      window.closeWorkoutExerciseOrder();
+      return;
+    }
+    // Move the original nodes: input values, listeners, notes and PR state survive.
+    draft.blocks.forEach((block) => container.appendChild(block));
+    if (!saveWorkoutDraft()) {
+      original.forEach((block) => container.appendChild(block));
+      return; // The existing draft saver reports storage failure; allow a retry.
+    }
+    window.closeWorkoutExerciseOrder();
+  };
 
   function getMaxWeightFromHistory(exName) {
     return maxExerciseWeight(cachedHistory, currentUser?.uid, exName);
@@ -3363,22 +3373,24 @@
               <span></span>
             </div>
           </div>
-          <button class="btn btn-secondary mt-12 set-edit-add" style="display:none; padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+          <button type="button" class="btn btn-secondary mt-12 set-edit-add" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">${escapeHtml(translateUiText('+ Dodaj seriju'))}</button>
           <input type="text" class="note-input ex-note" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
         </div>
       `;
     }).join('');
 
     container.querySelectorAll('.exercise-block').forEach((block) => {
+      const addSetButton = block.querySelector('[data-action="add-set-row"]');
+      if (!addSetButton) return; // Cardio cards do not contain sets.
       const plannedSetCount = Math.max(1, Math.min(10, Number(block.getAttribute('data-set-count')) || 3));
       for (let index = 0; index < plannedSetCount; index += 1) {
-        addSetRowToBlock(block.querySelector('.btn-secondary'));
+        addSetRowToBlock(addSetButton);
       }
     });
   }
 
   window.addSetRowToBlock = function(btn) {
-    const block = btn.closest('.exercise-block');
+    const block = btn?.closest('.exercise-block');
     if (!block) return;
     const container = block.querySelector('.sets-container');
     if (!container) return;
@@ -3514,7 +3526,6 @@
         <input type="hidden" class="ex-note" value="${escapeHtml(notes)}">
       `;
       container.appendChild(card);
-      ensureExerciseEditControls(card);
     } else {
       const isDuration = isDurationExercise(name);
       const customExercise = { name, measurementType: isDuration ? 'seconds' : 'weight_reps' };
@@ -3560,11 +3571,10 @@
             <span></span>
           </div>
         </div>
-        <button class="btn btn-secondary mt-12 set-edit-add" style="display:none; padding: 10px; font-size: 0.85rem;" data-action="add-set-row">+ Dodaj Set</button>
+        <button type="button" class="btn btn-secondary mt-12 set-edit-add" style="padding: 10px; font-size: 0.85rem;" data-action="add-set-row">${escapeHtml(translateUiText('+ Dodaj seriju'))}</button>
         <input type="text" class="note-input ex-note" value="${escapeHtml(notes)}" placeholder="✏️ Napomena za ovu vježbu (opcionalno)...">
       `;
       container.appendChild(card);
-      ensureExerciseEditControls(card);
       const btn = card.querySelector('.btn-secondary');
       addSetRowToBlock(btn); addSetRowToBlock(btn); addSetRowToBlock(btn);
     }
@@ -8954,7 +8964,33 @@ function renderPendingSyncStatus() {
       window.viewGeneratedPlan(deltaX < 0 ? 1 : -1);
     }, { passive: true });
 
-    setupTouchReorder();
+    const workoutOrderModal = document.getElementById('workout-order-modal');
+    workoutOrderModal?.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      window.closeWorkoutExerciseOrder();
+    });
+    workoutOrderModal?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab') return;
+      const controls = [...workoutOrderModal.querySelectorAll('select:not([disabled]), button:not([disabled])')];
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first?.focus();
+      }
+    });
+    workoutOrderModal?.addEventListener('change', (event) => {
+      const select = event.target;
+      if (select.matches?.('.workout-order-position')) {
+        window.setWorkoutExercisePosition(Number(select.dataset.workoutOrderIndex), Number(select.value));
+      }
+    });
+    workoutOrderModal?.addEventListener('click', (event) => {
+      if (event.target !== workoutOrderModal) return;
+      const bounds = workoutOrderModal.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right
+        || event.clientY < bounds.top || event.clientY > bounds.bottom) window.closeWorkoutExerciseOrder();
+    });
 
     const analyticsSelect = document.getElementById('analytics-ex-select');
     if (analyticsSelect) analyticsSelect.addEventListener('change', window.renderAnalyticsChart);
@@ -9221,11 +9257,14 @@ function renderPendingSyncStatus() {
         case 'toggle-active-workout-edit-mode':
           window.toggleActiveWorkoutEditMode();
           break;
-        case 'move-exercise-up':
-          window.moveExerciseBlock(button, 'up');
+        case 'open-workout-order':
+          window.openWorkoutExerciseOrder();
           break;
-        case 'move-exercise-down':
-          window.moveExerciseBlock(button, 'down');
+        case 'cancel-workout-order':
+          window.closeWorkoutExerciseOrder();
+          break;
+        case 'save-workout-order':
+          window.saveWorkoutExerciseOrder();
           break;
         case 'toggle-custom-modal':
           window.toggleAddCustomModal();

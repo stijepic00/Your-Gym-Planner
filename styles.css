@@ -1185,9 +1185,33 @@ html[data-theme="light"] header { background: rgba(255, 255, 255, 0.9) !importan
     .btn-danger { background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); box-shadow: none; }
     .btn-remove-ex { display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: var(--danger); font-size: 0.75rem; padding: 4px 10px; border-radius: 8px; font-weight: 700; cursor: pointer; }
     .set-row [data-action="remove-set-row"] { display: none; }
-    .exercise-move-control { display: inline-flex; align-items: center; justify-content: center; background: var(--bg-input); border: 1px solid var(--bg-card-border); color: var(--text-main); border-radius: 8px; width: 44px; height: 44px; padding: 0; cursor: pointer; font-size: 1.35rem; line-height: 1; font-weight: 900; touch-action: manipulation; }
-    .exercise-move-control:active { transform: scale(0.94); background: var(--accent-purple); color: #fff; }
-    .touch-reorder-active { outline: 2px solid var(--accent-purple); transform: scale(1.01); opacity: 0.82; }
+    .exercise-block .set-edit-add { display:inline-flex; justify-content:center; }
+    .active-workout-heading { flex-wrap:wrap; gap:12px; }
+    .active-workout-actions { flex-wrap:wrap; justify-content:flex-end; }
+    html:has(.workout-order-modal[open]) { overflow:hidden; scrollbar-gutter:stable; }
+    .workout-order-modal { width:min(520px,calc(100% - 32px)); margin:auto; padding:0; border:1px solid var(--border-color); border-radius:20px; background:var(--bg-card); color:var(--text-main); box-shadow:0 24px 70px rgba(0,0,0,.35); }
+    .workout-order-modal[open] { display:flex; flex-direction:column; max-height:min(80dvh,700px); }
+    .workout-order-modal::backdrop { background:rgba(5,8,17,.7); backdrop-filter:blur(4px); }
+    .workout-order-heading { flex-shrink:0; padding:20px 20px 14px; }
+    .workout-order-heading h2 { margin:0 0 7px; font-size:1.2rem; line-height:1.3; }
+    .workout-order-heading p { margin:0; color:var(--text-muted); font-size:.82rem; line-height:1.5; }
+    .workout-order-list { display:grid; gap:8px; min-height:0; overflow-y:auto; overscroll-behavior:contain; margin:0; padding:0 16px 16px; list-style:none; }
+    .workout-order-list li { display:grid; grid-template-columns:28px minmax(0,1fr) 72px; align-items:center; gap:10px; padding:10px; border:1px solid var(--border-color); border-radius:12px; background:var(--bg-input); }
+    .workout-order-number { display:grid; place-items:center; width:28px; height:28px; border-radius:9px; background:rgba(37,99,235,.14); color:var(--accent-cyan); font-size:.8rem; font-weight:800; }
+    .workout-order-name { min-width:0; overflow-wrap:anywhere; font-size:.85rem; font-weight:700; line-height:1.4; }
+    .workout-order-position { width:100%; min-height:44px; padding:8px; border:1px solid var(--border-color); border-radius:9px; color:var(--text-main); background:var(--bg-card); font:inherit; font-size:1rem; cursor:pointer; }
+    .workout-order-position:focus-visible,.workout-order-actions .btn:focus-visible { outline:3px solid var(--accent-cyan); outline-offset:2px; }
+    .workout-order-actions { display:grid; grid-template-columns:1fr 1fr; flex-shrink:0; gap:10px; padding:16px; border-top:1px solid var(--border-color); }
+    .workout-order-actions .btn-secondary { color:var(--text-main); border-color:var(--border-color); box-shadow:none; }
+    html[data-theme="light"] .workout-order-number { color:#1d4ed8; }
+    html[data-theme="light"] .workout-order-position:focus-visible,html[data-theme="light"] .workout-order-actions .btn:focus-visible { outline-color:#2563eb; }
+    @media(max-width:600px) {
+      .workout-order-modal { width:100vw; max-width:none; max-height:85dvh; margin:auto 0 0; border-radius:20px 20px 0 0; padding-bottom:env(safe-area-inset-bottom,0px); }
+      .workout-order-modal[open] { max-height:85dvh; }
+    }
+    @media(max-width:480px) {
+      .active-workout-actions [data-action="open-workout-order"] { grid-column:1 / -1; }
+    }
 
     .btn-start-card {
       padding: 12px 24px !important;
@@ -2534,6 +2558,9 @@ body.app-navigation-shell{padding-top:var(--header-height)}
  .app-menu-toggle{display:grid}
  .app-header-navigation.is-open{position:absolute;z-index:4;top:calc(100% + 8px);right:10px;left:10px;display:flex;flex-direction:column;align-items:stretch;gap:10px;max-height:calc(100dvh - var(--header-height) - var(--nav-height) - 24px - env(safe-area-inset-bottom,0px));overflow-y:auto;overscroll-behavior:contain;padding:12px;border:1px solid rgba(96,165,250,.3);border-radius:17px;background:linear-gradient(155deg,rgba(20,33,54,.985),rgba(10,18,32,.99));box-shadow:0 22px 48px rgba(0,0,0,.55),0 0 28px rgba(37,99,235,.1)}
  .app-header-language summary,.app-info-link{justify-content:flex-start;min-height:50px;font-size:.82rem}
+ .app-header-navigation.is-open .app-info-link{padding:10px 12px;border-color:rgba(96,165,250,.22);border-radius:12px;background:rgba(37,99,235,.09);color:var(--text-main);box-shadow:inset 0 1px 0 rgba(255,255,255,.035);text-decoration:none}
+ .app-header-navigation.is-open .app-info-link:hover,.app-header-navigation.is-open .app-info-link:focus-visible{border-color:rgba(56,189,248,.42);background:rgba(37,99,235,.16);color:var(--accent-cyan)}
+ .app-header-navigation.is-open .app-info-link>span{color:var(--accent-cyan)}
  .app-header-language summary{width:100%;min-width:0}
  .app-header-language-options{position:static;width:100%;margin-top:8px;box-shadow:none}
  .app-header-navigation .dashboard-support{position:static;z-index:auto;right:auto;bottom:auto;display:grid;align-items:stretch;gap:9px;width:100%;max-width:none;margin-top:2px;padding-top:11px;border-top:1px solid rgba(96,165,250,.2)}
@@ -2606,6 +2633,12 @@ html[data-theme="light"] .dashboard-support-close:focus-visible {
   background:linear-gradient(145deg,#fff,#edf4fc);
   box-shadow:0 7px 18px rgba(15,23,42,.08);
  }
+ html[data-theme="light"] .app-header-navigation.is-open .app-info-link {
+  border-color:rgba(37,99,235,.2);
+  background:linear-gradient(145deg,#fff,#f1f6ff);
+  color:#1e293b;
+  box-shadow:0 4px 12px rgba(15,23,42,.06);
+ }
  html[data-theme="light"] .app-header-language summary:hover,
  html[data-theme="light"] .app-header-language[open] summary,
  html[data-theme="light"] .app-info-link:hover,
@@ -2614,6 +2647,13 @@ html[data-theme="light"] .dashboard-support-close:focus-visible {
   border-color:rgba(37,99,235,.42);
   background:#eaf2ff;
  }
+ html[data-theme="light"] .app-header-navigation.is-open .app-info-link:hover,
+ html[data-theme="light"] .app-header-navigation.is-open .app-info-link:focus-visible {
+  color:#1d4ed8;
+  border-color:rgba(37,99,235,.42);
+  background:#eaf2ff;
+ }
+ html[data-theme="light"] .app-header-navigation.is-open .app-info-link>span { color:#2563eb; }
  html[data-theme="light"] .app-header-language summary>svg { stroke:#2563eb; }
  html[data-theme="light"] .app-header-language summary::after { border-color:#526174; }
  html[data-theme="light"] .app-header-language[open] summary::after { border-color:#1d4ed8; }
@@ -2701,6 +2741,9 @@ html[data-theme="light"] .dashboard-support-close:focus-visible {
   :root { --header-height:80px; }
   body { padding-bottom:0; }
   main { padding-bottom:48px!important; }
+  .app-header-language { display:none; }
+  .app-header-navigation .app-info-link { min-height:40px; padding:8px 10px; border-color:transparent; background:transparent; color:var(--text-muted); box-shadow:none; text-decoration:none; }
+  .app-header-navigation .app-info-link:hover,.app-header-navigation .app-info-link:focus-visible { border-color:rgba(148,163,184,.2); background:rgba(148,163,184,.07); color:var(--text-main); }
   .app-header { display:grid; grid-template-columns:minmax(180px,1fr) minmax(350px,520px) auto auto; align-items:center; gap:12px; padding-inline:18px; }
   .app-header > .gymleader-brand { grid-column:1; justify-self:start; }
   .app-header #bottom-nav { grid-column:2; grid-row:1; position:static; width:100%; max-width:none; min-width:0; height:64px; margin:0; padding:0 12px; border:0; background:transparent; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }

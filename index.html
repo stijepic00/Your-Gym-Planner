@@ -71,7 +71,7 @@
   <link rel="icon" type="image/png" sizes="512x512" href="assets/gymleader-icon.png?v=20261015-offline-cache-v158">
   <link rel="apple-touch-icon" sizes="512x512" href="assets/gymleader-icon.png?v=20261015-offline-cache-v158">
   <link rel="manifest" href="manifest.webmanifest?v=20261015-offline-cache-v158">
-  <link rel="stylesheet" href="styles.css?v=20261015-offline-cache-v158">
+  <link rel="stylesheet" href="styles.css?v=20261102-workout-order-v161">
 
 </head>
 <body class="app-navigation-shell">
@@ -286,10 +286,23 @@
     </section>
 
     <!-- ACTIVE WORKOUT -->
+    <dialog id="workout-order-modal" class="workout-order-modal" aria-labelledby="workout-order-title" aria-describedby="workout-order-help">
+      <div class="workout-order-heading">
+        <h2 id="workout-order-title">Redoslijed vježbi</h2>
+        <p id="workout-order-help">Izaberi novu poziciju. Promjena važi samo za ovaj trening.</p>
+      </div>
+      <ol id="workout-order-list" class="workout-order-list"></ol>
+      <div class="workout-order-actions">
+        <button type="button" class="btn btn-secondary" data-action="cancel-workout-order">Otkaži</button>
+        <button type="button" class="btn" data-action="save-workout-order">Sačuvaj</button>
+      </div>
+    </dialog>
+
     <section id="view-active-workout" class="view">
-      <div class="flex-between" style="margin-bottom: 10px;">
+      <div class="flex-between active-workout-heading" style="margin-bottom: 10px;">
         <h2 id="active-workout-title" data-no-translate style="font-size: 1.4rem; font-weight: 900;">Trening</h2>
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div class="active-workout-actions" style="display:flex; gap:8px; align-items:center;">
+          <button type="button" class="btn btn-secondary" style="width:auto; padding:8px 12px; font-size:0.8rem;" data-action="open-workout-order">Redoslijed vježbi</button>
           <button class="btn btn-secondary" style="width: auto; padding: 8px 12px; font-size: 0.8rem;" data-action="toggle-active-workout-edit-mode">✎ Uredi trening</button>
           <button class="btn btn-danger" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" data-action="cancel-workout">Prekini</button>
         </div>
@@ -732,7 +745,7 @@
     <p id="language-loading-text">Pripremamo aplikaciju za tebe.</p>
   </div>
 </div>
-<script type="module" src="javascript.js?v=20261015-workout-save-feedback-v3"></script>
+<script type="module" src="javascript.js?v=20261102-workout-order-v161"></script>
 </body>
 </html>
 
